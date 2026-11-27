@@ -1,6 +1,6 @@
 # index.template.html
 
-The page markup: the three panels (layout C, "hero ring"), the dialogs (equation popups, Method and checks, Sources, Components) and the numbered Sources list [1]–[14]. The CSS and JS are placed at `/*@CSS@*/` and `/*@JS@*/` by `build.py`.
+The page markup: the head, top bar and the three panels (layout C, "hero ring"). The dialogs live in `src/html/` and are placed at their `<!--@INCLUDE name@-->` lines; the CSS and JS at `/*@CSS@*/` and `/*@JS@*/` (all by `build.py`).
 
 ## Rules and pitfalls
 

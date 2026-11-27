@@ -4,4 +4,4 @@ Compares `pixVal`'s stepped fast path with direct evaluation of every sub-band a
 
 ## Rules and pitfalls
 
-- It hooks in by finding the end of `ui.js`; see `src/js/ui.md`.
+- It hooks in by finding the end of `ui-loop.js` (the last JS file); see `src/js/ui-loop.md`.
