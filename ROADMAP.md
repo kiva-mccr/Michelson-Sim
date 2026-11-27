@@ -10,7 +10,7 @@ Claude builds only the steps that Kiva has approved. To find a step, search for 
 - [x] MS-3: Speed up per-frame plotting and the CPU pixel loop (bit-identical outputs).
 - [x] MS-4: Step sub-band exponentials and phases in the CPU ring loop. Add the snapshot tests (`tests/snapshot.js`, `tests/compare_snapshots.py`, `tests/fastpath.js`).
 - [x] MS-5: Keep the project artifact updated on every change.
-- [x] MS-6: Follow Kiva's general preferences: this roadmap, `.claude/CHECKLIST.md`, a note beside each code file, and a Known gaps list in CLAUDE.md.
+- [x] MS-6: Follow Kiva's general preferences: this roadmap, `.claude/CHECKLIST.md`, a note beside each code file, a Known gaps list and the merge rule in CLAUDE.md.
 
 ## Next
 
@@ -35,6 +35,7 @@ Settled decisions. Ask Kiva before changing any of them.
 - Equations, notes, method and sources open as centred modal popups. The Components list is a non-modal popup at the bottom left.
 - GPU precision: the CPU computes `k_b·2d mod 2π` in float64, and the GPU uses square-root sin/cos and the `cosA` Taylor series instead of built-in trig.
 - The page ships as one dependency-free `index.html`, built from `src/` by `build.py`.
+- Claude merges its own PRs once its checks pass (Kiva, 2026-11-27).
 - Indent style and British or American spelling don't matter (Kiva, 2026-11-27).
 
 ### Shelved
