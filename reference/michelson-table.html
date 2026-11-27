@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Michelson Interferometer by Source Type</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@500;700&family=Red+Hat+Text:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+/* VOICE: a lab poster / lecture handout — precise, calm, every formula sourced.
+   IDEA: a physics lab poster where each panel builds on the one before it.
+   PICTURE: five interferograms as small multiples on one shared OPD scale, envelope in magenta.
+   COLOUR and TYPE: oxford blue band, white panels, magenta for the coherence envelope; Red Hat Display + Text.
+   LAYOUT: title band with the small multiples, summary table, then five numbered panels and sources. */
+:root{color-scheme:light dark;
+  --bg:light-dark(#ffffff,#070f26);--ink:light-dark(#141a2b,#e6e9f2);--mute:light-dark(#566079,#9aa3bb);
+  --band:#0b1f4b;--bandink:#f3f5fb;--panel:light-dark(#f4f6fb,#0e1836);--line:light-dark(#d9deea,#1f2b50);
+  --acc:#e0115f;--fr:light-dark(#0b1f4b,#9fb4ec);--fill:light-dark(#c9d4f0,#26407f)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html{scroll-padding-top:72px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16.5px/1.6 "Red Hat Text",system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3{font-family:"Red Hat Display",system-ui,sans-serif;line-height:1.1;text-wrap:balance;margin:0}
+h1{font-size:clamp(30px,4.4vw,48px);font-weight:700}
+h2{font-size:clamp(24px,3vw,34px);font-weight:700;margin-bottom:10px}
+h3{font-size:19px;font-weight:700;margin:26px 0 6px}
+p{max-width:72ch;margin:10px 0}
+a{color:inherit;text-decoration-color:var(--acc);text-underline-offset:3px}
+.band{padding:clamp(28px,4vw,60px) max(5vw,16px)}
+.wrap{max-width:1240px;margin:0 auto}
+.hero{background:var(--band);color:var(--bandink)}
+.hero .wrap{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(20px,4vw,56px);align-items:center}
+.hero p{color:#c8d0e6}
+.legend{font-size:14px;color:#c8d0e6;display:flex;gap:18px;flex-wrap:wrap;margin-top:14px}
+.legend i{display:inline-block;width:22px;height:3px;vertical-align:middle;margin-right:6px}
+.multiples{display:grid;gap:6px}
+.mrow{display:grid;grid-template-columns:7.2em minmax(0,1fr);align-items:center;gap:10px;font-size:14px}
+.mrow a{color:#e6eafa;text-decoration:none}
+.mfig{position:relative;height:58px}
+.fig{position:relative;min-height:220px}
+.fig>svg,.mfig>svg{position:absolute;inset:0;width:100%;height:100%}
+nav.scroll{display:flex;gap:6px 18px;flex-wrap:nowrap;overflow-x:auto;padding:12px max(5vw,16px);border-bottom:1px solid var(--line);background:var(--bg);font-size:15px}
+nav.scroll a{flex:none;text-decoration:none;color:var(--mute)}nav.scroll a:hover{color:var(--ink)}
+@media(min-width:900px){nav.scroll{position:sticky;top:0;z-index:5}}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+.sum{min-width:1120px;font-size:15px}
+.sum th,.sum td{border-bottom:1px solid var(--line);padding:12px 10px;text-align:left;vertical-align:middle}
+.sum thead th{font-family:"Red Hat Display";font-size:14px;color:var(--mute);font-weight:500;border-bottom:2px solid var(--ink)}
+.sum tbody th{font-family:"Red Hat Display";font-weight:700;white-space:nowrap}
+.sum tbody th a{text-decoration:none}
+sup a{text-decoration:none;color:var(--acc);font-size:12px;font-weight:500}
+.tag{font-size:12px;color:var(--mute);border:1px solid var(--line);border-radius:4px;padding:0 5px;white-space:nowrap}
+.note{font-size:14px;color:var(--mute)}
+.panel{background:var(--panel);border-top:1px solid var(--line)}
+.panel:nth-of-type(even){background:var(--bg)}
+.num{font-family:"Red Hat Display";color:var(--acc);font-weight:700;font-size:15px;display:block;margin-bottom:6px}
+.builds{font-size:15px;color:var(--mute);border-left:3px solid var(--acc);padding:4px 0 4px 12px;margin:12px 0 18px;max-width:72ch}
+.figs{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:18px;margin:18px 0 6px}
+.figs figure{margin:0}.figs figcaption{font-size:14px;color:var(--mute);margin-top:4px}
+.eq{overflow-x:auto;overflow-y:hidden;padding:2px 0}
+.grid5{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:4px 36px}
+ol.src{padding-left:1.4em;max-width:90ch}ol.src li{margin:8px 0}
+code{overflow-wrap:anywhere}
+@media(max-width:820px){.hero .wrap{grid-template-columns:minmax(0,1fr)}.figs{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){table{font-size:13px}}
+</style>
+<script>
+window.MathJax={tex:{inlineMath:[['$','$']],displayMath:[['$$','$$']]},svg:{fontCache:'global'}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" async></script>
+</head>
+<body>
+
+<header class="band hero"><div class="wrap">
+  <div>
+    <h1>Michelson interferometer: from one line $\sigma_0$ to any spectrum $S(\sigma)$</h1>
+    <p>Every result here comes from one building block. A single wavenumber leaves the interferometer as $\tfrac12\left[1+\cos(2\pi\sigma\delta)\right]$ times its input. Each row adds one idea to the row before it. The last row is the general Fourier-transform result, and it contains all four rows above it.</p>
+    <div class="legend"><span><i style="background:#9fb4ec"></i>Detector signal $I(\delta)$</span><span><i style="background:var(--acc)"></i>Envelope $\tfrac12\left[1\pm|\gamma(\delta)|\right]$</span></div>
+  </div>
+  <div class="multiples" id="mult"></div>
+</div></header>
+
+<nav class="scroll">
+  <a href="#notation">Notation</a><a href="#summary">Summary table</a><a href="#r1">1 · Single $\lambda$</a><a href="#r2">2 · $N$ wavelengths</a><a href="#r3">3 · Gaussian</a><a href="#r4">4 · $N$ Gaussians</a><a href="#r5">5 · Arbitrary $S(\sigma)$</a><a href="#sources">Sources</a>
+</nav>
+
+<section class="band" id="notation"><div class="wrap">
+  <h2>Notation and the building block</h2>
+  <div class="grid5">
+  <div>
+  <p>$\sigma = 1/\lambda$ is wavenumber. $\delta$ is the optical path difference (OPD). Arms of lengths $L_1$ and $L_2$ give $\delta = 2(L_2-L_1)$ on axis. A ray at angle $\theta$ to the axis, with mirror separation $d$, sees $\delta = 2d\cos\theta$.<sup><a href="#s1">[1]</a></sup></p>
+  <p>The beamsplitter is a lossless 50:50 splitter and both arms reflect equally, so fringe visibility depends only on the spectrum. $\delta_D$ is the Dirac delta. $I_n$ is the power in line or band $n$, and $I_{\rm tot}=\sum_n I_n$. Gaussians use the $1/e$ half-width $w = \Delta\sigma/(2\sqrt{\ln 2})$, where $\Delta\sigma$ is the FWHM. For a narrow band, $\Delta\sigma \approx \Delta\lambda/\lambda_0^2$.</p>
+  </div>
+  <div>
+  <p>Each pass through the splitter multiplies the field by $1/\sqrt2$, so each arm returns with amplitude $\tfrac12$:</p>
+  <div class="eq">$$E_{\rm out}=\tfrac12E_0\left(e^{i4\pi\sigma L_1}+e^{i4\pi\sigma L_2}\right)\;\Rightarrow\;I_{\rm out}(\sigma,\delta)=\frac{I_0}{2}\left[1+\cos(2\pi\sigma\delta)\right]$$</div>
+  <p>This is the textbook two-beam result.<sup><a href="#s2">[2]</a></sup> Read it per wavenumber and it is a transfer function, $T(\sigma,\delta)=\tfrac12[1+\cos(2\pi\sigma\delta)]$.<sup><a href="#s3">[3]</a></sup> All five columns below follow from it:</p>
+  <p class="note">Interference pattern $I(\theta)$ = signal vs. ring angle at fixed $d$. Interferogram $I(\delta)$ = signal vs. mirror scan. Un-interfered spectrum $S(\sigma)$ = source. Interfered spectrum $S_{\rm out}(\sigma;\delta)=S(\sigma)\,T(\sigma,\delta)$. Coherence length $l_c$ = OPD over which the fringes wash out.</p>
+  </div>
+  </div>
+</div></section>
+
+<section class="band" id="summary" style="padding-top:0"><div class="wrap">
+  <h2>Summary table</h2>
+  <p class="note">Bracketed numbers point to the sources at the bottom. A <span class="tag">derived</span> tag means the formula comes from putting that row's spectrum into a sourced general formula. Each numbered section below shows the steps.</p>
+  <div class="scroll">
+  <table class="sum">
+    <thead><tr><th></th><th>Interference pattern $I(\theta)$</th><th>Interferogram $I(\delta)$</th><th>Un-interfered spectrum $S(\sigma)$</th><th>Interfered spectrum $S_{\rm out}(\sigma;\delta)$</th><th>Coherence length $l_c$</th></tr></thead>
+    <tbody>
+      <tr><th><a href="#r1">Single $\lambda_0$</a></th>
+        <td>$\tfrac{I_0}{2}\left[1+\cos(4\pi\sigma_0 d\cos\theta)\right]$ <sup><a href="#s1">[1]</a><a href="#s2">[2]</a></sup></td>
+        <td>$\tfrac{I_0}{2}\left[1+\cos(2\pi\sigma_0\delta)\right]$ <sup><a href="#s2">[2]</a></sup></td>
+        <td>$I_0\,\delta_D(\sigma-\sigma_0)$</td>
+        <td>$\tfrac{I_0}{2}\left[1+\cos(2\pi\sigma_0\delta)\right]\delta_D(\sigma-\sigma_0)$ <sup><a href="#s3">[3]</a></sup></td>
+        <td>$\infty$ &nbsp;($|\gamma|=1$ for all $\delta$)</td></tr>
+      <tr><th><a href="#r2">Sum of $N$ wavelengths</a></th>
+        <td>$\sum_n\tfrac{I_n}{2}\left[1+\cos(4\pi\sigma_n d\cos\theta)\right]$ <span class="tag">derived</span></td>
+        <td>$\sum_n\tfrac{I_n}{2}\left[1+\cos(2\pi\sigma_n\delta)\right]$ <sup><a href="#s5">[5]</a></sup></td>
+        <td>$\sum_n I_n\,\delta_D(\sigma-\sigma_n)$</td>
+        <td>$\sum_n\tfrac{I_n}{2}\left[1+\cos(2\pi\sigma_n\delta)\right]\delta_D(\sigma-\sigma_n)$ <sup><a href="#s3">[3]</a></sup></td>
+        <td>2 equal lines: $\dfrac{\lambda^2}{2\Delta\lambda}$ (first null) <sup><a href="#s6">[6]</a></sup><br>$N$-line comb: $\dfrac{\lambda^2}{N\Delta\lambda_s}$ <span class="tag">derived</span></td></tr>
+      <tr><th><a href="#r3">Gaussian</a></th>
+        <td>$\tfrac{I_0}{2}\left[1+e^{-(2\pi w d\cos\theta)^2}\cos(4\pi\sigma_0 d\cos\theta)\right]$ <span class="tag">derived</span></td>
+        <td>$\tfrac{I_0}{2}\left[1+e^{-(\pi w\delta)^2}\cos(2\pi\sigma_0\delta)\right]$ <sup><a href="#s4">[4]</a><a href="#s7">[7]</a></sup></td>
+        <td>$\dfrac{I_0}{\sqrt\pi\,w}\,e^{-(\sigma-\sigma_0)^2/w^2}$ <sup><a href="#s7">[7]</a></sup></td>
+        <td>$S(\sigma)\,\tfrac12\left[1+\cos(2\pi\sigma\delta)\right]$ <sup><a href="#s3">[3]</a></sup></td>
+        <td>$\dfrac{2\ln 2}{\pi}\dfrac{\lambda_0^2}{\Delta\lambda}$ (HWHM) <sup><a href="#s8">[8]</a></sup></td></tr>
+      <tr><th><a href="#r4">Sum of $N$ Gaussians</a></th>
+        <td>Interferogram with $\delta\to 2d\cos\theta$ <span class="tag">derived</span></td>
+        <td>$\tfrac{I_{\rm tot}}{2}+\tfrac12\sum_n I_n\,e^{-(\pi w_n\delta)^2}\cos(2\pi\sigma_n\delta)$ <sup><a href="#s9">[9]</a></sup></td>
+        <td>$\sum_n\dfrac{I_n}{\sqrt\pi\,w_n}\,e^{-(\sigma-\sigma_n)^2/w_n^2}$</td>
+        <td>$S(\sigma)\,\tfrac12\left[1+\cos(2\pi\sigma\delta)\right]$ <sup><a href="#s3">[3]</a></sup></td>
+        <td>$\dfrac{1}{I_{\rm tot}^2}\sum_{m,n}\dfrac{I_mI_n\,e^{-(\sigma_m-\sigma_n)^2/(w_m^2+w_n^2)}}{\sqrt{\pi\,(w_m^2+w_n^2)}}$ <span class="tag">derived</span></td></tr>
+      <tr><th><a href="#r5">Arbitrary $S(\sigma)$</a></th>
+        <td>$\tfrac12\int_0^\infty S(\sigma)\left[1+\cos(4\pi\sigma d\cos\theta)\right]d\sigma$ <span class="tag">derived</span></td>
+        <td>$\tfrac12\int_0^\infty S(\sigma)\left[1+\cos(2\pi\sigma\delta)\right]d\sigma$ <sup><a href="#s4">[4]</a></sup></td>
+        <td>$S(\sigma)$</td>
+        <td>$S(\sigma)\,\tfrac12\left[1+\cos(2\pi\sigma\delta)\right]$ <sup><a href="#s3">[3]</a></sup></td>
+        <td>$\displaystyle\int|\gamma|^2d\delta=\frac{\int S^2\,d\sigma}{\left(\int S\,d\sigma\right)^2}$ <sup><a href="#s11">[11]</a></sup></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Coherence-length definitions differ by a constant. Row 3 gives the half width at half maximum (HWHM) of $|\gamma|$. Rows 4–5 use Mandel's $\int|\gamma|^2\,d\delta$.<sup><a href="#s11">[11]</a></sup> For a Gaussian, Mandel's definition gives $\sqrt{2\ln2/\pi}\,\lambda_0^2/\Delta\lambda\approx0.664\,\lambda_0^2/\Delta\lambda$, compared with $0.441\,\lambda_0^2/\Delta\lambda$ for the HWHM. Pick one definition and use it throughout.</p>
+</div></section>
+
+<section class="band panel" id="r1"><div class="wrap">
+  <span class="num">Row 1</span>
+  <h2>Single wavelength $\lambda_0 = 1/\sigma_0$</h2>
+  <div class="builds">Starting point: the building block applied to a spectrum that contains only $\sigma_0$.</div>
+  <div class="figs">
+    <figure><div class="fig" data-row="0" data-kind="spec"></div><figcaption>$S(\sigma)$: one line at $\sigma_0=1.6\ \mu\text{m}^{-1}$ ($\lambda_0=625$ nm)</figcaption></figure>
+    <figure><div class="fig" data-row="0" data-kind="ifg"></div><figcaption>$I(\delta)/I_{\rm tot}$ over $\pm25\ \mu$m: the envelope stays at 0 and 1</figcaption></figure>
+  </div>
+  <div class="grid5">
+  <div>
+  <h3>Un-interfered spectrum</h3>
+  <div class="eq">$$S(\sigma)=I_0\,\delta_D(\sigma-\sigma_0)$$</div>
+  <h3>Interferogram</h3>
+  <div class="eq">$$I(\delta)=\frac{I_0}{2}\left[1+\cos\!\left(\frac{2\pi\delta}{\lambda_0}\right)\right]$$</div>
+  <p>This is the Le Mans two-beam result.<sup><a href="#s2">[2]</a></sup> One fringe passes for every $\lambda_0/2$ of mirror travel.</p>
+  <h3>Interference pattern (rings)</h3>
+  <div class="eq">$$I(\theta)=\frac{I_0}{2}\left[1+\cos\!\left(\frac{4\pi d\cos\theta}{\lambda_0}\right)\right],\qquad \text{bright rings at } 2d\cos\theta_m=m\lambda_0$$</div>
+  <p>The geometry follows from the two virtual sources $2d$ apart.<sup><a href="#s1">[1]</a></sup> Some treatments add a $\pi$ shift for the external reflection, which swaps bright and dark rings.</p>
+  </div>
+  <div>
+  <h3>Interfered spectrum</h3>
+  <div class="eq">$$S_{\rm out}(\sigma;\delta)=S(\sigma)\,\tfrac12\left[1+\cos(2\pi\sigma\delta)\right]=\frac{I_0}{2}\left[1+\cos(2\pi\sigma_0\delta)\right]\delta_D(\sigma-\sigma_0)$$</div>
+  <p>The per-wavenumber transmission is $A(\delta,\sigma)\propto 1+\cos(2\pi\delta\sigma)$.<sup><a href="#s3">[3]</a></sup> Integrating the interfered spectrum over $\sigma$ gives back the interferogram, $\int S_{\rm out}\,d\sigma = I(\delta)$. That identity links columns 2 and 4 in every row.</p>
+  <h3>Coherence length</h3>
+  <div class="eq">$$\gamma(\delta)=e^{i2\pi\sigma_0\delta},\qquad V(\delta)=|\gamma(\delta)|=1\ \ \forall\,\delta\;\Rightarrow\; l_c=\infty$$</div>
+  <p class="note">An ideal monochromatic line never loses contrast. A real laser has a finite linewidth $\Delta\nu$, so $l_c\sim c/\Delta\nu$. Row 3 makes that precise.</p>
+  </div>
+  </div>
+</div></section>
+
+<section class="band panel" id="r2"><div class="wrap">
+  <span class="num">Row 2</span>
+  <h2>Sum of $N$ wavelengths $\{\sigma_n, I_n\}$</h2>
+  <div class="builds">Builds on Row 1: lines at different frequencies have no stationary cross term, so their intensities add.<sup><a href="#s5">[5]</a></sup> Each line contributes its own Row 1 interferogram. This row also introduces $\gamma(\delta)$, the complex degree of coherence.</div>
+  <div class="figs">
+    <figure><div class="fig" data-row="1" data-kind="spec"></div><figcaption>Three equal lines, comb spacing $\Delta\sigma_s=0.05\ \mu\text{m}^{-1}$</figcaption></figure>
+    <figure><div class="fig" data-row="1" data-kind="ifg"></div><figcaption>The contrast collapses, then revives every $1/\Delta\sigma_s=20\ \mu$m of OPD</figcaption></figure>
+  </div>
+  <div class="grid5">
+  <div>
+  <h3>Un-interfered spectrum</h3>
+  <div class="eq">$$S(\sigma)=\sum_{n=1}^{N} I_n\,\delta_D(\sigma-\sigma_n)$$</div>
+  <h3>Interferogram</h3>
+  <div class="eq">$$I(\delta)=\sum_{n=1}^{N}\frac{I_n}{2}\left[1+\cos(2\pi\sigma_n\delta)\right]=\frac{I_{\rm tot}}{2}\Big[1+\operatorname{Re}\gamma(\delta)\Big],\qquad \gamma(\delta)=\frac{1}{I_{\rm tot}}\sum_n I_n e^{i2\pi\sigma_n\delta}$$</div>
+  <p>The first form is the sum of single-line intensities.<sup><a href="#s5">[5]</a></sup> The $\gamma$ form is a rewrite <span class="tag">derived</span>.</p>
+  <h3>Interference pattern</h3>
+  <div class="eq">$$I(\theta)=\sum_n\frac{I_n}{2}\left[1+\cos(4\pi\sigma_n d\cos\theta)\right]$$</div>
+  <p class="note">Row 1's ring formula, summed over the lines <span class="tag">derived</span>.</p>
+  <h3>Interfered spectrum</h3>
+  <div class="eq">$$S_{\rm out}(\sigma;\delta)=\sum_n\frac{I_n}{2}\left[1+\cos(2\pi\sigma_n\delta)\right]\delta_D(\sigma-\sigma_n)$$</div>
+  <p class="note">Each line is scaled by the same transfer function $T(\sigma_n,\delta)$.<sup><a href="#s3">[3]</a></sup></p>
+  </div>
+  <div>
+  <h3>Visibility and coherence length</h3>
+  <div class="eq">$$V(\delta)=|\gamma(\delta)|=\frac{\left|\sum_n I_n e^{i2\pi\sigma_n\delta}\right|}{\sum_n I_n}$$</div>
+  <p><b>Two lines</b> $\sigma_{1,2}$ with $\Delta\sigma=|\sigma_1-\sigma_2|$:</p>
+  <div class="eq">$$V=\frac{\sqrt{I_1^2+I_2^2+2I_1I_2\cos(2\pi\Delta\sigma\,\delta)}}{I_1+I_2}\;\xrightarrow{I_1=I_2}\;\left|\cos(\pi\Delta\sigma\,\delta)\right|$$</div>
+  <p>The fringes vanish first at $\delta=\lambda^2/(2\Delta\lambda)$ and revive with beat period $\lambda^2/\Delta\lambda$. This is the sodium-doublet beat experiment.<sup><a href="#s6">[6]</a></sup> For Na D, $\lambda=589.3$ nm and $\Delta\lambda=0.597$ nm, so the beat period is $\approx0.58$ mm of OPD, or $0.29$ mm of mirror travel.</p>
+  <p><b>$N$ equal lines, evenly spaced by $\Delta\sigma_s$</b> (a geometric series <span class="tag">derived</span>):</p>
+  <div class="eq">$$V(\delta)=\left|\frac{\sin(N\pi\Delta\sigma_s\delta)}{N\sin(\pi\Delta\sigma_s\delta)}\right|,\qquad l_c\approx\frac{1}{N\Delta\sigma_s}=\frac{\lambda^2}{N\Delta\lambda_s},\quad\text{revivals every }\frac{\lambda^2}{\Delta\lambda_s}$$</div>
+  <p class="note">Discrete lines never lose coherence for good. $|\gamma|$ keeps reviving, so Mandel's integral $\int|\gamma|^2d\delta$ diverges, as it does in Row 1. That is why this row uses the first null as its coherence length.</p>
+  </div>
+  </div>
+</div></section>
+
+<section class="band panel" id="r3"><div class="wrap">
+  <span class="num">Row 3</span>
+  <h2>Gaussian spectrum $S(\sigma)\propto e^{-(\sigma-\sigma_0)^2/w^2}$</h2>
+  <div class="builds">Builds on Row 2: let the lines merge into a continuum, $\sum_n I_n\,\delta_D(\sigma-\sigma_n)\to S(\sigma)$, so the sum becomes an integral. The revivals from Row 2 disappear, and $|\gamma|$ now decays for good.</div>
+  <div class="figs">
+    <figure><div class="fig" data-row="2" data-kind="spec"></div><figcaption>$\sigma_0=1.6\ \mu\text{m}^{-1}$, FWHM $\Delta\sigma=0.2\ \mu\text{m}^{-1}$</figcaption></figure>
+    <figure><div class="fig" data-row="2" data-kind="ifg"></div><figcaption>A single wavepacket. $|\gamma|$ falls to ½ at $\delta=2\ln2/(\pi\Delta\sigma)\approx2.2\ \mu$m</figcaption></figure>
+  </div>
+  <div class="grid5">
+  <div>
+  <h3>Un-interfered spectrum</h3>
+  <div class="eq">$$S(\sigma)=\frac{I_0}{\sqrt\pi\,w}\exp\!\left[-\frac{(\sigma-\sigma_0)^2}{w^2}\right],\qquad w=\frac{\Delta\sigma}{2\sqrt{\ln2}},\quad\int S\,d\sigma=I_0$$</div>
+  <p>The same normalized form appears as $S(k)=\frac{1}{\Delta k\sqrt\pi}e^{-[(k-k_0)/\Delta k]^2}$.<sup><a href="#s7">[7]</a></sup></p>
+  <h3>Interferogram</h3>
+  <div class="eq">$$\gamma(\delta)=\frac{1}{I_0}\int S(\sigma)\,e^{i2\pi\sigma\delta}d\sigma=e^{-(\pi w\delta)^2}\,e^{i2\pi\sigma_0\delta}$$</div>
+  <div class="eq">$$I(\delta)=\frac{I_0}{2}\left[1+e^{-(\pi w\delta)^2}\cos(2\pi\sigma_0\delta)\right]=\frac{I_0}{2}\left[1+\exp\!\left(-\frac{\pi^2\Delta\sigma^2\delta^2}{4\ln2}\right)\cos(2\pi\sigma_0\delta)\right]$$</div>
+  <p>The Fourier transform of a Gaussian is a Gaussian.<sup><a href="#s7">[7]</a></sup> The cosine-transform relation between spectrum and interferogram is the Toronto FTS result.<sup><a href="#s4">[4]</a></sup></p>
+  </div>
+  <div>
+  <h3>Interference pattern</h3>
+  <div class="eq">$$I(\theta)=\frac{I_0}{2}\left[1+e^{-(2\pi w d\cos\theta)^2}\cos(4\pi\sigma_0 d\cos\theta)\right]$$</div>
+  <p class="note">The interferogram with $\delta\to2d\cos\theta$ <span class="tag">derived</span>. Rings are visible only while $2d\lesssim l_c$.</p>
+  <h3>Interfered spectrum</h3>
+  <div class="eq">$$S_{\rm out}(\sigma;\delta)=\frac{I_0}{2\sqrt\pi\,w}\,e^{-(\sigma-\sigma_0)^2/w^2}\left[1+\cos(2\pi\sigma\delta)\right]$$</div>
+  <p class="note">A Gaussian with channel fringes across it, spaced $1/\delta$ apart in $\sigma$.<sup><a href="#s3">[3]</a></sup></p>
+  <h3>Coherence length</h3>
+  <div class="eq">$$l_c=\frac{2\ln2}{\pi}\,\frac{\lambda_0^2}{\Delta\lambda}\approx0.441\,\frac{\lambda_0^2}{\Delta\lambda}\quad(\text{HWHM of }|\gamma|)$$</div>
+  <p>Laser Focus World gives this formula and defines it as the HWHM of the coherence function.<sup><a href="#s8">[8]</a></sup> Example: an 840 nm source with 50 nm FWHM gives $l_c\approx6.2\ \mu$m. Mandel's definition gives $\int|\gamma|^2d\delta=1/(\sqrt{2\pi}\,w)\approx0.664\,\lambda_0^2/\Delta\lambda$ <span class="tag">derived</span>.</p>
+  </div>
+  </div>
+</div></section>
+
+<section class="band panel" id="r4"><div class="wrap">
+  <span class="num">Row 4</span>
+  <h2>Sum of $N$ Gaussians $\sum_n G_n(\sigma;\sigma_n,w_n)$</h2>
+  <div class="builds">Builds on Rows 2 and 3: use Row 2's sum, but make each term one of Row 3's Gaussians. Each band brings its own Gaussian envelope and carrier. The beats between bands come back as side lobes.</div>
+  <div class="figs">
+    <figure><div class="fig" data-row="3" data-kind="spec"></div><figcaption>Two bands at $1.50$ and $1.72\ \mu\text{m}^{-1}$, each with FWHM $0.08$, power ratio $1:0.7$</figcaption></figure>
+    <figure><div class="fig" data-row="3" data-kind="ifg"></div><figcaption>Side lobes every $1/|\sigma_1-\sigma_2|\approx4.5\ \mu$m, damped by the band envelope</figcaption></figure>
+  </div>
+  <div class="grid5">
+  <div>
+  <h3>Un-interfered spectrum</h3>
+  <div class="eq">$$S(\sigma)=\sum_{n=1}^{N}\frac{I_n}{\sqrt\pi\,w_n}\exp\!\left[-\frac{(\sigma-\sigma_n)^2}{w_n^2}\right]$$</div>
+  <h3>Interferogram</h3>
+  <div class="eq">$$I(\delta)=\frac{I_{\rm tot}}{2}+\frac12\sum_n I_n\,e^{-(\pi w_n\delta)^2}\cos(2\pi\sigma_n\delta),\qquad \gamma(\delta)=\frac{1}{I_{\rm tot}}\sum_n I_n\,e^{-(\pi w_n\delta)^2}e^{i2\pi\sigma_n\delta}$$</div>
+  <p>US 7,732,784, Eq. 33, writes the combined-source signal as a superposition of Gaussian envelopes times cosine carriers, one term per source.<sup><a href="#s9">[9]</a></sup></p>
+  <h3>Interference pattern</h3>
+  <div class="eq">$$I(\theta)=\frac{I_{\rm tot}}{2}+\frac12\sum_n I_n\,e^{-(2\pi w_n d\cos\theta)^2}\cos(4\pi\sigma_n d\cos\theta)$$</div>
+  <p class="note"><span class="tag">derived</span> by substituting $\delta=2d\cos\theta$.</p>
+  </div>
+  <div>
+  <h3>Interfered spectrum</h3>
+  <div class="eq">$$S_{\rm out}(\sigma;\delta)=\tfrac12\left[1+\cos(2\pi\sigma\delta)\right]\sum_n\frac{I_n}{\sqrt\pi\,w_n}e^{-(\sigma-\sigma_n)^2/w_n^2}$$</div>
+  <h3>Visibility and coherence length</h3>
+  <p>Two equal bands of equal width $w$:</p>
+  <div class="eq">$$|\gamma(\delta)|=e^{-(\pi w\delta)^2}\left|\cos(\pi\Delta\sigma_{12}\delta)\right|$$</div>
+  <p>This is Row 2's beat multiplied by Row 3's envelope. Jansz et al. found that multi-Gaussian sources raise the side lobes in the coherence function, while a pure Gaussian has none.<sup><a href="#s10">[10]</a></sup> In general the HWHM has no closed form; solve $|\gamma(\delta)|=\tfrac12$ numerically. Mandel's integral does have a closed form:</p>
+  <div class="eq">$$l_c=\int_{-\infty}^{\infty}|\gamma|^2d\delta=\frac{1}{I_{\rm tot}^2}\sum_{m,n}\frac{I_mI_n}{\sqrt{\pi\,(w_m^2+w_n^2)}}\exp\!\left[-\frac{(\sigma_m-\sigma_n)^2}{w_m^2+w_n^2}\right]$$</div>
+  <p class="note"><span class="tag">derived</span> from Mandel's definition<sup><a href="#s11">[11]</a></sup> using $\int e^{-a\delta^2}\cos(b\delta)\,d\delta=\sqrt{\pi/a}\,e^{-b^2/4a}$. With $N=1$ it reduces to Row 3's $1/(\sqrt{2\pi}\,w)$. Each single band also has its own Row 3 length, $l_{c,n}=(2\ln2/\pi)\,\lambda_n^2/\Delta\lambda_n$.</p>
+  </div>
+  </div>
+</div></section>
+
+<section class="band panel" id="r5"><div class="wrap">
+  <span class="num">Row 5</span>
+  <h2>Arbitrary spectrum $S(\sigma)$: the Wiener–Khinchin form</h2>
+  <div class="builds">Builds on everything above: drop every assumption about the shape of $S(\sigma)$. Rows 1–4 are this row with a specific $S$ plugged in.</div>
+  <div class="figs">
+    <figure><div class="fig" data-row="4" data-kind="spec"></div><figcaption>An example of an arbitrary shape: a sloped, flat-topped band with a weak side line</figcaption></figure>
+    <figure><div class="fig" data-row="4" data-kind="ifg"></div><figcaption>The interferogram is computed numerically from the integral below</figcaption></figure>
+  </div>
+  <div class="grid5">
+  <div>
+  <h3>Interferogram and its inverse</h3>
+  <div class="eq">$$I(\delta)=\frac12\int_0^\infty S(\sigma)\left[1+\cos(2\pi\sigma\delta)\right]d\sigma=\frac{I_{\rm tot}}{2}\Big[1+\operatorname{Re}\gamma(\delta)\Big]$$</div>
+  <div class="eq">$$I_R(\delta)=\int_0^\infty B(\sigma)\cos(2\pi\sigma\delta)\,d\sigma\quad\Longleftrightarrow\quad B(\sigma)=\int_0^\infty I_R(\delta)\cos(2\pi\sigma\delta)\,d\delta$$</div>
+  <p>The Toronto FTS lab (Eqs. 15–16) shows that, up to a constant, the spectrum is the cosine Fourier transform of the interferogram.<sup><a href="#s4">[4]</a></sup> Here $I_R$ is the oscillating part $I(\delta)-I_{\rm tot}/2$.</p>
+  <h3>Complex degree of coherence (Wiener–Khinchin)</h3>
+  <div class="eq">$$\gamma(\delta)=\frac{\int_0^\infty S(\sigma)\,e^{i2\pi\sigma\delta}\,d\sigma}{\int_0^\infty S(\sigma)\,d\sigma},\qquad V(\delta)=|\gamma(\delta)|$$</div>
+  <p>The Michelson measures the field autocorrelation, and the Wiener–Khinchin theorem turns that into the power spectrum.<sup><a href="#s12">[12]</a></sup></p>
+  <h3>Interference pattern</h3>
+  <div class="eq">$$I(\theta)=\frac12\int_0^\infty S(\sigma)\left[1+\cos(4\pi\sigma d\cos\theta)\right]d\sigma$$</div>
+  </div>
+  <div>
+  <h3>Interfered spectrum</h3>
+  <div class="eq">$$S_{\rm out}(\sigma;\delta)=S(\sigma)\,\tfrac12\left[1+\cos(2\pi\sigma\delta)\right],\qquad \int_0^\infty S_{\rm out}\,d\sigma=I(\delta)$$</div>
+  <p>The output spectrum is channeled, and the fringe density grows with the OPD. Spectral-domain OCT reads $\delta$ from this.<sup><a href="#s3">[3]</a></sup></p>
+  <h3>Coherence length</h3>
+  <div class="eq">$$l_c=\int_{-\infty}^{\infty}|\gamma(\delta)|^2\,d\delta=\frac{\int_0^\infty S^2(\sigma)\,d\sigma}{\left(\int_0^\infty S(\sigma)\,d\sigma\right)^2}$$</div>
+  <p>The left side is Mandel's coherence time, $\tau_c=\int|\gamma(t)|^2dt$, times $c$.<sup><a href="#s11">[11]</a></sup> The right side follows from Parseval's theorem <span class="tag">derived</span>. A broader or flatter spectrum gives a shorter $l_c$.</p>
+  <h3>How the earlier rows drop out</h3>
+  <table class="sum" style="min-width:0">
+    <thead><tr><th>Choose $S(\sigma)$</th><th>Get $\gamma(\delta)$</th></tr></thead>
+    <tbody>
+      <tr><td>$I_0\,\delta_D(\sigma-\sigma_0)$</td><td>$e^{i2\pi\sigma_0\delta}$ (Row 1)</td></tr>
+      <tr><td>$\sum_n I_n\,\delta_D(\sigma-\sigma_n)$</td><td>$\sum_n I_n e^{i2\pi\sigma_n\delta}/I_{\rm tot}$ (Row 2)</td></tr>
+      <tr><td>Gaussian $(\sigma_0,w)$</td><td>$e^{-(\pi w\delta)^2}e^{i2\pi\sigma_0\delta}$ (Row 3)</td></tr>
+      <tr><td>$\sum_n$ Gaussians</td><td>$\sum_n I_n e^{-(\pi w_n\delta)^2}e^{i2\pi\sigma_n\delta}/I_{\rm tot}$ (Row 4)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  </div>
+</div></section>
+
+<section class="band" id="sources"><div class="wrap">
+  <h2>Sources</h2>
+  <ol class="src">
+    <li id="s1">University of Toronto, PHY224/324 lab notes, <a href="https://www.physics.utoronto.ca/~phy224_324/experiments/interferometers/INTERFER.pdf">"Interferometers"</a>: the two virtual sources sit $2d$ apart, so the path difference is $2d\cos\theta$. Also <a href="https://wp.optics.arizona.edu/jcwyant/wp-content/uploads/sites/13/2016/08/Session-4.pdf">J. C. Wyant, Optics 505, Session 4</a> (Haidinger fringes, $2d\cos\theta=m\lambda$).</li>
+    <li id="s2">Le Mans Université, <a href="https://perso.univ-lemans.fr/~fvaret/opi/cours_maj/OPI_ang_M02_C04_web_gen_auroraW/co/Exercice04.html">optics course exercise</a>: $I=\tfrac{I_0}{2}\left(1+\cos\frac{2\pi\delta}{\lambda}\right)$.</li>
+    <li id="s3">arXiv:2410.21586, <a href="https://arxiv.org/pdf/2410.21586">"Multiple-beam Interference Spectroscopy"</a>, Eq. 2: $A(\delta,\sigma)=2\mathcal T(\sigma)\left(1+\cos(2\pi\delta\sigma)\right)$ for the Michelson (different normalization). Channeled output spectrum: <a href="https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/11690516">US 11,690,516</a>.</li>
+    <li id="s4">University of Toronto, <a href="https://www.physics.utoronto.ca/~phy326/fts/fts2006.pdf">"Fourier Transform Spectroscopy"</a> lab, Eqs. 15–16: $I_R(\delta)=\int B(\sigma)\cos(2\pi\sigma\delta)\,d\sigma$ and its inverse.</li>
+    <li id="s5">Michelson interferometer lab report (<a href="https://www.slideshare.net/slideshow/milab/49643520">SlideShare, 2015</a>): dichromatic intensity as the sum of the two single-wavelength terms. Additive multi-wavelength interferograms: <a href="https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/12174070">US 12,174,070</a>.</li>
+    <li id="s6">University of Maryland, <a href="https://www.physics.umd.edu/courses/Phys375/Anlage_Fall09/Lab4MichelsonRevF09.pdf">Phys 375 Lab 4</a> (two-frequency beat signal); Michigan State, <a href="https://web.pa.msu.edu/courses/2009fall/PHY431/PostLabs/Lab5.pdf">PHY 431 Lab 5</a> (sodium beat pattern).</li>
+    <li id="s7">arXiv:2002.08755, <a href="https://arxiv.org/pdf/2002.08755">swept-source OCT dissertation</a>, Eqs. 1.9–1.10: Gaussian $S(k)$ and $\gamma(z)=e^{-z^2\Delta k^2}$.</li>
+    <li id="s8">M. Duelk, <a href="https://www.laserfocusworld.com/detectors-imaging/article/16547070/diagnostics-optical-coherence-tomography-light-source-calibration-for-accurate-depth-readings-from-fd-oct">Laser Focus World</a>: $l_c=\frac{2\ln2}{\pi}\frac{\lambda_0^2}{\delta\lambda}$, defined as the HWHM. Also <a href="https://www.spiedigitallibrary.org/journals/journal-of-biomedical-optics/volume-12/issue-01/014017/Comparative-study-of-optical-sources-in-the-near-infrared-for/10.1117/1.2710242.full">J. Biomed. Opt. 12, 014017 (2007)</a>.</li>
+    <li id="s9"><a href="https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/7732784">US 7,732,784</a>, Eq. 33: the combined-source OCT signal as $\sum_i I_i\,e^{-(\cdot)t^2}\cos(\cdot)$.</li>
+    <li id="s10">P. Jansz et al., <a href="https://link.springer.com/article/10.1007/s13320-012-0069-0">"Modeling of low coherence interferometry using broadband multi-Gaussian light sources"</a>, Photonic Sensors 2, 247 (2012).</li>
+    <li id="s11">arXiv:1210.5944, <a href="https://arxiv.org/pdf/1210.5944">Appendix B</a>: $\tau_c=\int|\gamma(t)|^2dt$ (Mandel's definition).</li>
+    <li id="s12">University of Toronto, <a href="https://www.physics.utoronto.ca/~phy326/fts/ESC471LabManual.pdf">ESC471 FTS manual</a> (Wiener–Khinchin with a Michelson); Peking University, <a href="https://www.phy.pku.edu.cn/__local/9/1C/2B/F2FFA1B32DE20B9120DEF79B7D1_EED689A8_776F5.pdf?e=.pdf">coherence lecture notes</a>.</li>
+  </ol>
+  <p class="note">Textbook references for the same results: E. Hecht, <i>Optics</i>, §9.4 and Ch. 12; L. Mandel &amp; E. Wolf, <i>Optical Coherence and Quantum Optics</i>, §4.3; R. J. Bell, <i>Introductory Fourier Transform Spectroscopy</i>. The plots use illustrative parameters in $\mu$m and $\mu\text{m}^{-1}$.</p>
+</div></section>
+
+<script>
+{
+const LN2=Math.log(2);
+const g=(s,c,f)=>Math.exp(-4*LN2*(s-c)**2/(f*f));
+const edge=(x)=>1/(1+Math.exp(-x));
+const rows=[
+  {name:'Single λ',href:'#r1',lines:[[1.6,1]]},
+  {name:'N wavelengths',href:'#r2',lines:[[1.55,1],[1.6,1],[1.65,1]]},
+  {name:'Gaussian',href:'#r3',S:s=>g(s,1.6,0.2)},
+  {name:'N Gaussians',href:'#r4',S:s=>g(s,1.5,0.08)+0.7*g(s,1.72,0.08)},
+  {name:'Arbitrary',href:'#r5',S:s=>(0.35+2.2*(s-1.4))*edge((s-1.42)/0.012)*edge((1.74-s)/0.012)+0.5*g(s,1.83,0.015)}
+];
+const SG=[];for(let i=0;i<=600;i++)SG.push(1.3+0.6*i/600);
+const D=[];for(let i=0;i<=1400;i++)D.push(-25+50*i/1400);
+for(const r of rows){
+  let comps;
+  if(r.lines){comps=r.lines}else{const ds=SG[1]-SG[0];comps=SG.map(s=>[s,r.S(s)*ds])}
+  const tot=comps.reduce((a,c)=>a+c[1],0);
+  r.I=[];r.env=[];
+  for(const d of D){let re=0,im=0;for(const [s,a] of comps){const p=2*Math.PI*s*d;re+=a*Math.cos(p);im+=a*Math.sin(p)}
+    re/=tot;im/=tot;const m=Math.hypot(re,im);r.I.push(0.5*(1+re));r.env.push(m)}
+  if(!r.lines){r.spec=SG.map(s=>r.S(s));const mx=Math.max(...r.spec);r.spec=r.spec.map(v=>v/mx)}
+}
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function ifg(svg,r,small){
+  const W=svg.clientWidth,H=svg.clientHeight;if(!W)return;
+  const pl=small?2:36,pr=small?2:10,pt=small?3:10,pb=small?3:26;
+  const x=d=>pl+(d+25)/50*(W-pl-pr),y=v=>pt+(1-v)*(H-pt-pb);
+  const fr=small?'#9fb4ec':css('--fr'),acc='#e0115f',mute=small?'#7f8db3':css('--mute');
+  let p='',up='',lo='';
+  D.forEach((d,i)=>{p+=(i?'L':'M')+x(d).toFixed(1)+' '+y(r.I[i]).toFixed(1);
+    up+=(i?'L':'M')+x(d).toFixed(1)+' '+y(0.5*(1+r.env[i])).toFixed(1);
+    lo+=(i?'L':'M')+x(d).toFixed(1)+' '+y(0.5*(1-r.env[i])).toFixed(1)});
+  let ax='';
+  if(!small){
+    const ticks=W<520?[-20,0,20]:[-20,-10,0,10,20];
+    ax=ticks.map(t=>`<line x1="${x(t)}" x2="${x(t)}" y1="${pt}" y2="${H-pb}" stroke="${mute}" stroke-opacity=".18"/><text x="${x(t)}" y="${H-8}" font-size="12" fill="${mute}" text-anchor="middle">${t}</text>`).join('')+
+      [0,0.5,1].map(v=>`<text x="${pl-6}" y="${y(v)+4}" font-size="12" fill="${mute}" text-anchor="end">${v}</text>`).join('')+
+      `<text x="${W-pr}" y="${H-8}" font-size="12" fill="${mute}" text-anchor="end">δ (μm)</text>`;
+  }else{ax=`<line x1="${x(0)}" x2="${x(0)}" y1="0" y2="${H}" stroke="${mute}" stroke-opacity=".35"/>`}
+  svg.innerHTML=ax+`<path d="${p}" fill="none" stroke="${fr}" stroke-width="${small?0.7:0.8}" stroke-opacity=".85"/><path d="${up}" fill="none" stroke="${acc}" stroke-width="1.8"/><path d="${lo}" fill="none" stroke="${acc}" stroke-width="1.8"/>`;
+}
+function spec(svg,r){
+  const W=svg.clientWidth,H=svg.clientHeight;if(!W)return;
+  const pl=12,pr=12,pt=14,pb=26,x=s=>pl+(s-1.3)/0.6*(W-pl-pr),y=v=>pt+(1-v)*(H-pt-pb);
+  const fr=css('--fr'),fill=css('--fill'),mute=css('--mute');
+  const ticks=W<360?[1.4,1.6,1.8]:[1.3,1.4,1.5,1.6,1.7,1.8,1.9];
+  let h=ticks.map(t=>`<text x="${x(t)}" y="${H-8}" font-size="12" fill="${mute}" text-anchor="middle">${t}</text>`).join('')+
+    `<line x1="${pl}" x2="${W-pr}" y1="${y(0)}" y2="${y(0)}" stroke="${mute}" stroke-opacity=".5"/>`;
+  if(r.lines){const mx=Math.max(...r.lines.map(l=>l[1]));
+    h+=r.lines.map(([s,a])=>`<line x1="${x(s)}" x2="${x(s)}" y1="${y(0)}" y2="${y(a/mx*0.9)}" stroke="${fr}" stroke-width="3"/><circle cx="${x(s)}" cy="${y(a/mx*0.9)}" r="4" fill="${fr}"/>`).join('');
+  }else{let p='M'+x(SG[0])+' '+y(0);SG.forEach((s,i)=>p+='L'+x(s).toFixed(1)+' '+y(r.spec[i]*0.9).toFixed(1));p+='L'+x(SG[SG.length-1])+' '+y(0)+'Z';
+    h+=`<path d="${p}" fill="${fill}" stroke="${fr}" stroke-width="1.5"/>`}
+  h+=`<text x="${W-pr}" y="${pt}" font-size="12" fill="${mute}" text-anchor="end">σ (μm⁻¹)</text>`;
+  svg.innerHTML=h;
+}
+const mult=document.getElementById('mult');
+mult.innerHTML=rows.map((r,i)=>`<div class="mrow"><a href="${r.href}">${r.name}</a><div class="mfig"><svg data-m="${i}"></svg></div></div>`).join('');
+const jobs=[];
+mult.querySelectorAll('svg').forEach(s=>jobs.push([s,()=>ifg(s,rows[+s.dataset.m],true)]));
+document.querySelectorAll('.fig').forEach(f=>{const s=document.createElementNS('http://www.w3.org/2000/svg','svg');f.appendChild(s);
+  const r=rows[+f.dataset.row];jobs.push([s,f.dataset.kind==='ifg'?()=>ifg(s,r,false):()=>spec(s,r)])});
+const ro=new ResizeObserver(es=>{for(const e of es){const j=jobs.find(j=>j[0]===e.target);if(j)j[1]()}});
+jobs.forEach(([s])=>ro.observe(s));
+const mo=new MutationObserver(()=>jobs.forEach(j=>j[1]()));
+mo.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+}
+</script>
+</body>
+</html>

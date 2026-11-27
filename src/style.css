@@ -1,0 +1,132 @@
+/* VOICE: a lab instrument on one screen — inputs left, the ring as the hero, results right.
+   IDEA: an optical bench read left to right: source, instrument, what you see, what you measure.
+   PICTURE: the interference pattern, as large as the screen allows.
+   COLOUR and TYPE: oxford blue bar, pale panels, magenta for envelopes and markers; Red Hat Display + Text.
+   LAYOUT: 16:9 single screen (no page scroll) at ≥1100 px landscape; stacked columns below that. */
+:root{color-scheme:light dark;
+  --bg:light-dark(#eef1f7,#050b1e);--panel:light-dark(#ffffff,#0e1836);--ink:light-dark(#141a2b,#e6e9f2);--mute:light-dark(#566079,#9aa3bb);
+  --band:#0b1f4b;--line:light-dark(#d9deea,#22305a);--acc:#e0115f;--fr:light-dark(#0b1f4b,#9fb4ec);--fill:light-dark(#c9d4f0,#26407f);--soft:light-dark(#f4f6fb,#0a1430)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 "Red Hat Text",system-ui,sans-serif}
+h1,h2{font-family:"Red Hat Display",system-ui,sans-serif;margin:0;line-height:1.15}
+a{color:inherit;text-decoration-color:var(--acc);text-underline-offset:3px}
+button{font:500 12.5px "Red Hat Text",sans-serif;min-height:28px;padding:0 10px;border-radius:6px;border:1px solid var(--line);background:var(--soft);color:var(--ink);cursor:pointer;white-space:nowrap}
+button:hover{border-color:var(--fr)}button:focus-visible,input:focus-visible,.edit:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+sup{line-height:0;vertical-align:super;margin-left:3px;white-space:nowrap}
+sup a{text-decoration:none;color:var(--acc);font-size:11px;font-weight:500}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:6px 12px;background:var(--band);color:#f3f5fb}
+.top h1{font-size:16px;font-weight:700;margin-right:6px}
+.top .grp{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.top .lbl{font-size:12px;color:#aab4d4}
+.top button{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.22);color:#f3f5fb}
+.top button:hover{border-color:#fff}
+.top .sp{flex:1}
+
+/* app grid */
+.app{display:grid;gap:10px;padding:10px}
+.col{display:grid;gap:10px;min-height:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px 10px;display:flex;flex-direction:column;min-height:0;position:relative}
+.chead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:2px 12px;flex:none;margin-bottom:4px}
+.chead h2{font-size:14.5px;font-weight:700}
+.fig{position:relative}.fig>svg,.fig>canvas{position:absolute;inset:0;width:100%;height:100%}
+.note{font-size:12.5px;color:var(--mute);line-height:1.6}
+.hint{font-size:12px;color:var(--mute);flex:none;margin:0 0 2px}
+
+/* equations */
+.eq{overflow-x:auto;overflow-y:hidden}.eq.big{font-size:17px}
+.eq mjx-container{margin:4px 0!important}
+
+/* controls */
+.chk{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;color:var(--mute);cursor:pointer;white-space:nowrap}
+.chk input{accent-color:var(--acc);width:15px;height:15px;margin:0}
+.edit{cursor:text;border-bottom:1px dashed currentColor;padding:0 2px;border-radius:2px}.edit:hover{background:var(--soft)}
+.vin{width:9ch;font:500 14px "Red Hat Text",sans-serif;padding:1px 4px;border:1px solid var(--acc);border-radius:4px;background:var(--panel);color:var(--ink);text-align:right}
+
+/* components table */
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:3px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{color:var(--mute);font-weight:500;position:sticky;top:0;background:var(--panel);z-index:1}th:first-child,td:first-child{text-align:left}
+td input[type=number]{width:74px;font:14px "Red Hat Text";padding:2px 5px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink);text-align:right}
+tr.off td{opacity:.45}tr.off td:first-child{opacity:1}
+.tog{display:inline-flex;align-items:center;gap:7px;cursor:pointer}.tog input{width:16px;height:16px;margin:0;accent-color:var(--acc)}
+.sw{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:-1px;border:1px solid rgba(127,127,127,.5)}
+.empty{color:var(--mute);font-size:13px;padding:8px 0}
+
+/* interferometer panel */
+#miniSvg{width:100%;height:auto;display:block;touch-action:none;color:var(--ink)}
+#dV,#dV0{display:inline-block;text-align:right;min-width:10.5ch}
+#dPlay[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:#fff}
+
+/* ring, with a drag overlay; tilt/FOV readouts; mirror rail */
+#ringBox{flex:1 1 auto;min-height:0;display:grid;place-items:center}
+#ringWrap{position:relative}
+#ring,.ringc{display:block;width:100%;height:100%;border-radius:50%;background:#000}.ringc{position:absolute;inset:0}#ring[hidden],.ringc[hidden]{display:none}
+#rendSel{font:500 12px "Red Hat Text",sans-serif;border:1px solid var(--line);border-radius:5px;background:var(--soft);color:var(--ink);padding:1px 4px}
+#ringOv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:default;border-radius:50%}
+#ringOv:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+#profBox{flex:0 0 24%;min-height:110px;margin-top:4px}
+.chips,.railhd{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;flex:none;margin-top:4px}
+.chip{display:inline-flex;gap:6px;align-items:baseline;font-size:12.5px;color:var(--mute);white-space:nowrap}
+.chip b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+#railBox{flex:none;height:36px;margin-top:2px}
+.ifm2{flex:none;display:grid;place-items:center;min-height:0}.ifm2 #miniSvg{width:100%;height:auto;max-height:min(36vh,400px)}
+#rail{display:block;width:100%;height:100%;touch-action:none;user-select:none}
+#rail:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:4px}
+
+/* coherence */
+.coh{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px}
+.stat{border-left:3px solid var(--acc);padding:1px 0 1px 10px}
+.stat .v{font:700 18px/1.1 "Red Hat Display",sans-serif;font-variant-numeric:tabular-nums}
+.stat .k{font-size:12px;color:var(--mute)}
+
+ul.bl{margin:6px 0;padding-left:1.2em}ul.bl li{margin:3px 0}
+/* interferogram footer row */
+.zrow{display:flex;gap:4px 14px;flex-wrap:wrap;align-items:center;flex:none;margin-top:4px}.zrow b{color:var(--ink);font-weight:500}
+/* header buttons and the components popup (non-modal, so the editor stays usable) */
+.hbtns{display:inline-flex;align-items:baseline;gap:10px}
+button.mini{min-height:24px;padding:0 8px;font-size:12px}
+dialog.pop{position:fixed;left:12px;bottom:12px;top:auto;margin:0;width:min(520px,94vw);max-height:70vh;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:0;box-shadow:0 12px 32px rgba(5,11,30,.28);z-index:20}
+/* dialogs */
+dialog.dlg.eqdlg{width:min(860px,94vw)}
+dialog.dlg{width:min(1120px,94vw);max-height:90vh;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);padding:0}
+dialog.dlg::backdrop{background:rgba(5,11,30,.55)}
+.dh{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2}
+.dh h2{font-size:19px}
+.db{padding:6px 18px 18px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:4px 30px}
+.mh3{font:700 15px "Red Hat Display",sans-serif;margin:14px 0 2px}
+.vt td,.vt th{text-align:left;white-space:normal;vertical-align:top}.vt td:nth-child(3),.vt td:nth-child(4){font-variant-numeric:tabular-nums;white-space:nowrap}
+ol.src{padding-left:1.4em;font-size:14.5px}
+ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol.src li:target,ol.src li.hl{background:var(--soft);outline:2px solid var(--acc);outline-offset:4px;border-radius:4px}
+
+/* ≥1100 px landscape: exactly one screen, layout C */
+@media (min-width:1100px) and (min-aspect-ratio:4/3){
+  html,body{height:100%;overflow:hidden}
+  body{display:grid;grid-template-rows:auto minmax(0,1fr)}
+  .app{grid-template-columns:minmax(0,30fr) minmax(0,38fr) minmax(0,32fr);min-height:0}
+  .left{grid-template-rows:minmax(0,1fr) auto}
+  .right{grid-template-rows:minmax(0,1fr) minmax(0,1fr) auto}
+  #specBox{flex:1 1 auto;min-height:120px}
+  .plot{flex:1 1 auto;min-height:90px}
+}
+@media (min-width:1100px) and (min-aspect-ratio:4/3) and (max-height:760px){
+  .app{gap:8px;padding:8px}.col{gap:8px}.panel{padding:6px 10px 8px}
+  .hint{display:none}
+  .plot{min-height:76px}#specBox{min-height:100px}
+  .coh{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.stat .v{font-size:16px}.stat .k{font-size:11px;line-height:1.3}
+}
+@media (min-width:1100px) and (min-aspect-ratio:4/3) and (max-height:680px){
+  #profBox{flex-basis:22%;min-height:90px}
+  #specBox{min-height:90px}.chead{margin-bottom:2px}
+}
+/* narrower or portrait: stacked, scrolling page */
+@media not ((min-width:1100px) and (min-aspect-ratio:4/3)){
+  .app{grid-template-columns:minmax(0,1fr)}
+  #specBox{height:300px}
+  #ringBox{height:min(92vw,520px)}#profBox{flex:none;height:200px}
+  .plot{height:240px}
+}

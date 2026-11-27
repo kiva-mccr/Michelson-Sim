@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Michelson Spectrum Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@500;700&family=Red+Hat+Text:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/*@CSS@*/
+</style>
+<script>window.MathJax={tex:{inlineMath:[['$','$']]},svg:{fontCache:'global'},startup:{typeset:true}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" async></script>
+</head>
+<body>
+<header class="top">
+  <h1>Michelson interferometer simulator</h1>
+  <div class="grp"><span class="lbl">Presets</span><button data-p="hene">HeNe line</button><button data-p="na">Na doublet</button><button data-p="led">White LED</button><button data-p="two">Two Gaussians</button><button id="clear">Clear</button></div>
+  <span class="sp"></span>
+  <div class="grp"><button id="openMethod">Method and checks</button><button id="openSrc">Sources</button></div>
+</header>
+
+<main class="app">
+  <section class="col left" aria-label="Inputs">
+    <div class="panel">
+      <div class="chead"><h2>Source spectrum $S(\sigma)$</h2><span class="hbtns"><button id="openComp" class="mini" aria-haspopup="dialog">Components (<span id="nComp">0</span>)</button><button class="mini eqbtn" data-dlg="eqdlg1" aria-haspopup="dialog">Equations and notes</button></span></div>
+      <p class="hint">Click to add · drag a dot to move · drag its line or width handles to widen · double-click to delete</p>
+      <div class="fig" id="specBox"><svg id="spec" role="img" aria-label="Editable source spectrum"></svg></div>
+    </div>
+    <div class="panel" id="mich">
+      <div class="chead"><h2>Michelson</h2><span class="hbtns" style="align-items:center"><button id="dPlay" class="mini" aria-pressed="false" title="Sweep the mirror back and forth">▶ Sweep</button><button id="dFit" class="mini" title="Fit the range to where the envelope levels out">Fit</button><label class="chk" title="Keep the range fitted to where the envelope levels out"><input type="checkbox" id="dAuto" checked> Auto</label></span></div>
+      <div class="ifm2">
+          <svg id="miniSvg" viewBox="0 34 240 152" role="img" aria-label="Michelson interferometer; drag the right mirror">
+          <rect x="2" y="98" width="22" height="24" rx="3" fill="#e0115f"/><text x="2" y="136" font-size="9" fill="currentColor" opacity=".7">source</text>
+          <line x1="24" y1="110" x2="100" y2="110" stroke="#e0115f" stroke-width="2"/>
+          <line x1="100" y1="110" x2="100" y2="54" stroke="#e0115f" stroke-width="2" opacity=".8"/>
+          <line x1="100" y1="110" x2="100" y2="160" stroke="#e0115f" stroke-width="2" opacity=".8"/>
+          <line id="mBeam" x1="100" y1="110" x2="150" y2="110" stroke="#e0115f" stroke-width="2" opacity=".8"/>
+          <line x1="86" y1="124" x2="114" y2="96" stroke="currentColor" stroke-width="3" opacity=".6"/>
+          <rect x="82" y="47" width="36" height="7" rx="1.5" fill="currentColor"/><text x="124" y="54" font-size="9" fill="currentColor" opacity=".7">M₁ fixed</text>
+          <rect x="86" y="160" width="28" height="10" rx="2" fill="currentColor" opacity=".55"/><text x="120" y="169" font-size="9" fill="currentColor" opacity=".7">detector</text>
+          <line x1="122" y1="138" x2="198" y2="138" stroke="currentColor" opacity=".3"/><text x="124" y="134" font-size="8" fill="currentColor" opacity=".55">−</text><text x="192" y="134" font-size="8" fill="currentColor" opacity=".55">+</text>
+          <line id="mRef" x1="156" y1="84" x2="156" y2="136" stroke="currentColor" stroke-dasharray="2 3" opacity=".45"/>
+          <g id="m2" style="cursor:ew-resize"><rect id="m2r" x="156" y="88" width="8" height="44" rx="1.5" fill="currentColor"/><rect id="m2h" x="146" y="80" width="28" height="60" fill="transparent"/></g>
+          <text id="m2t" x="160" y="80" font-size="9" fill="currentColor" text-anchor="middle" opacity=".7">M₂ ⇆</text>
+          <line id="dArr" x1="156" y1="146" x2="156" y2="146" stroke="#e0115f" stroke-width="1.5"/>
+          <path id="fovCone" fill="#e0115f" fill-opacity=".15" stroke="#e0115f" stroke-opacity=".5" stroke-dasharray="2 2"/>
+          <text x="232" y="156" font-size="8" fill="currentColor" text-anchor="end" opacity=".55">gap = d · not to scale</text>
+        </svg>
+      </div>
+      <div class="railhd" title="Drag M₂ or the rail to move the mirror"><span class="chip">Mirror $d$ <b id="dV"></b></span><span class="chip">$\delta_0=2d$ <b id="dV0"></b></span><span class="chip">range ± <b id="dRV"></b></span></div>
+      <div id="railBox" title="Drag along the rail to move the mirror (µm) · scroll on it to rescale the range"><svg id="rail" role="slider" aria-label="Mirror separation rail" tabindex="0"></svg></div>
+      <div hidden><input type="range" id="d" min="-5000" max="5000" step="0.1" value="20"><input type="range" id="tx" min="-500" max="500" step="1" value="0"><input type="range" id="ty" min="-500" max="500" step="1" value="0"><input type="range" id="fov" min="1" max="25" step="0.5" value="10"></div>
+    </div>
+  </section>
+
+  <section class="col mid" aria-label="Interference pattern">
+    <div class="panel">
+      <div class="chead"><h2>Interference pattern $I(x,y)$</h2><button class="mini eqbtn" data-dlg="eqdlg2" aria-haspopup="dialog">Equations and notes</button></div>
+      <p class="hint">Drag the white dot to tilt (at 0, 0 it appears when you hover the pattern) · drag the rim or scroll for field of view · double-click resets tilt</p>
+      <div id="ringBox"><div id="ringWrap"><canvas id="ring" width="400" height="400" aria-label="Interference pattern"></canvas><canvas id="ringGL" class="ringc" width="400" height="400" hidden></canvas><canvas id="ringGPU" class="ringc" width="400" height="400" hidden></canvas><svg id="ringOv" role="slider" aria-label="Drag to tilt, drag the rim or scroll to change the field of view" tabindex="0"></svg></div></div>
+      <div class="chips"><span class="chip">Tilt $\alpha_x$ <b id="txV"></b></span><span class="chip">$\alpha_y$ <b id="tyV"></b></span><button id="tReset" class="mini" title="Reset tilt to 0, 0">Reset tilt</button><span class="chip">Field of view $\theta_{\max}$ <b id="fV"></b></span><label class="chip" style="margin-left:auto">Renderer <select id="rendSel" aria-label="Renderer"><option>Auto</option></select> <b id="resV" title="Pixels rendered across the pattern; while moving, the resolution adapts to your device's speed"></b></label></div>
+      <div class="fig" id="profBox"><canvas id="profC"></canvas><svg id="prof"></svg></div>
+    </div>
+  </section>
+
+  <section class="col right" aria-label="Results">
+    <div class="panel">
+      <div class="chead"><h2>Interferogram $I(\delta)$</h2><button class="mini eqbtn" data-dlg="eqdlg3" aria-haspopup="dialog">Equations and notes</button></div>
+      <div class="fig plot" id="ifgBox" title="Scroll to zoom"><canvas id="ifgC"></canvas><svg id="ifg"></svg></div>
+      <div class="zrow"><span class="note">Scroll on the plot to zoom · range <b id="rV"></b></span><label class="chk"><input type="checkbox" id="rAuto" checked> Auto-fit</label><label class="chk"><input type="checkbox" id="envOn" checked> Envelope</label></div>
+    </div>
+    <div class="panel">
+      <div class="chead"><h2>Interfered spectrum $S_{\rm out}(\sigma;\delta_0)$</h2><button class="mini eqbtn" data-dlg="eqdlg4" aria-haspopup="dialog">Equations and notes</button></div>
+      <div class="fig plot" id="outBox" title="Scroll to zoom, drag to pan" style="cursor:grab;touch-action:none"><svg id="out"></svg></div>
+      <div class="zrow"><span class="note">Scroll to zoom · drag to pan · <b id="oV"></b></span><label class="chk"><input type="checkbox" id="oAuto" checked> Auto-fit to the components</label></div>
+    </div>
+    <div class="panel">
+      <div class="chead"><h2>Coherence length $l_c$</h2><button class="mini eqbtn" data-dlg="eqdlg5" aria-haspopup="dialog">Equations and notes</button></div>
+      <div class="coh" id="coh"></div>
+    </div>
+  </section>
+</main>
+
+<dialog class="dlg eqdlg" id="eqdlg1" aria-labelledby="eqdlg1t">
+  <div class="dh"><h2 id="eqdlg1t">Source spectrum $S(\sigma)$: equations and notes</h2><button data-close>Close</button></div>
+  <div class="db">
+        <div class="eq big">$$S(\sigma)=\sum_{\rm lines}I_n\,\delta_D(\sigma-\sigma_n)+\sum_{\rm Gauss}a_n\,e^{-(\sigma-\sigma_n)^2/w_n^2}$$</div><div class="eq big">$$I_n=\int S_n\,d\sigma=\begin{cases}\sqrt\pi\,a_n w_n&\text{Gaussian}\\ \sqrt\pi\,a_n w_0&\text{line}\end{cases}$$</div><div class="eq big">$$w_0=\frac{0.008\ \mu\text{m}^{-1}}{2\sqrt{\ln2}}$$</div>
+        <div class="eq big">$$w_n=\frac{\Delta\sigma_n}{2\sqrt{\ln2}}$$</div><div class="eq big">$$\Delta\sigma_n\approx\frac{\Delta\lambda_n}{\lambda_n^2},\qquad \sigma=\frac{1}{\lambda}$$</div>
+        <p class="note">Components add as incoherent sums. Each Gaussian's height $a_n$ is its peak spectral density, so its power $I_n$ is the area under the curve you see. A line has zero width, so its height stands for the power it would have as the narrowest allowed Gaussian (FWHM $0.008\ \mu\text{m}^{-1}$, where dragging snaps back to a line); its power therefore doesn't jump when you widen it.<sup><a href="#s5">[5]</a><a href="#s7">[7]</a></sup></p>
+        <p class="lab">With your current settings:</p><div class="eq big" id="eqS"></div>
+        <p class="mh3">How to edit</p>
+        <div class="note">Click empty space to add a wavelength. Drag a dot to move it or change its power. To widen it into a Gaussian, drag its vertical line or either end of its width bar sideways. Drag back to the centre to make it a line again. Double-click a dot, or select it and press Delete, to remove it. Untick a component to switch it off without deleting it.</div>
+        <p class="mh3">Units and display</p>
+        <div class="note">$\sigma$ is in µm⁻¹, and $\delta$ and $d$ are in µm. Every curve is drawn at its true height with no rescaling: a component set to 1 peaks at 1 in both the source and the interfered spectrum. The vertical axis is spectral density per unit $\sigma$. The dashed curve is the sum of all the Gaussians, and the axis extends above 1 only when overlapping Gaussians add up past it. Click any number with a dashed underline to type an exact value. Your setup is saved in this browser.</div>
+      </div>
+</dialog>
+<dialog class="dlg eqdlg" id="eqdlg2" aria-labelledby="eqdlg2t">
+  <div class="dh"><h2 id="eqdlg2t">Interferometer: equations and notes</h2><button data-close>Close</button></div>
+  <div class="db"><div class="eq big">$$I(x,y)=\tfrac12\int_0^\infty S(\sigma)\left[1+\cos 2\pi\sigma\,\delta(x,y)\right]d\sigma$$</div><div class="eq big">$$\delta(x,y)=2d\cos\theta+2(\alpha_x x+\alpha_y y)$$</div><div class="eq big">$$\tan\theta=\frac{r}{r_{\max}}\tan\theta_{\max}$$</div><p class="note">$x,y$ are mirror-plane coordinates in mm. The visible half-width of the mirror is $a=L\tan\theta_{\max}$ with $L=28.4$ mm (5 mm at 10°), so the field of view zooms the rings and the tilt wedge together.<sup><a href="#s1">[1]</a><a href="#s4">[4]</a><a href="#s14">[14]</a></sup></p><p class="lab">With your current settings:</p><div class="eq big" id="eqP"></div><ul class="note bl">
+<li>Colours are what an eye would see, from the CVRL CIE 2006 colour-matching functions.<sup><a href="#s13">[13]</a></sup></li>
+<li>Light outside 390–780 nm adds no colour, but it still counts in the brightness profile. Its markers in the source spectrum are drawn grey so they stay visible.</li>
+<li>Each pixel is the exact average of the pattern over its footprint, so rings finer than a pixel blend smoothly instead of forming false moiré.</li>
+<li>The pattern is drawn by the fastest renderer your device supports, chosen in this order: WebGPU, WebGL2, the CPU on all cores (Web Workers), then the CPU on one core. You can pick one with the Renderer menu under the pattern. All four evaluate the same per-pixel formula. On the GPU, the large part of each fringe phase, $k_b\cdot 2d \bmod 2\pi$, is computed in 64-bit on the CPU, and the cosine is taken with an accurate series, because GPU arithmetic is 32-bit. The "Ring pixels" check reads the active renderer's pixels back and compares them with brute-force integration.</li>
+<li>The profile below is a cut through the centre along the dashed line: the tilt direction $(\alpha_x,\alpha_y)$, or $x$ with no tilt.</li>
+<li>The profile and the interferogram are anti-aliased range plots: each pixel is shaded by how much of it the true signal covers, using 8 sub-columns per pixel. Fringes near the pixel pitch blend into an even tone instead of forming moiré, and where they are finer than a pixel the fill spans the full swing $\tfrac12(1\pm|\gamma|)$.</li>
+</ul></div>
+</dialog>
+<dialog class="dlg eqdlg" id="eqdlg3" aria-labelledby="eqdlg3t">
+  <div class="dh"><h2 id="eqdlg3t">Interferogram $I(\delta)$: equations and notes</h2><button data-close>Close</button></div>
+  <div class="db"><div class="eq big">$$I(\delta)=\frac{I_{\rm tot}}{2}+\frac12\sum_n I_n\,e^{-(\pi w_n\delta)^2}\cos(2\pi\sigma_n\delta)$$</div><div class="eq big">$$w_n=\frac{\Delta\sigma_n}{2\sqrt{\ln2}}$$</div><p class="note">$w_n=0$ for a line.<sup><a href="#s4">[4]</a><a href="#s7">[7]</a><a href="#s9">[9]</a></sup></p><p class="lab">With your current settings:</p><div class="eq big" id="eqI"></div><div class="note">Scroll over the plot to zoom in or out. The trace is coloured by what the detector would see at each $\delta$. The magenta envelope is $\tfrac12[1\pm|\gamma(\delta)|]$ (untick Envelope to hide it), and the dashed marker is $\delta_0=2d$. When the fringes are too dense to draw one by one, each pixel column shows their full swing ½(1 ± |γ|), coloured by the pixel-averaged colour.</div></div>
+</dialog>
+<dialog class="dlg eqdlg" id="eqdlg4" aria-labelledby="eqdlg4t">
+  <div class="dh"><h2 id="eqdlg4t">Interfered spectrum $S_{\rm out}(\sigma;\delta_0)$: equations and notes</h2><button data-close>Close</button></div>
+  <div class="db"><div class="eq big">$$S_{\rm out}(\sigma;\delta_0)=S(\sigma)\cdot\tfrac12\left[1+\cos(2\pi\sigma\delta_0)\right]$$</div><div class="eq big">$$\delta_0=2d$$</div><p class="note">The channel spacing is $\Delta\sigma=1/\delta_0$.<sup><a href="#s3">[3]</a></sup></p><p class="note">The dashed outline is the true shape of $S(\sigma)$ and the thin grey curve is $T(\sigma,\delta_0)$.</p><p class="lab">With your current settings:</p><div class="eq big" id="eqO"></div></div>
+</dialog>
+<dialog class="dlg eqdlg" id="eqdlg5" aria-labelledby="eqdlg5t">
+  <div class="dh"><h2 id="eqdlg5t">Coherence length $l_c$: equations and notes</h2><button data-close>Close</button></div>
+  <div class="db"><div class="eq big">$$|\gamma(l_c^{\rm HWHM})|=\tfrac12$$</div><div class="eq big">$$l_c^{\rm Mandel}=\int_{-\infty}^{\infty}|\gamma(\delta)|^2\,d\delta$$</div><div class="eq big">$$l_{c,n}=\frac{2\ln2}{\pi}\frac{\lambda_n^2}{\Delta\lambda_n}$$</div><div class="eq big">$$\gamma(\delta)=\frac{1}{I_{\rm tot}}\sum_n I_n\,e^{-(\pi w_n\delta)^2}e^{i2\pi\sigma_n\delta}$$</div><p class="note"><sup><a href="#s6">[6]</a><a href="#s8">[8]</a><a href="#s10">[10]</a><a href="#s11">[11]</a><a href="#s12">[12]</a></sup></p><p class="lab">With your current settings:</p><div class="eq big" id="eqC"></div><div class="note">HWHM is the first OPD where $|\gamma(\delta)|$ falls to ½, found numerically up to 5 mm. Mandel's definition is $l_c=\int|\gamma|^2d\delta$, which has a closed form for lines plus Gaussians and is infinite if any pure line is present. A single Gaussian's own length is $\tfrac{2\ln2}{\pi}\lambda_n^2/\Delta\lambda_n$.</div></div>
+</dialog>
+<dialog class="pop" id="dlgComp" aria-labelledby="cTitle">
+  <div class="dh"><h2 id="cTitle">Components</h2><button data-close>Close</button></div>
+  <div class="db"><table><thead><tr><th>On · type</th><th>λ (nm)</th><th>Height</th><th>FWHM (nm)</th><th></th></tr></thead><tbody id="tb"></tbody></table>
+  <p class="note">Untick a component to switch it off without deleting it. You can keep this open while you edit the spectrum.</p></div>
+</dialog>
+<dialog class="dlg" id="dlgMethod" aria-labelledby="mTitle">
+  <div class="dh"><h2 id="mTitle">Method and verification</h2><button data-close>Close</button></div>
+  <div class="db">
+    <p class="note" style="font-size:14px">Every number and pixel on this page comes from the equations below. Nothing is tuned by eye. <b>Run checks</b> recomputes each displayed quantity a second, independent way, using direct numerical integration, for your current spectrum and settings, and reports the largest difference.</p>
+    <div class="grid2">
+      <div>
+        <p class="mh3">1 · Source and coherence</p>
+        <div class="eq">$$\begin{aligned}S(\sigma)&=\sum_{\rm lines}I_n\delta_D(\sigma-\sigma_n)\\&\quad+\sum_{\rm Gauss}a_n\,e^{-(\sigma-\sigma_n)^2/w_n^2}\end{aligned}$$</div><div class="eq">$$I_n=\sqrt\pi\,a_n w_n\ \text{(Gaussian)},\quad I_n=\sqrt\pi\,a_n w_0\ \text{(line)}$$</div><div class="eq">$$w_n=\frac{\Delta\sigma_n}{2\sqrt{\ln2}}$$</div><div class="eq">$$\Delta\sigma_n\equiv\frac{\Delta\lambda_n}{\lambda_n^2}$$</div>
+        <div class="eq">$$\gamma(\delta)=\frac{1}{I_{\rm tot}}\sum_n I_n\,e^{-(\pi w_n\delta)^2}e^{i2\pi\sigma_n\delta}$$</div><div class="eq">$$I(\delta)=\tfrac{I_{\rm tot}}{2}\left[1+\operatorname{Re}\gamma(\delta)\right]$$</div>
+        <div class="eq">$$S_{\rm out}(\sigma;\delta_0)=S(\sigma)\,\tfrac12\left[1+\cos 2\pi\sigma\delta_0\right]$$</div><div class="eq">$$l_c^{\rm HWHM}:\ |\gamma(l_c)|=\tfrac12$$</div><div class="eq">$$l_c^{\rm Mandel}=\int|\gamma|^2d\delta$$</div>
+        <p class="mh3">2 · Ring geometry</p>
+        <div class="eq">$$\tan\theta=\frac{r}{r_{\max}}\tan\theta_{\max}$$</div><div class="eq">$$\delta(u,v)=2d\cos\theta+2a(\alpha_x u+\alpha_y v)$$</div><div class="eq">$$a=L\tan\theta_{\max},\qquad L=\frac{5\ \text{mm}}{\tan 10^\circ}=28.4\ \text{mm}$$</div>
+        <p class="note">The screen coordinates $(u,v)$ run from −1 to 1 across the field, so $r=\sqrt{u^2+v^2}$ and $r_{\max}=1$. The lens maps viewing angle to screen radius as $f\tan\theta$. The same $(u,v)$ also gives the mirror-plane position for the tilt wedge, $x=au$, $y=av$.<sup><a href="#s1">[1]</a><a href="#s14">[14]</a></sup> This combined picture is the model's main physical assumption.</p>
+      </div>
+      <div>
+        <p class="mh3">3 · Pixel averaging (no aliasing)</p>
+        <div class="eq">$$\big\langle e^{-a\delta^2+ib\delta}\big\rangle_{\Delta\sim\mathcal N(0,s^2I)}=\frac{e^{X}}{\sqrt{\det(I-s^2B)}}$$</div><div class="eq">$$X=-a\bar\delta^2+ib\bar\delta+\tfrac12\kappa^2s^2\,g^{\mathsf T}(I-s^2B)^{-1}g$$</div><div class="eq">$$\kappa=-2a\bar\delta+ib$$</div><div class="eq">$$B=\kappa H-2a\,gg^{\mathsf T}$$</div>
+        <p class="note">Each pixel is a Gaussian footprint with a standard deviation of $s=0.4$ px. Across it the OPD is expanded to second order, $\delta=\bar\delta+g^{\mathsf T}\Delta+\tfrac12\Delta^{\mathsf T}H\Delta$, with the gradient $g$ and the Hessian $H$ computed analytically. The sub-band envelope is expanded to first order. Here $a=\pi^2w^2$ and $b=2\pi\sigma$. The result is a closed-form Gaussian integral; for lines ($a=0$) it is exact for any quadratic OPD. With $H=0$ it reduces to $q^{-1/2}e^{-(a\bar\delta^2+b^2\tau^2/2)/q}\cos(b\bar\delta/q)$, where $q=1+2a\tau^2$ and $\tau=s|g|$. That first-order form is used where the curvature phase $b\,s^2|H|<3\times10^{-4}$, and also for the interferogram's dense-mode colours.</p>
+        <p class="mh3">4 · Colour</p>
+        <div class="eq">$$\begin{aligned}(X,Y,Z)&=\sum_k p_k\,\tfrac12\big[1+\langle e^{-a_k\delta^2}\cos b_k\delta\rangle\big]\\&\qquad\times\big(\bar x,\bar y,\bar z\big)(\lambda_k)\end{aligned}$$</div>
+        <p class="note">Each Gaussian is split into $K$ sub-Gaussians spanning $\pm2.8w$, spaced $\Delta x\,w$ apart with $\Delta x=5.6/(K-1)$, each with width $w_s=\Delta x\,w$. $K$ is at least 15 and large enough that $w_s\le0.012\ \mu\text{m}^{-1}$, with a maximum of 241. The whole Gaussian is always computed, including any part outside the plotted 380–800 nm window: that light carries power (it counts in $I_{\rm tot}$, the interferogram and the ring's brightness profile) but outside 390–780 nm it adds no colour. Each sub-band's colour is its own shape integrated against the colour-matching functions. Their weights are $\propto e^{-(x_k/w_c)^2}$ with $w_c=\sqrt{1-\Delta x^2}\,w$, chosen so the convolution reproduces the parent Gaussian. The colour-matching functions $\bar x\bar y\bar z$ are CVRL CIE 2006 2°.<sup><a href="#s13">[13]</a></sup> XYZ is converted to linear sRGB with the IEC 61966-2-1 matrix. Out-of-gamut colours are desaturated by $c\to c-\min(c,0)$. Each ring image is scaled so its brightest possible state (fully constructive) maps to 1, then sRGB-encoded.</p>
+        <p class="mh3">5 · Definitions, not physics</p>
+        <p class="note">Both auto ranges start from the OPD $\delta_s$ where $\sum_g I_g e^{-(\pi w_g\delta_s)^2}=0.02\,I_{\rm tot}$. The interferogram spans $\pm1.08\,\delta_s$, rounded up to two significant figures. The mirror rail spans $\pm0.6\,\delta_s$ in $d$, i.e. $\pm1.2\,\delta_s$ in OPD, rounded up to a 1–2–5 value. With no Gaussians they cover one beat period, or 30 fringes for a single line. In the profile and the dense interferogram, the shaded band is $\tfrac12(1\pm|\gamma|)$ at the column centre.</p>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px"><button id="verBtn">Run checks</button><span class="note" id="verAt">Press Run checks to verify the current state.</span></div>
+    <div class="scroll"><table class="vt"><thead><tr><th>Check</th><th>What is compared</th><th>Max difference</th><th>Tolerance</th><th>Result</th></tr></thead><tbody id="ver"></tbody></table></div>
+    <p class="note">Assumptions not yet modelled: a lossless 50:50 splitter, no phase shift on reflection, no dispersion, a perfectly spatially coherent source, and Gaussians that are symmetric in wavenumber.</p>
+  </div>
+</dialog>
+<dialog class="dlg" id="dlgSrc" aria-labelledby="sTitle">
+  <div class="dh"><h2 id="sTitle">Sources</h2><button data-close>Close</button></div>
+  <div class="db" id="sources"><ol class="src">
+    <li id="s1">University of Toronto, PHY224/324 lab notes, <a href="https://www.physics.utoronto.ca/~phy224_324/experiments/interferometers/INTERFER.pdf">"Interferometers"</a>: the two virtual sources sit $2d$ apart, so the path difference is $2d\cos\theta$. Also <a href="https://wp.optics.arizona.edu/jcwyant/wp-content/uploads/sites/13/2016/08/Session-4.pdf">J. C. Wyant, Optics 505, Session 4</a> (Haidinger fringes, $2d\cos\theta=m\lambda$).</li>
+    <li id="s2">Le Mans Université, <a href="https://perso.univ-lemans.fr/~fvaret/opi/cours_maj/OPI_ang_M02_C04_web_gen_auroraW/co/Exercice04.html">optics course exercise</a>: $I=\tfrac{I_0}{2}\left(1+\cos\frac{2\pi\delta}{\lambda}\right)$.</li>
+    <li id="s3">arXiv:2410.21586, <a href="https://arxiv.org/pdf/2410.21586">"Multiple-beam Interference Spectroscopy"</a>, Eq. 2: $A(\delta,\sigma)=2\mathcal T(\sigma)\left(1+\cos(2\pi\delta\sigma)\right)$ for the Michelson (different normalization). Channeled output spectrum: <a href="https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/11690516">US 11,690,516</a>.</li>
+    <li id="s4">University of Toronto, <a href="https://www.physics.utoronto.ca/~phy326/fts/fts2006.pdf">"Fourier Transform Spectroscopy"</a> lab, Eqs. 15–16: $I_R(\delta)=\int B(\sigma)\cos(2\pi\sigma\delta)\,d\sigma$ and its inverse.</li>
+    <li id="s5">Michelson interferometer lab report (<a href="https://www.slideshare.net/slideshow/milab/49643520">SlideShare, 2015</a>): dichromatic intensity as the sum of the two single-wavelength terms. Additive multi-wavelength interferograms: <a href="https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/12174070">US 12,174,070</a>.</li>
+    <li id="s6">University of Maryland, <a href="https://www.physics.umd.edu/courses/Phys375/Anlage_Fall09/Lab4MichelsonRevF09.pdf">Phys 375 Lab 4</a> (two-frequency beat signal); Michigan State, <a href="https://web.pa.msu.edu/courses/2009fall/PHY431/PostLabs/Lab5.pdf">PHY 431 Lab 5</a> (sodium beat pattern).</li>
+    <li id="s7">arXiv:2002.08755, <a href="https://arxiv.org/pdf/2002.08755">swept-source OCT dissertation</a>, Eqs. 1.9–1.10: Gaussian $S(k)$ and $\gamma(z)=e^{-z^2\Delta k^2}$.</li>
+    <li id="s8">M. Duelk, <a href="https://www.laserfocusworld.com/detectors-imaging/article/16547070/diagnostics-optical-coherence-tomography-light-source-calibration-for-accurate-depth-readings-from-fd-oct">Laser Focus World</a>: $l_c=\frac{2\ln2}{\pi}\frac{\lambda_0^2}{\delta\lambda}$, defined as the HWHM. Also <a href="https://www.spiedigitallibrary.org/journals/journal-of-biomedical-optics/volume-12/issue-01/014017/Comparative-study-of-optical-sources-in-the-near-infrared-for/10.1117/1.2710242.full">J. Biomed. Opt. 12, 014017 (2007)</a>.</li>
+    <li id="s9"><a href="https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/7732784">US 7,732,784</a>, Eq. 33: the combined-source OCT signal as $\sum_i I_i\,e^{-(\cdot)t^2}\cos(\cdot)$.</li>
+    <li id="s10">P. Jansz et al., <a href="https://link.springer.com/article/10.1007/s13320-012-0069-0">"Modeling of low coherence interferometry using broadband multi-Gaussian light sources"</a>, Photonic Sensors 2, 247 (2012).</li>
+    <li id="s11">arXiv:1210.5944, <a href="https://arxiv.org/pdf/1210.5944">Appendix B</a>: $\tau_c=\int|\gamma(t)|^2dt$ (Mandel's definition).</li>
+    <li id="s12">University of Toronto, <a href="https://www.physics.utoronto.ca/~phy326/fts/ESC471LabManual.pdf">ESC471 FTS manual</a> (Wiener–Khinchin with a Michelson); Peking University, <a href="https://www.phy.pku.edu.cn/__local/9/1C/2B/F2FFA1B32DE20B9120DEF79B7D1_EED689A8_776F5.pdf?e=.pdf">coherence lecture notes</a>.</li>
+    <li id="s13">CVRL (Colour &amp; Vision Research Laboratory, UCL), <a href="http://www.cvrl.org/">CIE 2006 “physiologically-relevant” 2° XYZ colour-matching functions</a> (CIE 170-2:2015), used for every colour on the page. Background: A. Stockman, <a href="https://discovery.ucl.ac.uk/10079410/1/Cone%20fundamentals%20and%20CIE.pdf">“Cone fundamentals and CIE standards”</a>. XYZ is converted to sRGB with the IEC 61966-2-1 matrix, and out-of-gamut colours are desaturated toward white.</li>
+    <li id="s14">Tilted mirror: a tilt about one axis adds an optical path that changes linearly across the mirror, from <a href="https://core.ac.uk/download/391357792.pdf">“Quantitative phase determination by using a Michelson interferometer”</a>, Eur. J. Phys. The air film becomes a wedge, and the fringes go from circular to curved to straight: <a href="https://www.niser.ac.in/sps/assets/files/msc/Michelson_Interferometer2023.pdf">NISER Michelson lab manual</a>.</li>
+  </ol>
+<p class="note">Textbook references for the same results: E. Hecht, <i>Optics</i>, §9.4 and Ch. 12; L. Mandel &amp; E. Wolf, <i>Optical Coherence and Quantum Optics</i>, §4.3; R. J. Bell, <i>Introductory Fourier Transform Spectroscopy</i>. Formulas marked “derived” in the companion reference page follow from these by substitution; the simulator evaluates them directly.</p></div>
+</dialog>
+
+<script>
+{
+/*@JS@*/
+}
+</script>
+</body>
+</html>

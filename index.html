@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Michelson Spectrum Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@500;700&family=Red+Hat+Text:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* VOICE: a lab instrument on one screen — inputs left, the ring as the hero, results right.
+   IDEA: an optical bench read left to right: source, instrument, what you see, what you measure.
+   PICTURE: the interference pattern, as large as the screen allows.
+   COLOUR and TYPE: oxford blue bar, pale panels, magenta for envelopes and markers; Red Hat Display + Text.
+   LAYOUT: 16:9 single screen (no page scroll) at ≥1100 px landscape; stacked columns below that. */
+:root{color-scheme:light dark;
+  --bg:light-dark(#eef1f7,#050b1e);--panel:light-dark(#ffffff,#0e1836);--ink:light-dark(#141a2b,#e6e9f2);--mute:light-dark(#566079,#9aa3bb);
+  --band:#0b1f4b;--line:light-dark(#d9deea,#22305a);--acc:#e0115f;--fr:light-dark(#0b1f4b,#9fb4ec);--fill:light-dark(#c9d4f0,#26407f);--soft:light-dark(#f4f6fb,#0a1430)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 "Red Hat Text",system-ui,sans-serif}
+h1,h2{font-family:"Red Hat Display",system-ui,sans-serif;margin:0;line-height:1.15}
+a{color:inherit;text-decoration-color:var(--acc);text-underline-offset:3px}
+button{font:500 12.5px "Red Hat Text",sans-serif;min-height:28px;padding:0 10px;border-radius:6px;border:1px solid var(--line);background:var(--soft);color:var(--ink);cursor:pointer;white-space:nowrap}
+button:hover{border-color:var(--fr)}button:focus-visible,input:focus-visible,.edit:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+sup{line-height:0;vertical-align:super;margin-left:3px;white-space:nowrap}
+sup a{text-decoration:none;color:var(--acc);font-size:11px;font-weight:500}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:6px 12px;background:var(--band);color:#f3f5fb}
+.top h1{font-size:16px;font-weight:700;margin-right:6px}
+.top .grp{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.top .lbl{font-size:12px;color:#aab4d4}
+.top button{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.22);color:#f3f5fb}
+.top button:hover{border-color:#fff}
+.top .sp{flex:1}
+
+/* app grid */
+.app{display:grid;gap:10px;padding:10px}
+.col{display:grid;gap:10px;min-height:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px 10px;display:flex;flex-direction:column;min-height:0;position:relative}
+.chead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:2px 12px;flex:none;margin-bottom:4px}
+.chead h2{font-size:14.5px;font-weight:700}
+.fig{position:relative}.fig>svg,.fig>canvas{position:absolute;inset:0;width:100%;height:100%}
+.note{font-size:12.5px;color:var(--mute);line-height:1.6}
+.hint{font-size:12px;color:var(--mute);flex:none;margin:0 0 2px}
+
+/* equations */
+.eq{overflow-x:auto;overflow-y:hidden}.eq.big{font-size:17px}
+.eq mjx-container{margin:4px 0!important}
+
+/* controls */
+.chk{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;color:var(--mute);cursor:pointer;white-space:nowrap}
+.chk input{accent-color:var(--acc);width:15px;height:15px;margin:0}
+.edit{cursor:text;border-bottom:1px dashed currentColor;padding:0 2px;border-radius:2px}.edit:hover{background:var(--soft)}
+.vin{width:9ch;font:500 14px "Red Hat Text",sans-serif;padding:1px 4px;border:1px solid var(--acc);border-radius:4px;background:var(--panel);color:var(--ink);text-align:right}
+
+/* components table */
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:3px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{color:var(--mute);font-weight:500;position:sticky;top:0;background:var(--panel);z-index:1}th:first-child,td:first-child{text-align:left}
+td input[type=number]{width:74px;font:14px "Red Hat Text";padding:2px 5px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink);text-align:right}
+tr.off td{opacity:.45}tr.off td:first-child{opacity:1}
+.tog{display:inline-flex;align-items:center;gap:7px;cursor:pointer}.tog input{width:16px;height:16px;margin:0;accent-color:var(--acc)}
+.sw{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:-1px;border:1px solid rgba(127,127,127,.5)}
+.empty{color:var(--mute);font-size:13px;padding:8px 0}
+
+/* interferometer panel */
+#miniSvg{width:100%;height:auto;display:block;touch-action:none;color:var(--ink)}
+#dV,#dV0{display:inline-block;text-align:right;min-width:10.5ch}
+#dPlay[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:#fff}
+
+/* ring, with a drag overlay; tilt/FOV readouts; mirror rail */
+#ringBox{flex:1 1 auto;min-height:0;display:grid;place-items:center}
+#ringWrap{position:relative}
+#ring,.ringc{display:block;width:100%;height:100%;border-radius:50%;background:#000}.ringc{position:absolute;inset:0}#ring[hidden],.ringc[hidden]{display:none}
+#rendSel{font:500 12px "Red Hat Text",sans-serif;border:1px solid var(--line);border-radius:5px;background:var(--soft);color:var(--ink);padding:1px 4px}
+#ringOv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:default;border-radius:50%}
+#ringOv:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+#profBox{flex:0 0 24%;min-height:110px;margin-top:4px}
+.chips,.railhd{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;flex:none;margin-top:4px}
+.chip{display:inline-flex;gap:6px;align-items:baseline;font-size:12.5px;color:var(--mute);white-space:nowrap}
+.chip b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+#railBox{flex:none;height:36px;margin-top:2px}
+.ifm2{flex:none;display:grid;place-items:center;min-height:0}.ifm2 #miniSvg{width:100%;height:auto;max-height:min(36vh,400px)}
+#rail{display:block;width:100%;height:100%;touch-action:none;user-select:none}
+#rail:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:4px}
+
+/* coherence */
+.coh{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px}
+.stat{border-left:3px solid var(--acc);padding:1px 0 1px 10px}
+.stat .v{font:700 18px/1.1 "Red Hat Display",sans-serif;font-variant-numeric:tabular-nums}
+.stat .k{font-size:12px;color:var(--mute)}
+
+ul.bl{margin:6px 0;padding-left:1.2em}ul.bl li{margin:3px 0}
+/* interferogram footer row */
+.zrow{display:flex;gap:4px 14px;flex-wrap:wrap;align-items:center;flex:none;margin-top:4px}.zrow b{color:var(--ink);font-weight:500}
+/* header buttons and the components popup (non-modal, so the editor stays usable) */
+.hbtns{display:inline-flex;align-items:baseline;gap:10px}
+button.mini{min-height:24px;padding:0 8px;font-size:12px}
+dialog.pop{position:fixed;left:12px;bottom:12px;top:auto;margin:0;width:min(520px,94vw);max-height:70vh;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:0;box-shadow:0 12px 32px rgba(5,11,30,.28);z-index:20}
+/* dialogs */
+dialog.dlg.eqdlg{width:min(860px,94vw)}
+dialog.dlg{width:min(1120px,94vw);max-height:90vh;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);padding:0}
+dialog.dlg::backdrop{background:rgba(5,11,30,.55)}
+.dh{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2}
+.dh h2{font-size:19px}
+.db{padding:6px 18px 18px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:4px 30px}
+.mh3{font:700 15px "Red Hat Display",sans-serif;margin:14px 0 2px}
+.vt td,.vt th{text-align:left;white-space:normal;vertical-align:top}.vt td:nth-child(3),.vt td:nth-child(4){font-variant-numeric:tabular-nums;white-space:nowrap}
+ol.src{padding-left:1.4em;font-size:14.5px}
+ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol.src li:target,ol.src li.hl{background:var(--soft);outline:2px solid var(--acc);outline-offset:4px;border-radius:4px}
+
+/* ≥1100 px landscape: exactly one screen, layout C */
+@media (min-width:1100px) and (min-aspect-ratio:4/3){
+  html,body{height:100%;overflow:hidden}
+  body{display:grid;grid-template-rows:auto minmax(0,1fr)}
+  .app{grid-template-columns:minmax(0,30fr) minmax(0,38fr) minmax(0,32fr);min-height:0}
+  .left{grid-template-rows:minmax(0,1fr) auto}
+  .right{grid-template-rows:minmax(0,1fr) minmax(0,1fr) auto}
+  #specBox{flex:1 1 auto;min-height:120px}
+  .plot{flex:1 1 auto;min-height:90px}
+}
+@media (min-width:1100px) and (min-aspect-ratio:4/3) and (max-height:760px){
+  .app{gap:8px;padding:8px}.col{gap:8px}.panel{padding:6px 10px 8px}
+  .hint{display:none}
+  .plot{min-height:76px}#specBox{min-height:100px}
+  .coh{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.stat .v{font-size:16px}.stat .k{font-size:11px;line-height:1.3}
+}
+@media (min-width:1100px) and (min-aspect-ratio:4/3) and (max-height:680px){
+  #profBox{flex-basis:22%;min-height:90px}
+  #specBox{min-height:90px}.chead{margin-bottom:2px}
+}
+/* narrower or portrait: stacked, scrolling page */
+@media not ((min-width:1100px) and (min-aspect-ratio:4/3)){
+  .app{grid-template-columns:minmax(0,1fr)}
+  #specBox{height:300px}
+  #ringBox{height:min(92vw,520px)}#profBox{flex:none;height:200px}
+  .plot{height:240px}
+}
+</style>
+<script>window.MathJax={tex:{inlineMath:[['$','$']]},svg:{fontCache:'global'},startup:{typeset:true}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" async></script>
+</head>
+<body>
+<header class="top">
+  <h1>Michelson interferometer simulator</h1>
+  <div class="grp"><span class="lbl">Presets</span><button data-p="hene">HeNe line</button><button data-p="na">Na doublet</button><button data-p="led">White LED</button><button data-p="two">Two Gaussians</button><button id="clear">Clear</button></div>
+  <span class="sp"></span>
+  <div class="grp"><button id="openMethod">Method and checks</button><button id="openSrc">Sources</button></div>
+</header>
+
+<main class="app">
+  <section class="col left" aria-label="Inputs">
+    <div class="panel">
+      <div class="chead"><h2>Source spectrum $S(\sigma)$</h2><span class="hbtns"><button id="openComp" class="mini" aria-haspopup="dialog">Components (<span id="nComp">0</span>)</button><button class="mini eqbtn" data-dlg="eqdlg1" aria-haspopup="dialog">Equations and notes</button></span></div>
+      <p class="hint">Click to add · drag a dot to move · drag its line or width handles to widen · double-click to delete</p>
+      <div class="fig" id="specBox"><svg id="spec" role="img" aria-label="Editable source spectrum"></svg></div>
+    </div>
+    <div class="panel" id="mich">
+      <div class="chead"><h2>Michelson</h2><span class="hbtns" style="align-items:center"><button id="dPlay" class="mini" aria-pressed="false" title="Sweep the mirror back and forth">▶ Sweep</button><button id="dFit" class="mini" title="Fit the range to where the envelope levels out">Fit</button><label class="chk" title="Keep the range fitted to where the envelope levels out"><input type="checkbox" id="dAuto" checked> Auto</label></span></div>
+      <div class="ifm2">
+          <svg id="miniSvg" viewBox="0 34 240 152" role="img" aria-label="Michelson interferometer; drag the right mirror">
+          <rect x="2" y="98" width="22" height="24" rx="3" fill="#e0115f"/><text x="2" y="136" font-size="9" fill="currentColor" opacity=".7">source</text>
+          <line x1="24" y1="110" x2="100" y2="110" stroke="#e0115f" stroke-width="2"/>
+          <line x1="100" y1="110" x2="100" y2="54" stroke="#e0115f" stroke-width="2" opacity=".8"/>
+          <line x1="100" y1="110" x2="100" y2="160" stroke="#e0115f" stroke-width="2" opacity=".8"/>
+          <line id="mBeam" x1="100" y1="110" x2="150" y2="110" stroke="#e0115f" stroke-width="2" opacity=".8"/>
+          <line x1="86" y1="124" x2="114" y2="96" stroke="currentColor" stroke-width="3" opacity=".6"/>
+          <rect x="82" y="47" width="36" height="7" rx="1.5" fill="currentColor"/><text x="124" y="54" font-size="9" fill="currentColor" opacity=".7">M₁ fixed</text>
+          <rect x="86" y="160" width="28" height="10" rx="2" fill="currentColor" opacity=".55"/><text x="120" y="169" font-size="9" fill="currentColor" opacity=".7">detector</text>
+          <line x1="122" y1="138" x2="198" y2="138" stroke="currentColor" opacity=".3"/><text x="124" y="134" font-size="8" fill="currentColor" opacity=".55">−</text><text x="192" y="134" font-size="8" fill="currentColor" opacity=".55">+</text>
+          <line id="mRef" x1="156" y1="84" x2="156" y2="136" stroke="currentColor" stroke-dasharray="2 3" opacity=".45"/>
+          <g id="m2" style="cursor:ew-resize"><rect id="m2r" x="156" y="88" width="8" height="44" rx="1.5" fill="currentColor"/><rect id="m2h" x="146" y="80" width="28" height="60" fill="transparent"/></g>
+          <text id="m2t" x="160" y="80" font-size="9" fill="currentColor" text-anchor="middle" opacity=".7">M₂ ⇆</text>
+          <line id="dArr" x1="156" y1="146" x2="156" y2="146" stroke="#e0115f" stroke-width="1.5"/>
+          <path id="fovCone" fill="#e0115f" fill-opacity=".15" stroke="#e0115f" stroke-opacity=".5" stroke-dasharray="2 2"/>
+          <text x="232" y="156" font-size="8" fill="currentColor" text-anchor="end" opacity=".55">gap = d · not to scale</text>
+        </svg>
+      </div>
+      <div class="railhd" title="Drag M₂ or the rail to move the mirror"><span class="chip">Mirror $d$ <b id="dV"></b></span><span class="chip">$\delta_0=2d$ <b id="dV0"></b></span><span class="chip">range ± <b id="dRV"></b></span></div>
+      <div id="railBox" title="Drag along the rail to move the mirror (µm) · scroll on it to rescale the range"><svg id="rail" role="slider" aria-label="Mirror separation rail" tabindex="0"></svg></div>
+      <div hidden><input type="range" id="d" min="-5000" max="5000" step="0.1" value="20"><input type="range" id="tx" min="-500" max="500" step="1" value="0"><input type="range" id="ty" min="-500" max="500" step="1" value="0"><input type="range" id="fov" min="1" max="25" step="0.5" value="10"></div>
+    </div>
+  </section>
+
+  <section class="col mid" aria-label="Interference pattern">
+    <div class="panel">
+      <div class="chead"><h2>Interference pattern $I(x,y)$</h2><button class="mini eqbtn" data-dlg="eqdlg2" aria-haspopup="dialog">Equations and notes</button></div>
+      <p class="hint">Drag the white dot to tilt (at 0, 0 it appears when you hover the pattern) · drag the rim or scroll for field of view · double-click resets tilt</p>
+      <div id="ringBox"><div id="ringWrap"><canvas id="ring" width="400" height="400" aria-label="Interference pattern"></canvas><canvas id="ringGL" class="ringc" width="400" height="400" hidden></canvas><canvas id="ringGPU" class="ringc" width="400" height="400" hidden></canvas><svg id="ringOv" role="slider" aria-label="Drag to tilt, drag the rim or scroll to change the field of view" tabindex="0"></svg></div></div>
+      <div class="chips"><span class="chip">Tilt $\alpha_x$ <b id="txV"></b></span><span class="chip">$\alpha_y$ <b id="tyV"></b></span><button id="tReset" class="mini" title="Reset tilt to 0, 0">Reset tilt</button><span class="chip">Field of view $\theta_{\max}$ <b id="fV"></b></span><label class="chip" style="margin-left:auto">Renderer <select id="rendSel" aria-label="Renderer"><option>Auto</option></select> <b id="resV" title="Pixels rendered across the pattern; while moving, the resolution adapts to your device's speed"></b></label></div>
+      <div class="fig" id="profBox"><canvas id="profC"></canvas><svg id="prof"></svg></div>
+    </div>
+  </section>
+
+  <section class="col right" aria-label="Results">
+    <div class="panel">
+      <div class="chead"><h2>Interferogram $I(\delta)$</h2><button class="mini eqbtn" data-dlg="eqdlg3" aria-haspopup="dialog">Equations and notes</button></div>
+      <div class="fig plot" id="ifgBox" title="Scroll to zoom"><canvas id="ifgC"></canvas><svg id="ifg"></svg></div>
+      <div class="zrow"><span class="note">Scroll on the plot to zoom · range <b id="rV"></b></span><label class="chk"><input type="checkbox" id="rAuto" checked> Auto-fit</label><label class="chk"><input type="checkbox" id="envOn" checked> Envelope</label></div>
+    </div>
+    <div class="panel">
+      <div class="chead"><h2>Interfered spectrum $S_{\rm out}(\sigma;\delta_0)$</h2><button class="mini eqbtn" data-dlg="eqdlg4" aria-haspopup="dialog">Equations and notes</button></div>
+      <div class="fig plot" id="outBox" title="Scroll to zoom, drag to pan" style="cursor:grab;touch-action:none"><svg id="out"></svg></div>
+      <div class="zrow"><span class="note">Scroll to zoom · drag to pan · <b id="oV"></b></span><label class="chk"><input type="checkbox" id="oAuto" checked> Auto-fit to the components</label></div>
+    </div>
+    <div class="panel">
+      <div class="chead"><h2>Coherence length $l_c$</h2><button class="mini eqbtn" data-dlg="eqdlg5" aria-haspopup="dialog">Equations and notes</button></div>
+      <div class="coh" id="coh"></div>
+    </div>
+  </section>
+</main>
+
+<dialog class="dlg eqdlg" id="eqdlg1" aria-labelledby="eqdlg1t">
+  <div class="dh"><h2 id="eqdlg1t">Source spectrum $S(\sigma)$: equations and notes</h2><button data-close>Close</button></div>
+  <div class="db">
+        <div class="eq big">$$S(\sigma)=\sum_{\rm lines}I_n\,\delta_D(\sigma-\sigma_n)+\sum_{\rm Gauss}a_n\,e^{-(\sigma-\sigma_n)^2/w_n^2}$$</div><div class="eq big">$$I_n=\int S_n\,d\sigma=\begin{cases}\sqrt\pi\,a_n w_n&\text{Gaussian}\\ \sqrt\pi\,a_n w_0&\text{line}\end{cases}$$</div><div class="eq big">$$w_0=\frac{0.008\ \mu\text{m}^{-1}}{2\sqrt{\ln2}}$$</div>
+        <div class="eq big">$$w_n=\frac{\Delta\sigma_n}{2\sqrt{\ln2}}$$</div><div class="eq big">$$\Delta\sigma_n\approx\frac{\Delta\lambda_n}{\lambda_n^2},\qquad \sigma=\frac{1}{\lambda}$$</div>
+        <p class="note">Components add as incoherent sums. Each Gaussian's height $a_n$ is its peak spectral density, so its power $I_n$ is the area under the curve you see. A line has zero width, so its height stands for the power it would have as the narrowest allowed Gaussian (FWHM $0.008\ \mu\text{m}^{-1}$, where dragging snaps back to a line); its power therefore doesn't jump when you widen it.<sup><a href="#s5">[5]</a><a href="#s7">[7]</a></sup></p>
+        <p class="lab">With your current settings:</p><div class="eq big" id="eqS"></div>
+        <p class="mh3">How to edit</p>
+        <div class="note">Click empty space to add a wavelength. Drag a dot to move it or change its power. To widen it into a Gaussian, drag its vertical line or either end of its width bar sideways. Drag back to the centre to make it a line again. Double-click a dot, or select it and press Delete, to remove it. Untick a component to switch it off without deleting it.</div>
+        <p class="mh3">Units and display</p>
+        <div class="note">$\sigma$ is in µm⁻¹, and $\delta$ and $d$ are in µm. Every curve is drawn at its true height with no rescaling: a component set to 1 peaks at 1 in both the source and the interfered spectrum. The vertical axis is spectral density per unit $\sigma$. The dashed curve is the sum of all the Gaussians, and the axis extends above 1 only when overlapping Gaussians add up past it. Click any number with a dashed underline to type an exact value. Your setup is saved in this browser.</div>
+      </div>
+</dialog>
+<dialog class="dlg eqdlg" id="eqdlg2" aria-labelledby="eqdlg2t">
+  <div class="dh"><h2 id="eqdlg2t">Interferometer: equations and notes</h2><button data-close>Close</button></div>
+  <div class="db"><div class="eq big">$$I(x,y)=\tfrac12\int_0^\infty S(\sigma)\left[1+\cos 2\pi\sigma\,\delta(x,y)\right]d\sigma$$</div><div class="eq big">$$\delta(x,y)=2d\cos\theta+2(\alpha_x x+\alpha_y y)$$</div><div class="eq big">$$\tan\theta=\frac{r}{r_{\max}}\tan\theta_{\max}$$</div><p class="note">$x,y$ are mirror-plane coordinates in mm. The visible half-width of the mirror is $a=L\tan\theta_{\max}$ with $L=28.4$ mm (5 mm at 10°), so the field of view zooms the rings and the tilt wedge together.<sup><a href="#s1">[1]</a><a href="#s4">[4]</a><a href="#s14">[14]</a></sup></p><p class="lab">With your current settings:</p><div class="eq big" id="eqP"></div><ul class="note bl">
+<li>Colours are what an eye would see, from the CVRL CIE 2006 colour-matching functions.<sup><a href="#s13">[13]</a></sup></li>
+<li>Light outside 390–780 nm adds no colour, but it still counts in the brightness profile. Its markers in the source spectrum are drawn grey so they stay visible.</li>
+<li>Each pixel is the exact average of the pattern over its footprint, so rings finer than a pixel blend smoothly instead of forming false moiré.</li>
+<li>The pattern is drawn by the fastest renderer your device supports, chosen in this order: WebGPU, WebGL2, the CPU on all cores (Web Workers), then the CPU on one core. You can pick one with the Renderer menu under the pattern. All four evaluate the same per-pixel formula. On the GPU, the large part of each fringe phase, $k_b\cdot 2d \bmod 2\pi$, is computed in 64-bit on the CPU, and the cosine is taken with an accurate series, because GPU arithmetic is 32-bit. The "Ring pixels" check reads the active renderer's pixels back and compares them with brute-force integration.</li>
+<li>The profile below is a cut through the centre along the dashed line: the tilt direction $(\alpha_x,\alpha_y)$, or $x$ with no tilt.</li>
+<li>The profile and the interferogram are anti-aliased range plots: each pixel is shaded by how much of it the true signal covers, using 8 sub-columns per pixel. Fringes near the pixel pitch blend into an even tone instead of forming moiré, and where they are finer than a pixel the fill spans the full swing $\tfrac12(1\pm|\gamma|)$.</li>
+</ul></div>
+</dialog>
+<dialog class="dlg eqdlg" id="eqdlg3" aria-labelledby="eqdlg3t">
+  <div class="dh"><h2 id="eqdlg3t">Interferogram $I(\delta)$: equations and notes</h2><button data-close>Close</button></div>
+  <div class="db"><div class="eq big">$$I(\delta)=\frac{I_{\rm tot}}{2}+\frac12\sum_n I_n\,e^{-(\pi w_n\delta)^2}\cos(2\pi\sigma_n\delta)$$</div><div class="eq big">$$w_n=\frac{\Delta\sigma_n}{2\sqrt{\ln2}}$$</div><p class="note">$w_n=0$ for a line.<sup><a href="#s4">[4]</a><a href="#s7">[7]</a><a href="#s9">[9]</a></sup></p><p class="lab">With your current settings:</p><div class="eq big" id="eqI"></div><div class="note">Scroll over the plot to zoom in or out. The trace is coloured by what the detector would see at each $\delta$. The magenta envelope is $\tfrac12[1\pm|\gamma(\delta)|]$ (untick Envelope to hide it), and the dashed marker is $\delta_0=2d$. When the fringes are too dense to draw one by one, each pixel column shows their full swing ½(1 ± |γ|), coloured by the pixel-averaged colour.</div></div>
+</dialog>
+<dialog class="dlg eqdlg" id="eqdlg4" aria-labelledby="eqdlg4t">
+  <div class="dh"><h2 id="eqdlg4t">Interfered spectrum $S_{\rm out}(\sigma;\delta_0)$: equations and notes</h2><button data-close>Close</button></div>
+  <div class="db"><div class="eq big">$$S_{\rm out}(\sigma;\delta_0)=S(\sigma)\cdot\tfrac12\left[1+\cos(2\pi\sigma\delta_0)\right]$$</div><div class="eq big">$$\delta_0=2d$$</div><p class="note">The channel spacing is $\Delta\sigma=1/\delta_0$.<sup><a href="#s3">[3]</a></sup></p><p class="note">The dashed outline is the true shape of $S(\sigma)$ and the thin grey curve is $T(\sigma,\delta_0)$.</p><p class="lab">With your current settings:</p><div class="eq big" id="eqO"></div></div>
+</dialog>
+<dialog class="dlg eqdlg" id="eqdlg5" aria-labelledby="eqdlg5t">
+  <div class="dh"><h2 id="eqdlg5t">Coherence length $l_c$: equations and notes</h2><button data-close>Close</button></div>
+  <div class="db"><div class="eq big">$$|\gamma(l_c^{\rm HWHM})|=\tfrac12$$</div><div class="eq big">$$l_c^{\rm Mandel}=\int_{-\infty}^{\infty}|\gamma(\delta)|^2\,d\delta$$</div><div class="eq big">$$l_{c,n}=\frac{2\ln2}{\pi}\frac{\lambda_n^2}{\Delta\lambda_n}$$</div><div class="eq big">$$\gamma(\delta)=\frac{1}{I_{\rm tot}}\sum_n I_n\,e^{-(\pi w_n\delta)^2}e^{i2\pi\sigma_n\delta}$$</div><p class="note"><sup><a href="#s6">[6]</a><a href="#s8">[8]</a><a href="#s10">[10]</a><a href="#s11">[11]</a><a href="#s12">[12]</a></sup></p><p class="lab">With your current settings:</p><div class="eq big" id="eqC"></div><div class="note">HWHM is the first OPD where $|\gamma(\delta)|$ falls to ½, found numerically up to 5 mm. Mandel's definition is $l_c=\int|\gamma|^2d\delta$, which has a closed form for lines plus Gaussians and is infinite if any pure line is present. A single Gaussian's own length is $\tfrac{2\ln2}{\pi}\lambda_n^2/\Delta\lambda_n$.</div></div>
+</dialog>
+<dialog class="pop" id="dlgComp" aria-labelledby="cTitle">
+  <div class="dh"><h2 id="cTitle">Components</h2><button data-close>Close</button></div>
+  <div class="db"><table><thead><tr><th>On · type</th><th>λ (nm)</th><th>Height</th><th>FWHM (nm)</th><th></th></tr></thead><tbody id="tb"></tbody></table>
+  <p class="note">Untick a component to switch it off without deleting it. You can keep this open while you edit the spectrum.</p></div>
+</dialog>
+<dialog class="dlg" id="dlgMethod" aria-labelledby="mTitle">
+  <div class="dh"><h2 id="mTitle">Method and verification</h2><button data-close>Close</button></div>
+  <div class="db">
+    <p class="note" style="font-size:14px">Every number and pixel on this page comes from the equations below. Nothing is tuned by eye. <b>Run checks</b> recomputes each displayed quantity a second, independent way, using direct numerical integration, for your current spectrum and settings, and reports the largest difference.</p>
+    <div class="grid2">
+      <div>
+        <p class="mh3">1 · Source and coherence</p>
+        <div class="eq">$$\begin{aligned}S(\sigma)&=\sum_{\rm lines}I_n\delta_D(\sigma-\sigma_n)\\&\quad+\sum_{\rm Gauss}a_n\,e^{-(\sigma-\sigma_n)^2/w_n^2}\end{aligned}$$</div><div class="eq">$$I_n=\sqrt\pi\,a_n w_n\ \text{(Gaussian)},\quad I_n=\sqrt\pi\,a_n w_0\ \text{(line)}$$</div><div class="eq">$$w_n=\frac{\Delta\sigma_n}{2\sqrt{\ln2}}$$</div><div class="eq">$$\Delta\sigma_n\equiv\frac{\Delta\lambda_n}{\lambda_n^2}$$</div>
+        <div class="eq">$$\gamma(\delta)=\frac{1}{I_{\rm tot}}\sum_n I_n\,e^{-(\pi w_n\delta)^2}e^{i2\pi\sigma_n\delta}$$</div><div class="eq">$$I(\delta)=\tfrac{I_{\rm tot}}{2}\left[1+\operatorname{Re}\gamma(\delta)\right]$$</div>
+        <div class="eq">$$S_{\rm out}(\sigma;\delta_0)=S(\sigma)\,\tfrac12\left[1+\cos 2\pi\sigma\delta_0\right]$$</div><div class="eq">$$l_c^{\rm HWHM}:\ |\gamma(l_c)|=\tfrac12$$</div><div class="eq">$$l_c^{\rm Mandel}=\int|\gamma|^2d\delta$$</div>
+        <p class="mh3">2 · Ring geometry</p>
+        <div class="eq">$$\tan\theta=\frac{r}{r_{\max}}\tan\theta_{\max}$$</div><div class="eq">$$\delta(u,v)=2d\cos\theta+2a(\alpha_x u+\alpha_y v)$$</div><div class="eq">$$a=L\tan\theta_{\max},\qquad L=\frac{5\ \text{mm}}{\tan 10^\circ}=28.4\ \text{mm}$$</div>
+        <p class="note">The screen coordinates $(u,v)$ run from −1 to 1 across the field, so $r=\sqrt{u^2+v^2}$ and $r_{\max}=1$. The lens maps viewing angle to screen radius as $f\tan\theta$. The same $(u,v)$ also gives the mirror-plane position for the tilt wedge, $x=au$, $y=av$.<sup><a href="#s1">[1]</a><a href="#s14">[14]</a></sup> This combined picture is the model's main physical assumption.</p>
+      </div>
+      <div>
+        <p class="mh3">3 · Pixel averaging (no aliasing)</p>
+        <div class="eq">$$\big\langle e^{-a\delta^2+ib\delta}\big\rangle_{\Delta\sim\mathcal N(0,s^2I)}=\frac{e^{X}}{\sqrt{\det(I-s^2B)}}$$</div><div class="eq">$$X=-a\bar\delta^2+ib\bar\delta+\tfrac12\kappa^2s^2\,g^{\mathsf T}(I-s^2B)^{-1}g$$</div><div class="eq">$$\kappa=-2a\bar\delta+ib$$</div><div class="eq">$$B=\kappa H-2a\,gg^{\mathsf T}$$</div>
+        <p class="note">Each pixel is a Gaussian footprint with a standard deviation of $s=0.4$ px. Across it the OPD is expanded to second order, $\delta=\bar\delta+g^{\mathsf T}\Delta+\tfrac12\Delta^{\mathsf T}H\Delta$, with the gradient $g$ and the Hessian $H$ computed analytically. The sub-band envelope is expanded to first order. Here $a=\pi^2w^2$ and $b=2\pi\sigma$. The result is a closed-form Gaussian integral; for lines ($a=0$) it is exact for any quadratic OPD. With $H=0$ it reduces to $q^{-1/2}e^{-(a\bar\delta^2+b^2\tau^2/2)/q}\cos(b\bar\delta/q)$, where $q=1+2a\tau^2$ and $\tau=s|g|$. That first-order form is used where the curvature phase $b\,s^2|H|<3\times10^{-4}$, and also for the interferogram's dense-mode colours.</p>
+        <p class="mh3">4 · Colour</p>
+        <div class="eq">$$\begin{aligned}(X,Y,Z)&=\sum_k p_k\,\tfrac12\big[1+\langle e^{-a_k\delta^2}\cos b_k\delta\rangle\big]\\&\qquad\times\big(\bar x,\bar y,\bar z\big)(\lambda_k)\end{aligned}$$</div>
+        <p class="note">Each Gaussian is split into $K$ sub-Gaussians spanning $\pm2.8w$, spaced $\Delta x\,w$ apart with $\Delta x=5.6/(K-1)$, each with width $w_s=\Delta x\,w$. $K$ is at least 15 and large enough that $w_s\le0.012\ \mu\text{m}^{-1}$, with a maximum of 241. The whole Gaussian is always computed, including any part outside the plotted 380–800 nm window: that light carries power (it counts in $I_{\rm tot}$, the interferogram and the ring's brightness profile) but outside 390–780 nm it adds no colour. Each sub-band's colour is its own shape integrated against the colour-matching functions. Their weights are $\propto e^{-(x_k/w_c)^2}$ with $w_c=\sqrt{1-\Delta x^2}\,w$, chosen so the convolution reproduces the parent Gaussian. The colour-matching functions $\bar x\bar y\bar z$ are CVRL CIE 2006 2°.<sup><a href="#s13">[13]</a></sup> XYZ is converted to linear sRGB with the IEC 61966-2-1 matrix. Out-of-gamut colours are desaturated by $c\to c-\min(c,0)$. Each ring image is scaled so its brightest possible state (fully constructive) maps to 1, then sRGB-encoded.</p>
+        <p class="mh3">5 · Definitions, not physics</p>
+        <p class="note">Both auto ranges start from the OPD $\delta_s$ where $\sum_g I_g e^{-(\pi w_g\delta_s)^2}=0.02\,I_{\rm tot}$. The interferogram spans $\pm1.08\,\delta_s$, rounded up to two significant figures. The mirror rail spans $\pm0.6\,\delta_s$ in $d$, i.e. $\pm1.2\,\delta_s$ in OPD, rounded up to a 1–2–5 value. With no Gaussians they cover one beat period, or 30 fringes for a single line. In the profile and the dense interferogram, the shaded band is $\tfrac12(1\pm|\gamma|)$ at the column centre.</p>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px"><button id="verBtn">Run checks</button><span class="note" id="verAt">Press Run checks to verify the current state.</span></div>
+    <div class="scroll"><table class="vt"><thead><tr><th>Check</th><th>What is compared</th><th>Max difference</th><th>Tolerance</th><th>Result</th></tr></thead><tbody id="ver"></tbody></table></div>
+    <p class="note">Assumptions not yet modelled: a lossless 50:50 splitter, no phase shift on reflection, no dispersion, a perfectly spatially coherent source, and Gaussians that are symmetric in wavenumber.</p>
+  </div>
+</dialog>
+<dialog class="dlg" id="dlgSrc" aria-labelledby="sTitle">
+  <div class="dh"><h2 id="sTitle">Sources</h2><button data-close>Close</button></div>
+  <div class="db" id="sources"><ol class="src">
+    <li id="s1">University of Toronto, PHY224/324 lab notes, <a href="https://www.physics.utoronto.ca/~phy224_324/experiments/interferometers/INTERFER.pdf">"Interferometers"</a>: the two virtual sources sit $2d$ apart, so the path difference is $2d\cos\theta$. Also <a href="https://wp.optics.arizona.edu/jcwyant/wp-content/uploads/sites/13/2016/08/Session-4.pdf">J. C. Wyant, Optics 505, Session 4</a> (Haidinger fringes, $2d\cos\theta=m\lambda$).</li>
+    <li id="s2">Le Mans Université, <a href="https://perso.univ-lemans.fr/~fvaret/opi/cours_maj/OPI_ang_M02_C04_web_gen_auroraW/co/Exercice04.html">optics course exercise</a>: $I=\tfrac{I_0}{2}\left(1+\cos\frac{2\pi\delta}{\lambda}\right)$.</li>
+    <li id="s3">arXiv:2410.21586, <a href="https://arxiv.org/pdf/2410.21586">"Multiple-beam Interference Spectroscopy"</a>, Eq. 2: $A(\delta,\sigma)=2\mathcal T(\sigma)\left(1+\cos(2\pi\delta\sigma)\right)$ for the Michelson (different normalization). Channeled output spectrum: <a href="https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/11690516">US 11,690,516</a>.</li>
+    <li id="s4">University of Toronto, <a href="https://www.physics.utoronto.ca/~phy326/fts/fts2006.pdf">"Fourier Transform Spectroscopy"</a> lab, Eqs. 15–16: $I_R(\delta)=\int B(\sigma)\cos(2\pi\sigma\delta)\,d\sigma$ and its inverse.</li>
+    <li id="s5">Michelson interferometer lab report (<a href="https://www.slideshare.net/slideshow/milab/49643520">SlideShare, 2015</a>): dichromatic intensity as the sum of the two single-wavelength terms. Additive multi-wavelength interferograms: <a href="https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/12174070">US 12,174,070</a>.</li>
+    <li id="s6">University of Maryland, <a href="https://www.physics.umd.edu/courses/Phys375/Anlage_Fall09/Lab4MichelsonRevF09.pdf">Phys 375 Lab 4</a> (two-frequency beat signal); Michigan State, <a href="https://web.pa.msu.edu/courses/2009fall/PHY431/PostLabs/Lab5.pdf">PHY 431 Lab 5</a> (sodium beat pattern).</li>
+    <li id="s7">arXiv:2002.08755, <a href="https://arxiv.org/pdf/2002.08755">swept-source OCT dissertation</a>, Eqs. 1.9–1.10: Gaussian $S(k)$ and $\gamma(z)=e^{-z^2\Delta k^2}$.</li>
+    <li id="s8">M. Duelk, <a href="https://www.laserfocusworld.com/detectors-imaging/article/16547070/diagnostics-optical-coherence-tomography-light-source-calibration-for-accurate-depth-readings-from-fd-oct">Laser Focus World</a>: $l_c=\frac{2\ln2}{\pi}\frac{\lambda_0^2}{\delta\lambda}$, defined as the HWHM. Also <a href="https://www.spiedigitallibrary.org/journals/journal-of-biomedical-optics/volume-12/issue-01/014017/Comparative-study-of-optical-sources-in-the-near-infrared-for/10.1117/1.2710242.full">J. Biomed. Opt. 12, 014017 (2007)</a>.</li>
+    <li id="s9"><a href="https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/7732784">US 7,732,784</a>, Eq. 33: the combined-source OCT signal as $\sum_i I_i\,e^{-(\cdot)t^2}\cos(\cdot)$.</li>
+    <li id="s10">P. Jansz et al., <a href="https://link.springer.com/article/10.1007/s13320-012-0069-0">"Modeling of low coherence interferometry using broadband multi-Gaussian light sources"</a>, Photonic Sensors 2, 247 (2012).</li>
+    <li id="s11">arXiv:1210.5944, <a href="https://arxiv.org/pdf/1210.5944">Appendix B</a>: $\tau_c=\int|\gamma(t)|^2dt$ (Mandel's definition).</li>
+    <li id="s12">University of Toronto, <a href="https://www.physics.utoronto.ca/~phy326/fts/ESC471LabManual.pdf">ESC471 FTS manual</a> (Wiener–Khinchin with a Michelson); Peking University, <a href="https://www.phy.pku.edu.cn/__local/9/1C/2B/F2FFA1B32DE20B9120DEF79B7D1_EED689A8_776F5.pdf?e=.pdf">coherence lecture notes</a>.</li>
+    <li id="s13">CVRL (Colour &amp; Vision Research Laboratory, UCL), <a href="http://www.cvrl.org/">CIE 2006 “physiologically-relevant” 2° XYZ colour-matching functions</a> (CIE 170-2:2015), used for every colour on the page. Background: A. Stockman, <a href="https://discovery.ucl.ac.uk/10079410/1/Cone%20fundamentals%20and%20CIE.pdf">“Cone fundamentals and CIE standards”</a>. XYZ is converted to sRGB with the IEC 61966-2-1 matrix, and out-of-gamut colours are desaturated toward white.</li>
+    <li id="s14">Tilted mirror: a tilt about one axis adds an optical path that changes linearly across the mirror, from <a href="https://core.ac.uk/download/391357792.pdf">“Quantitative phase determination by using a Michelson interferometer”</a>, Eur. J. Phys. The air film becomes a wedge, and the fringes go from circular to curved to straight: <a href="https://www.niser.ac.in/sps/assets/files/msc/Michelson_Interferometer2023.pdf">NISER Michelson lab manual</a>.</li>
+  </ol>
+<p class="note">Textbook references for the same results: E. Hecht, <i>Optics</i>, §9.4 and Ch. 12; L. Mandel &amp; E. Wolf, <i>Optical Coherence and Quantum Optics</i>, §4.3; R. J. Bell, <i>Introductory Fourier Transform Spectroscopy</i>. Formulas marked “derived” in the companion reference page follow from these by substitution; the simulator evaluates them directly.</p></div>
+</dialog>
+
+<script>
+{
+
+const LN2=Math.log(2),KW=2*Math.sqrt(LN2),LMIN=380,LMAX=800,SMIN=1000/LMAX,SMAX=1000/LMIN,AMM=5;
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+/* CVRL CIE 2006 2-degree XYZ colour-matching functions (CIE 170-2:2015), 390–780 nm in 5 nm steps */
+const CMF=[0.00377,0.0004146,0.01847,0.009383,0.00106,0.0461,0.02214,0.002452,0.1096,0.04743,0.004972,0.2369,0.08954,0.00908,0.4508,0.1446,0.01429,0.7379,0.2036,0.02027,1.052,0.2489,0.02612,1.305,0.2918,0.03319,1.553,0.3227,0.04158,1.748,0.3483,0.05034,1.917,0.3418,0.05743,1.918,0.3225,0.06472,1.849,0.2827,0.07238,1.664,0.2485,0.08515,1.522,0.222,0.106,1.428,0.1807,0.1299,1.251,0.1292,0.1535,0.9992,0.08183,0.1788,0.7552,0.04601,0.2065,0.5617,0.02084,0.2379,0.4099,0.007098,0.2851,0.3106,0.002462,0.3484,0.2377,0.003649,0.4278,0.172,0.01557,0.5205,0.1177,0.04315,0.6206,0.08284,0.07963,0.7181,0.0565,0.1268,0.7946,0.03752,0.1818,0.8576,0.02438,0.2405,0.9071,0.01566,0.3098,0.9545,0.009846,0.3804,0.9814,0.006131,0.4494,0.989,0.00379,0.528,0.9995,0.002327,0.6134,0.9968,0.001432,0.7017,0.9903,0.0008823,0.7968,0.9733,0.0005452,0.8853,0.9425,0.0003387,0.9638,0.8964,0.0002118,1.051,0.8587,0.0001335,1.11,0.8116,8.494e-05,1.144,0.7545,5.461e-05,1.151,0.6919,3.55e-05,1.135,0.627,2.335e-05,1.084,0.5584,1.555e-05,1.007,0.4896,1.048e-05,0.9143,0.423,0,0.8136,0.3609,0,0.6925,0.2981,0,0.5755,0.2417,0,0.4731,0.1943,0,0.3845,0.1547,0,0.2997,0.1193,0,0.2278,0.0898,0,0.1708,0.06671,0,0.1264,0.049,0,0.09225,0.0356,0,0.0664,0.02554,0,0.04711,0.01808,0,0.03292,0.01262,0,0.02262,0.008661,0,0.01575,0.006028,0,0.01097,0.004196,0,0.007609,0.002911,0,0.005215,0.001996,0,0.003569,0.001367,0,0.002465,0.0009447,0,0.001704,0.0006537,0,0.001186,0.0004556,0,0.000827,0.000318,0,0.0005758,0.0002217,0,0.0004058,0.0001566,0,0.0002857,0.0001104,0,0.0002022,7.827e-05,0,0.0001438,5.579e-05,0,0.0001025,3.982e-05,0,7.348e-05,2.86e-05,0,5.26e-05,2.051e-05,0,3.806e-05,1.487e-05,0];
+const MX=[[3.2406,-1.5372,-0.4986],[-0.9689,1.8758,0.0415],[0.0557,-0.2040,1.0570]];
+const toLin=x=>MX.map(r=>r[0]*x[0]+r[1]*x[1]+r[2]*x[2]);
+const desat=c=>{const m=Math.min(c[0],c[1],c[2]);return m<0?c.map(v=>v-m):c};
+const gam=v=>{v=clamp(v,0,1);return v<=0.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-0.055};
+const hex=c=>'#'+c.map(v=>Math.round(255*gam(v)).toString(16).padStart(2,'0')).join('');
+function cmf(l){if(l<390||l>780)return null;const t=(l-390)/5,i=Math.min(77,Math.floor(t)),f=t-i;return[0,1,2].map(k=>CMF[3*i+k]*(1-f)+CMF[3*(i+1)+k]*f)}
+const GREY=[0.95*0.25,0.25,1.09*0.25];
+const xyzOf=l=>cmf(l)||GREY;   /* marker colour only */
+/* physics colour: light outside the tabulated 390–780 nm CMF range (or at σ ≤ 0) is invisible and adds nothing to XYZ,
+   but it still carries power, so it counts in I_tot, the interferogram and the ring intensity */
+const ZERO3=[0,0,0],visXYZ=l=>cmf(l)||ZERO3;
+const norm=c=>{const m=Math.max(c[0],c[1],c[2]);return m>1e-9?c.map(v=>v/m):[0.5,0.5,0.5]};
+const markHex=l=>hex(norm(desat(toLin(xyzOf(l)))));
+let BARMAX=0;for(let l=390;l<=780;l++){const c=desat(toLin(cmf(l)));BARMAX=Math.max(BARMAX,...c)}
+const barHex=l=>{const x=cmf(l);return x?hex(desat(toLin(x)).map(v=>v/BARMAX)):'#000000'};
+
+const presets={
+  hene:[{s:1000/632.8,a:0.85,f:0}],
+  na:[{s:1000/588.995,a:0.9,f:0},{s:1000/589.592,a:0.6,f:0}],
+  led:[{s:1000/450,a:1.0,f:20*1000/450**2},{s:1000/555,a:0.58,f:100*1000/555**2},{s:1000/610,a:0.25,f:90*1000/610**2}],
+  two:[{s:1.55,a:0.8,f:0.06},{s:1.85,a:0.6,f:0.06}]
+};
+let comps=[{s:1000/632.8,a:0.6,f:0,on:true},{s:1000/540,a:0.8,f:0.06,on:true}],sel=-1,drag=null;
+try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');
+  if(v&&Array.isArray(v.c)){comps=v.c;$('d').value=v.d;if(v.fov)$('fov').value=v.fov;if(v.tx!=null){$('tx').value=v.tx;$('ty').value=v.ty}if(v.ra===false)$('rAuto').checked=false;if(v.env===false)$('envOn').checked=false}}catch(e){}
+comps.forEach(c=>{if(c.on===undefined)c.on=true});
+const save=()=>{try{localStorage.setItem('mich-sim-v2',JSON.stringify({c:comps,d:$('d').value,fov:$('fov').value,tx:$('tx').value,ty:$('ty').value,ra:$('rAuto').checked,rm:Rman,env:$('envOn').checked}))}catch(e){}};
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const F=(x,n=3)=>{if(!isFinite(x))return'\\infty';if(x===0)return'0';return String(Number(x.toPrecision(n)))};
+const wOf=c=>c.f/KW;
+/* Heights are what you see: a Gaussian's height a_n is its peak spectral density, so its power is the area under its curve,
+   I_n = a_n·√π·w_n. A line's height a_n is drawn as if spread over the narrowest Gaussian the editor allows
+   (FWHM 0.008 µm⁻¹, where dragging snaps back to a line), I_n = a_n·√π·w_0, so the power is continuous when a line widens into a Gaussian. */
+const F0=0.008,W0=F0/KW,P=c=>c.a*Math.sqrt(Math.PI)*(c.f?wOf(c):W0);
+const act=()=>comps.filter(c=>c.on);
+const D0=()=>2*(+$('d').value);
+let Rauto=50,Rman=91;  /* interferogram half-range (µm): automatic, or manual once the user zooms */
+const RANGE=()=>$('rAuto').checked?Rauto:Rman;
+try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');if(v&&v.rm)Rman=v.rm}catch(e){}
+const col=c=>markHex(1000/c.s);
+function gamma(d,cs=act()){let re=0,im=0,A=0;for(const c of cs){const w=wOf(c),e=P(c)*Math.exp(-((Math.PI*w*d)**2)),p=2*Math.PI*c.s*d;re+=e*Math.cos(p);im+=e*Math.sin(p);A+=P(c)}
+  return A?[re/A,im/A]:[0,0]}
+const shape=(c,s)=>c.f?c.a*Math.exp(-4*LN2*(s-c.s)**2/(c.f*c.f)):0;
+const dens=(c,s)=>c.f?c.a*Math.exp(-(((s-c.s)/wOf(c))**2)):0;
+/* combined continuous spectrum: the sum of the Gaussian outlines exactly as drawn (no rescaling) */
+function trueShape(){const g=act().filter(c=>c.f);if(!g.length)return null;return s=>g.reduce((t,c)=>t+shape(c,s),0)}
+/* vertical scale of the spectrum plots: 0–1, extended (in steps of 0.25, just above the combined peak) only when overlapping components add more than 5% above 1; frozen while dragging */
+let YM=1;function calcYM(){if(drag)return YM;const ts=trueShape();let m=Math.max(1,...act().map(c=>c.a));
+  if(ts)for(let i=0;i<=1400;i++)m=Math.max(m,ts(1000/(LMIN+(LMAX-LMIN)*i/1400)));return YM=m>1.05?Math.ceil(m*1.04/0.25)*0.25:1}
+/* sub-bands: each Gaussian is split into K narrower Gaussians (width = their spacing; 15 ≤ K ≤ 241, see below) so colour mixing across its band is physical.
+   Giving each sub-band its own coherence envelope keeps the sum equal to the analytic Gaussian (error < 1e-4) at every OPD;
+   bare delta-function sub-lines would falsely "revive" interference at delta ~ 1/spacing. */
+const SPAN=2.8;let slKey='',slVal=null;
+function sublines(){const key=JSON.stringify(act().map(c=>[c.s,c.a,c.f]));if(key===slKey)return slVal;slKey=key;const out=[];let gi=0;for(const c of act()){gi++;if(!c.f){out.push({s:c.s,p:P(c),w:0,g:gi,pka:0});continue}
+  /* sub-band count: at least 15, and fine enough that each sub-band is ≤ 0.012 µm⁻¹ wide (≈ 3.5 nm at 550 nm), max 241; spans ±2.8w */
+  const w=wOf(c),K=clamp(Math.ceil(2*SPAN*w/0.012)+1,15,241),dx=2*SPAN/(K-1),wc=Math.sqrt(1-dx*dx),pka=(Math.PI*w)**2;let ws=[],t=0;
+  for(let k=0;k<K;k++){const x=-SPAN+dx*k,g=Math.exp(-((x/wc)**2));ws.push([c.s+x*w,g]);t+=g}
+  for(const[s,g]of ws)out.push({s,p:P(c)*g/t,w:dx*w,g:gi,pka})}
+  for(const o of out){o.X=bandXYZ(o.s,o.w);o.ka=(Math.PI*o.w)**2;o.kb=2*Math.PI*o.s}slVal=out;return out}
+/* XYZ of one sub-band: its own Gaussian shape integrated against the CVRL functions (Simpson, 41 points over ±3.5 w_s) */
+function bandXYZ(s,ws){if(!ws)return visXYZ(1000/s);const n=40,a=s-3.5*ws,h=7*ws/n,X=[0,0,0];let tw=0;
+  for(let i=0;i<=n;i++){const sg=a+i*h,wt=(i===0||i===n?1:(i%2?4:2))*Math.exp(-(((sg-s)/ws)**2)),x=visXYZ(1000/sg);X[0]+=wt*x[0];X[1]+=wt*x[1];X[2]+=wt*x[2];tw+=wt}return X.map(v=>v/tw)}
+
+/* ---------- spectrum axes ---------- */
+/* spectral axes are linear in wavelength (nm); the physics is still computed in wavenumber σ = 1000/λ (µm⁻¹) */
+function axes(W,H,pl,pr,pt,pb,ylab,l0=LMIN,l1=LMAX,ym=1){
+  /* wavelength runs right-to-left: red (long λ) on the left, blue on the right */
+  const xl=l=>pl+(l1-l)/(l1-l0)*(W-pl-pr),x=s=>xl(1000/s),y=v=>pt+(1-Math.min(v,1.05*ym)/ym)*(H-pt-pb),mute=css('--mute');
+  let h='';for(let px=pl;px<W-pr;px+=2)h+=`<rect x="${px}" y="${H-pb+4}" width="2.4" height="7" fill="${barHex(l1-(px+1-pl)/(W-pl-pr)*(l1-l0))}"/>`;
+  const stp=nice((l1-l0)/(W<420?3:6)),dec=Math.max(0,-Math.floor(Math.log10(stp)+1e-9));
+  for(let l=Math.ceil(l0/stp)*stp;l<=l1+1e-9;l+=stp)h+=`<text x="${xl(l)}" y="${H-pb+24}" font-size="11" fill="${mute}" text-anchor="middle">${l.toFixed(dec)}</text>`;
+  h+=`<text x="${W-pr}" y="${H-3}" font-size="11" fill="${mute}" text-anchor="end">λ (nm)</text>`;
+  for(let v=0;v<=ym+1e-9;v+=0.5)h+=`<line x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}" stroke="${mute}" stroke-opacity="${v?0.15:0.5}"/><text x="${pl-6}" y="${y(v)+4}" font-size="11" fill="${mute}" text-anchor="end">${+v.toFixed(2)}</text>`;
+  if(ylab)h+=`<text transform="translate(11 ${(pt+H-pb)/2}) rotate(-90)" font-size="11" fill="${mute}" text-anchor="middle">${ylab}</text>`;
+  return {x,xl,y,h,mute}}
+function gpath(x,y,W,pl,pr,f,l0=LMIN,l1=LMAX){let p='';const n=Math.max(200,Math.round((W-pl-pr)*2));for(let i=0;i<=n;i++){const s=1000/(l0+(l1-l0)*i/n);p+=(i?'L':'M')+x(s).toFixed(1)+' '+y(f(s)).toFixed(1)}return p}
+
+/* ---------- editor ---------- */
+const spec=$('spec');let G={};
+function renderSpec(){
+  const W=spec.clientWidth,H=spec.clientHeight;if(!W)return;
+  const pl=40,pr=12,pt=20,pb=36,ym=calcYM(),A=axes(W,H,pl,pr,pt,pb,'Spectral density (rel.)',LMIN,LMAX,ym),{x,y}=A;G={x,y,W,H,pl,pr,pt,pb,ym};
+  let h=A.h;const ts=trueShape();
+  if(ts)h+=`<path d="${gpath(x,y,W,pl,pr,ts)}" fill="none" stroke="${css('--fr')}" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  comps.forEach((c,i)=>{const cc=col(c),X=x(c.s),Y=y(c.a),on=i===sel,op=c.on?1:0.35;
+    h+=`<g opacity="${op}">`;
+    if(c.f){h+=`<path d="${gpath(x,y,W,pl,pr,s=>shape(c,s))}L${x(SMIN)} ${y(0)}L${x(SMAX)} ${y(0)}Z" fill="${cc}" fill-opacity=".18" stroke="${cc}" stroke-width="1.5"/>`;
+      /* width bar between the half-maximum points; an end that falls outside the plotted 380–800 nm window is clipped and loses its handle */
+      const xa=x(c.s+c.f/2),xb=c.s-c.f/2>0?x(c.s-c.f/2):Infinity,yh=y(c.a/2),cl=v=>clamp(v,pl,W-pr);
+      h+=`<line x1="${cl(xa)}" x2="${cl(xb)}" y1="${yh}" y2="${yh}" stroke="${cc}" stroke-width="1.2"/>`;
+      for(const sx of [xa,xb].filter(v=>v>=pl&&v<=W-pr))h+=`<rect x="${sx-2}" y="${yh-6}" width="4" height="12" rx="1.5" fill="${cc}" stroke="${css('--ink')}" stroke-width=".8"/><rect x="${sx-9}" y="${yh-11}" width="18" height="22" fill="transparent" style="cursor:ew-resize"/>`}
+    h+=`<line x1="${X}" x2="${X}" y1="${y(0)}" y2="${Y}" stroke="${cc}" stroke-width="${c.f?1.5:3}" ${c.f?'stroke-dasharray="4 3"':''}/>`;
+    h+=`<line x1="${X}" x2="${X}" y1="${y(0)}" y2="${Y}" stroke="transparent" stroke-width="18" style="cursor:ew-resize"/>`;
+    h+=`<circle cx="${X}" cy="${Y}" r="${on?6.5:5}" fill="${cc}" stroke="${on?'#e0115f':css('--ink')}" stroke-width="${on?2.5:1.2}" style="cursor:move"/>`;
+    const lab=(1000/c.s).toFixed(1),side=Y-13<pt;
+    h+=side?`<text x="${X+(X>W-60?-10:10)}" y="${Y+4}" font-size="11" fill="${A.mute}" text-anchor="${X>W-60?'end':'start'}">${lab}</text>`:`<text x="${X}" y="${Y-10}" font-size="11" fill="${A.mute}" text-anchor="middle">${lab}</text>`;
+    h+='</g>'});
+  if(!comps.length)h+=`<text x="${W/2}" y="${H/2}" font-size="15" fill="${A.mute}" text-anchor="middle">Click anywhere here to place a wavelength</text>`;
+  spec.innerHTML=h}
+const toS=px=>1000/clamp(LMAX-(px-G.pl)/(G.W-G.pl-G.pr)*(LMAX-LMIN),LMIN*0.6,LMAX*1.6),toA=py=>(1-(py-G.pt)/(G.H-G.pt-G.pb))*G.ym;
+function hit(px,py){
+  for(let i=comps.length-1;i>=0;i--){const c=comps[i];if(Math.hypot(px-G.x(c.s),py-G.y(c.a))<11)return{i,mode:'move'}}
+  for(let i=comps.length-1;i>=0;i--){const c=comps[i];if(!c.f)continue;const xa=G.x(c.s+c.f/2),xb=c.s-c.f/2>0?G.x(c.s-c.f/2):Infinity,yh=G.y(c.a/2);
+    if(Math.abs(py-yh)<11&&(Math.abs(px-xa)<9||Math.abs(px-xb)<9))return{i,mode:'width'}}
+  for(let i=comps.length-1;i>=0;i--){const c=comps[i],X=G.x(c.s);if(Math.abs(px-X)<8&&py>G.y(c.a)&&py<G.y(0)+4)return{i,mode:'width'}}
+  for(let i=comps.length-1;i>=0;i--){const c=comps[i];if(c.f&&Math.abs(py-G.y(shape(c,toS(px))))<8)return{i,mode:'width'}}
+  return null}
+const pos=e=>{const r=spec.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
+spec.addEventListener('pointerdown',e=>{const[px,py]=pos(e);let h=hit(px,py);
+  if(!h){if(py<G.pt-4||py>G.y(0)+2)return;comps.push({s:clamp(toS(px),SMIN,SMAX),a:clamp(toA(py),0.03,1),f:0,on:true});h={i:comps.length-1,mode:'move'}}
+  sel=h.i;drag=h;spec.setPointerCapture(e.pointerId);e.preventDefault();update(true)});
+spec.addEventListener('pointermove',e=>{if(!drag)return;const[px,py]=pos(e),c=comps[drag.i];
+  if(drag.mode==='move'){c.s=clamp(toS(px),SMIN,SMAX);c.a=clamp(toA(py),0.03,1)}
+  else{const f=2*Math.abs(toS(px)-c.s);c.f=f<0.008?0:Math.min(f,0.9)}
+  update(true)});
+const end=()=>{if(drag){drag=null;update(false)}};
+spec.addEventListener('pointerup',end);spec.addEventListener('pointercancel',end);
+spec.addEventListener('dblclick',e=>{const[px,py]=pos(e);const h=hit(px,py);if(h&&h.mode==='move'){comps.splice(h.i,1);sel=-1;update(false)}});
+document.addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&sel>=0&&!(e.target instanceof HTMLInputElement)){comps.splice(sel,1);sel=-1;update(false);e.preventDefault()}});
+
+/* ---------- interfered spectrum ----------
+   Its wavelength window auto-crops to the switched-on components (Gaussians to ±3w, plus 12% padding, at least 2 nm wide).
+   Scroll zooms about the cursor, drag pans; either turns Auto-fit off. */
+let OG={},outMan=null;
+function outAutoWin(){const cs=act();if(!cs.length)return[LMIN,LMAX];let lo=1e9,hi=-1e9;
+  for(const c of cs){const w=wOf(c),a=1000/(c.s+3*w),b=1000/Math.max(c.s-3*w,0.2);lo=Math.min(lo,a);hi=Math.max(hi,b)}
+  let pad=Math.max(0.12*(hi-lo),1),l0=lo-pad,l1=hi+pad;if(l1-l0<2){const m=(l0+l1)/2;l0=m-1;l1=m+1}
+  return[Math.max(LMIN,l0),Math.min(LMAX,l1)]}
+const outWin=()=>(!$('oAuto').checked&&outMan)?outMan:outAutoWin();
+function setOutMan(a,b){const span=clamp(b-a,0.05,LMAX-LMIN);let m=(a+b)/2;a=m-span/2;b=m+span/2;if(a<LMIN){b+=LMIN-a;a=LMIN}if(b>LMAX){a-=b-LMAX;b=LMAX}
+  outMan=[Math.max(LMIN,a),Math.min(LMAX,b)];$('oAuto').checked=false}
+function renderOut(){
+  const svg=$('out'),W=svg.clientWidth,H=svg.clientHeight;if(!W)return;
+  const pl=40,pr=10,pt=8,pb=36,[l0,l1]=outWin(),A=axes(W,H,pl,pr,pt,pb,'S_out (rel.)',l0,l1,YM),{x,y}=A,fr=css('--fr'),fill=css('--fill');OG={W,pl,pr,l0,l1};
+  const gp=f=>gpath(x,y,W,pl,pr,f,l0,l1);
+  let h=A.h;const d0=D0(),T=s=>0.5*(1+Math.cos(2*Math.PI*s*d0)),ts=trueShape();
+  h+=`<path d="${gp(T)}" fill="none" stroke="${A.mute}" stroke-opacity=".55" stroke-width="1"/>`;
+  if(ts){h+=`<path d="${gp(ts)}" fill="none" stroke="${fr}" stroke-dasharray="4 3"/>`;
+    h+=`<path d="${gp(s=>ts(s)*T(s))}L${x(1000/l1)} ${y(0)}L${x(1000/l0)} ${y(0)}Z" fill="${fill}" fill-opacity=".85" stroke="${fr}" stroke-width="1.5"/>`}
+  for(const c of act())if(!c.f){const lc=1000/c.s;if(lc<l0||lc>l1)continue;const v=c.a*T(c.s);
+    h+=`<line x1="${x(c.s)}" x2="${x(c.s)}" y1="${y(0)}" y2="${y(c.a)}" stroke="${fr}" stroke-dasharray="3 3"/><line x1="${x(c.s)}" x2="${x(c.s)}" y1="${y(0)}" y2="${y(v)}" stroke="${col(c)}" stroke-width="3"/><circle cx="${x(c.s)}" cy="${y(v)}" r="3.5" fill="${col(c)}"/>`}
+  svg.innerHTML=h}
+
+/* ---------- shared exact maths for rendering ----------
+   Pixel footprint: each displayed pixel averages the pattern over a 2-D Gaussian footprint (sd PIXSD px).
+   With the OPD linearised across the pixel, delta ~ N(dm, tau^2), tau = PIXSD*|grad delta|*pixel, and for a term e^{-a delta^2}cos(b delta):
+   <e^{-a d^2} cos(b d)> = q^{-1/2} exp(-(a dm^2 + b^2 tau^2/2)/q) cos(b dm/q),  q = 1 + 2 a tau^2   (closed form, Gaussian integral). */
+const PIXSD=0.4;
+const avgTerm=(ka,kb,dm,t2)=>{const q=1+2*ka*t2;return Math.exp(-(ka*dm*dm+0.5*kb*kb*t2)/q)*Math.cos(kb*dm/q)/Math.sqrt(q)};
+function xyzAt(dm,t2,SL){let X=0,Y=0,Z=0;for(const o of SL){const v=0.5*o.p*(1+avgTerm(o.ka,o.kb,dm,t2));X+=v*o.X[0];Y+=v*o.X[1];Z+=v*o.X[2]}return[X,Y,Z]}
+const hueOf=xyz=>norm(desat(toLin(xyz)));
+const GL=new Float32Array(4097);for(let i=0;i<=4096;i++)GL[i]=255*gam(i/4096);
+const enc=v=>GL[v<=0?0:v>=1?4096:(v*4096+0.5)|0];
+
+/* ---------- anti-aliased range plot ----------
+   Each device-pixel column is split into K = 8 sub-columns. Each sub-column contributes the exact min–max span of the signal over
+   its own slice (from samples fine enough to resolve every fringe, or ½(1 ± max|γ|) once a slice holds a whole fringe),
+   drawn at least 1.25 px tall, with 1/K coverage and fractional coverage at its ends (shown with a 0.45 display gamma, like scope persistence). Summing coverage is a box filter:
+   proper anti-aliasing, so fringes near the pixel pitch blend into an even tone instead of beating into moiré.
+   A small horizontal Gaussian (sd 0.7 px) then suppresses the box filter's own side-lobes. */
+function spanOf(t0,t1,dAt,cs,smax){const fr=Math.abs(dAt(t1)-dAt(t0))*smax;let lo=1,hi=0;
+  if(fr>=1){for(let q=0;q<=4;q++){const[re,im]=gamma(dAt(t0+(t1-t0)*q/4),cs),m=Math.hypot(re,im);lo=Math.min(lo,0.5*(1-m));hi=Math.max(hi,0.5*(1+m))}}
+  else{const k=Math.max(2,Math.ceil(16*fr)+1);for(let q=0;q<=k;q++){const v=0.5*(1+gamma(dAt(t0+(t1-t0)*q/k),cs)[0]);lo=Math.min(lo,v);hi=Math.max(hi,v)}}return[lo,hi]}
+function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=ringLive?2:8,  /* 2 sub-columns while moving, 8 at rest */
+  img=ctx.createImageData(Wd,Hd),D=img.data,C=new Float32Array(Wd*Hd),cols=[],smax=Math.max(...cs.map(c=>c.s)),MINH=1.25*(window.devicePixelRatio||1);
+  for(let px=0;px<Wd;px++){const base=px*Hd;
+    for(let k=0;k<K;k++){const[lo,hi]=spanOf((px+k/K)/Wd,(px+(k+1)/K)/Wd,dAt,cs,smax);let ya=(1-hi)*(Hd-1),yb=(1-lo)*(Hd-1);
+      if(yb-ya<MINH){const m=(ya+yb)/2;ya=m-MINH/2;yb=m+MINH/2}
+      for(let yy=Math.max(0,Math.floor(ya));yy<=Math.min(Hd-1,Math.ceil(yb));yy++){const o=Math.min(yy+1,yb)-Math.max(yy,ya);if(o>0)C[base+yy]+=o/K}}
+    cols.push(colourAt((px+0.5)/Wd))}
+  /* horizontal Gaussian low-pass (sd 0.7 px) on top of the box filter removes the box filter's sinc side-lobes, which are what still beat into moiré */
+  const KW=[0.0097,0.205,0.5706,0.205,0.0097];
+  for(let px=0;px<Wd;px++){const c=cols[px];
+    for(let yy=0;yy<Hd;yy++){let v=0;for(let t=-2;t<=2;t++){const q=px+t;if(q>=0&&q<Wd)v+=KW[t+2]*C[q*Hd+yy]}if(v<=0.002)continue;
+      const a=Math.pow(Math.min(1,v),0.45),o=4*(yy*Wd+px);D[o]=c[0];D[o+1]=c[1];D[o+2]=c[2];D[o+3]=255*a}}
+  const off=document.createElement('canvas');off.width=Wd;off.height=Hd;off.getContext('2d').putImageData(img,0,0);
+  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(off,x0,y0);ctx.restore()}
+const rgb8=c=>c.map(v=>enc(v)|0);
+let _probe=null;function cssRGB(v){if(!_probe){_probe=document.createElement('span');_probe.style.display='none';document.body.appendChild(_probe)}_probe.style.color=`var(${v})`;return getComputedStyle(_probe).color.match(/\d+/g).slice(0,3).map(Number)}
+
+/* ---------- interferogram (canvas trace coloured by perceived colour) ---------- */
+/* The trace and its envelope depend only on the spectrum, the range and the plot size, not on d, so they are cached:
+   moving the mirror only redraws the δ₀ marker. */
+let ifgKey='',ifgEnv='';
+function renderIfg(){
+  const svg=$('ifg'),cv=$('ifgC'),W=svg.clientWidth,H=svg.clientHeight;if(!W)return;
+  const dpr=window.devicePixelRatio||1,key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr,ringLive?2:8]),fresh=key!==ifgKey;ifgKey=key;
+  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
+  const R=RANGE(),pl=46,pr=10,pt=10,pb=42,x=d=>pl+(d+R)/(2*R)*(W-pl-pr),y=v=>pt+(1-v)*(H-pt-pb),mute=css('--mute');
+  if(fresh){g.clearRect(0,0,W,H);g.fillStyle='#05070f';g.fillRect(pl,pt,W-pl-pr,H-pt-pb)}
+  let h='';for(const v of [0,0.5,1])h+=`<line x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}" stroke="#ffffff" stroke-opacity="${v?0.12:0.3}"/><text x="${pl-6}" y="${y(v)+4}" font-size="12" fill="${mute}" text-anchor="end">${v}</text>`;
+  for(const t of [-R,-R/2,0,R/2,R])h+=`<text x="${x(t)}" y="${H-pb+16}" font-size="12" fill="${mute}" text-anchor="${t===-R?'start':t===R?'end':'middle'}">${F(t,3)}</text>`;
+  h+=`<text x="${(pl+W-pr)/2}" y="${H-4}" font-size="12" fill="${mute}" text-anchor="middle">δ (µm)</text><text transform="translate(12 ${(pt+H-pb)/2}) rotate(-90)" font-size="12" fill="${mute}" text-anchor="middle">I(δ) / I_tot</text>`;
+  const cs=act();
+  if(cs.length){const SL=sublines(),PW=Math.round(W-pl-pr),col=2*R/PW,smax=Math.max(...cs.map(c=>c.s));
+    if(fresh){let up='',lo='';
+    for(let p=0;p<=PW;p+=2){const d=-R+col*p,[re,im]=gamma(d,cs),m=Math.hypot(re,im),X=x(d).toFixed(1);up+=(up?'L':'M')+X+' '+y(0.5*(1+m)).toFixed(1);lo+=(lo?'L':'M')+X+' '+y(0.5*(1-m)).toFixed(1)}
+    ifgEnv=`<path d="${up}" fill="none" stroke="#e0115f" stroke-width="1.8"/><path d="${lo}" fill="none" stroke="#e0115f" stroke-width="1.8"/>`;
+    const dpr=window.devicePixelRatio||1,x0=Math.round(pl*dpr),y0=Math.round(pt*dpr),Wd=Math.round((W-pl-pr)*dpr),Hd=Math.round((H-pt-pb)*dpr),t2=(PIXSD*col)**2;
+      densityPlot(g,x0,y0,Wd,Hd,t=>-R+2*R*t,cs,t=>rgb8(hueOf(xyzAt(-R+2*R*t,t2,SL))))}
+    if($('envOn').checked)h+=ifgEnv;
+    const d0=D0();if(Math.abs(d0)<=R)h+=`<line x1="${x(d0)}" x2="${x(d0)}" y1="${pt}" y2="${y(0)}" stroke="#ff4d8d" stroke-dasharray="5 4" stroke-width="1.5"/><text x="${x(d0)+4}" y="${pt+28}" font-size="12" fill="#ff4d8d">δ₀</text>`}
+  svg.innerHTML=h}
+
+/* ---------- ring pattern ----------
+   Screen point (u,v) in [-1,1]^2 (r = 1 at the edge of the field). Lens mapping: tan(theta) = r tan(theta_max).
+   Mirror-plane coordinates for the tilt wedge: x = a u, y = a v, a = L tan(theta_max), L = 28.4 mm (a = 5 mm at 10°).
+   OPD: delta(u,v) = 2 d cos(theta) + 2 (alpha_x x + alpha_y y). Every pixel is the exact footprint average above.
+   With zero tilt the pattern is radial, so it is evaluated on a radial grid at 16 samples per pixel (4 while moving) and linearly interpolated. */
+const ring=$('ring'),rctx=ring.getContext('2d');let ringLive=false,Ibuf=null;
+function ringModel(){const d=+$('d').value,tm=(+$('fov').value)*Math.PI/180,T=Math.tan(tm),aE=AMM*T/Math.tan(10*Math.PI/180),kx=2e-3*(+$('tx').value)*aE,ky=2e-3*(+$('ty').value)*aE;
+  return{d,T,kx,ky,
+    th:r=>Math.atan(r*T),
+    opd(u,v){const r=Math.hypot(u,v);return 2*d*Math.cos(Math.atan(r*T))+kx*u+ky*v},
+    ddr(r){const th=Math.atan(r*T);return -2*d*Math.sin(th)*T/(1+(r*T)**2)},
+    rad(r){const th=Math.atan(r*T),q=1+r*r*T*T,c=T/q,cp=-2*r*T**3/(q*q),f1=-2*d*Math.sin(th)*c,f2=-2*d*(Math.cos(th)*c*c+Math.sin(th)*cp);return[f1,f2,r>1e-12?f1/r:f2]},
+    grad(u,v){const r=Math.hypot(u,v);if(r<1e-12)return[kx,ky];const g=this.ddr(r);return[g*u/r+kx,g*v/r+ky]}}}
+/* groups: one per parent component, with its constant (non-fringe) XYZ. A Gaussian's fringe term is skipped only when
+   e^{-a_parent·δmin²} < e^{-30} for every OPD in the footprint (δmin = |δ̄| − 5τ), i.e. below 1e-13. */
+function prepSL(SL){const n=SL.length,o={n,P:new Float64Array(n),KA:new Float64Array(n),KB:new Float64Array(n),X:new Float64Array(n),Y:new Float64Array(n),Z:new Float64Array(n),G:[]};
+  SL.forEach((s,k)=>{o.P[k]=0.5*s.p;o.KA[k]=s.ka;o.KB[k]=s.kb;o.X[k]=s.X[0];o.Y[k]=s.X[1];o.Z[k]=s.X[2];
+    let g=o.G[o.G.length-1];if(!g||g.id!==s.g){g={id:s.g,a:k,b:k+1,pka:s.pka,cX:0,cY:0,cZ:0,cI:0};o.G.push(g)}g.b=k+1;g.cX+=o.P[k]*s.X[0];g.cY+=o.P[k]*s.X[1];g.cZ+=o.P[k]*s.X[2];g.cI+=o.P[k]});return o}
+/* Second-order footprint average. Over a Gaussian footprint Δ ~ N(0, s²I) the OPD is expanded to second order,
+   δ = δ̄ + gᵀΔ + ½ΔᵀHΔ, and the sub-band envelope e^{-aδ²} to first order in Δ. Then for e^{-aδ²+ibδ} the average is the
+   Gaussian integral  det(I − s²B)^{-1/2} · exp(−aδ̄² + ibδ̄ + ½κ²s² gᵀ(I − s²B)^{-1}g),  κ = −2aδ̄ + ib,  B = κH − 2a ggᵀ.
+   With H = 0 it reduces exactly to avgTerm above; for lines (a = 0) it is exact for any quadratic OPD. */
+function avgQ(ka,kb,dm,gx,gy,h11,h12,h22,s2){
+  const kr=-2*ka*dm,ki=kb;
+  const b11r=kr*h11-2*ka*gx*gx,b11i=ki*h11,b12r=kr*h12-2*ka*gx*gy,b12i=ki*h12,b22r=kr*h22-2*ka*gy*gy,b22i=ki*h22;
+  const m11r=1-s2*b11r,m11i=-s2*b11i,m12r=-s2*b12r,m12i=-s2*b12i,m22r=1-s2*b22r,m22i=-s2*b22i;
+  const dr=m11r*m22r-m11i*m22i-(m12r*m12r-m12i*m12i),di=m11r*m22i+m11i*m22r-2*m12r*m12i;
+  const nr=m22r*gx*gx-2*m12r*gx*gy+m11r*gy*gy,ni=m22i*gx*gx-2*m12i*gx*gy+m11i*gy*gy;
+  const dd=dr*dr+di*di,qr=(nr*dr+ni*di)/dd,qi=(ni*dr-nr*di)/dd,k2r=kr*kr-ki*ki,k2i=2*kr*ki;
+  const er=-ka*dm*dm+0.5*s2*(k2r*qr-k2i*qi)-0.25*Math.log(dd),ei=kb*dm+0.5*s2*(k2r*qi+k2i*qr)-0.5*Math.atan2(di,dr);
+  return er<-40?0:Math.exp(er)*Math.cos(ei)}
+const PV=[0,0,0,0];
+/* quad=false uses the first-order form (H = 0); it is only chosen when the curvature phase kb·s²·|H| < 3e-4, below which the two agree to that level */
+function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2*(gx*gx+gy*gy),dmin=Math.max(0,Math.abs(dm)-5*Math.sqrt(t2));
+  for(const gr of pr.G){if(gr.pka*dmin*dmin>30){X+=gr.cX;Y+=gr.cY;Z+=gr.cZ;I+=gr.cI;continue}
+  for(let k=gr.a;k<gr.b;k++){const ka=pr.KA[k],kb=pr.KB[k];let f;
+    if(quad)f=avgQ(ka,kb,dm,gx,gy,h11,h12,h22,s2);else{const q=1+2*ka*t2,ex=-(ka*dm*dm+0.5*kb*kb*t2)/q;f=ex>-40?Math.exp(ex)*Math.cos(kb*dm/q)/(ka?Math.sqrt(q):1):0}
+    const v=pr.P[k]*(1+f);I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}}
+  PV[0]=X;PV[1]=Y;PV[2]=Z;PV[3]=I;return PV}
+
+/* ---------- ring renderers: WebGPU → WebGL2 → CPU workers → CPU main thread ----------
+   Every backend evaluates the same per-pixel formula as pixVal() above: the exact Gaussian-footprint average of each sub-band,
+   first-order or second-order (avgQ) by the same 3e-4 curvature test, with the same group skipping.
+   GPUs work in 32-bit floats, so the large part of each fringe phase is taken out in 64-bit on the CPU:
+   k_b·δ̄ = [k_b·2d mod 2π] + k_b·Δ, with Δ = −4d sin²(θ/2) + k_x u + k_y v computed on the GPU.
+   Where Δ is large the fringes are far finer than a pixel and the footprint average has already damped them to ~0.
+   The verification table reads the active backend's pixels back and checks them against brute-force integration. */
+const RB={pref:'auto',active:'cpu',gpu:null,gl:null,workers:null,busy:false,dirty:false,done:null};
+try{RB.pref=localStorage.getItem('mich-renderer')||'auto'}catch(e){}
+const TAU=2*Math.PI;
+/* pack sub-bands and groups for the GPU: per sub-band (P, KA, KB, phase0), (X, Y, Z, 0); per group (a, b, pka, cI), (cX, cY, cZ, 0) */
+function packRing(pr,M){const n=pr.n,sb=new Float32Array(Math.max(8,n*8)),G=pr.G,gr=new Float32Array(Math.max(8,G.length*8));
+  for(let k=0;k<n;k++){const o=8*k,ph=(pr.KB[k]*2*M.d)%TAU;sb[o]=pr.P[k];sb[o+1]=pr.KA[k];sb[o+2]=pr.KB[k];sb[o+3]=ph;sb[o+4]=pr.X[k];sb[o+5]=pr.Y[k];sb[o+6]=pr.Z[k]}
+  G.forEach((g,i)=>{const o=8*i;gr[o]=g.a;gr[o+1]=g.b;gr[o+2]=g.pka;gr[o+3]=g.cI;gr[o+4]=g.cX;gr[o+5]=g.cY;gr[o+6]=g.cZ});
+  let kbm=0;for(let k=0;k<n;k++)kbm=Math.max(kbm,pr.KB[k]);return{sb,gr,n,ng:G.length,kbm}}
+
+/* shared pixel maths in GLSL (the WGSL version below repeats it line for line) */
+const PIX_GLSL=`
+float gam(float v){v=clamp(v,0.,1.);return v<=0.0031308?12.92*v:1.055*pow(v,1./2.4)-0.055;}
+/* GPU sin/cos are only accurate to ~5e-4 (absolute), so fringe phases use this: reduce to [0, π], then a 16th-order Taylor series (error < 1e-9) */
+float cosA(float x){float y=abs(x-6.283185307*floor(x/6.283185307+0.5));float sg=1.;if(y>1.5707963){y=3.14159265-y;sg=-1.;}
+  float z=y*y;return sg*(1.+z*(-0.5+z*(1./24.+z*(-1./720.+z*(1./40320.+z*(-1./3628800.+z*(1./479001600.+z*(-1./87178291200.))))))));}
+vec4 pix(float u,float v){
+  /* tanθ = r·tanθmax, so cosθ, sinθ and sin²(θ/2) follow from square roots alone (no low-accuracy trig) */
+  float r=sqrt(u*u+v*v),x2=r*r*uT*uT,q=1.+x2,sq=sqrt(q),c=uT/q,cp=-2.*r*uT*uT*uT/(q*q),s=r*uT/sq,co=1./sq;
+  float f1=-2.*uD*s*c,f2=-2.*uD*(co*c*c+s*cp),fr=r>1e-12?f1/r:f2,ux=r>1e-12?u/r:1.,uy=r>1e-12?v/r:0.;
+  float gx=f1*ux+uKx,gy=f1*uy+uKy,h11=f2*ux*ux+fr*(1.-ux*ux),h22=f2*uy*uy+fr*(1.-uy*uy),h12=(f2-fr)*ux*uy;
+  float sh2=x2/(2.*sq*(sq+1.)),Dl=-4.*uD*sh2+uKx*u+uKy*v,dm=2.*uD+Dl;
+  bool quad=uKbm*uS2*max(abs(f2),abs(fr))>=3e-4;
+  float t2=uS2*(gx*gx+gy*gy),dmin=max(0.,abs(dm)-5.*sqrt(t2));
+  vec4 acc=vec4(0.);
+  for(int gi=0;gi<uNG;gi++){vec4 g0=fetchG(2*gi),g1=fetchG(2*gi+1);
+    if(g0.z*dmin*dmin>30.){acc+=vec4(g1.xyz,g0.w);continue;}
+    int a=int(g0.x+0.5),b=int(g0.y+0.5);
+    for(int k=a;k<b;k++){vec4 s0=fetchS(2*k),s1=fetchS(2*k+1);float ka=s0.y,kb=s0.z,ph=s0.w+kb*Dl,f;
+      if(quad){
+        float kr=-2.*ka*dm,ki=kb;
+        float b11r=kr*h11-2.*ka*gx*gx,b11i=ki*h11,b12r=kr*h12-2.*ka*gx*gy,b12i=ki*h12,b22r=kr*h22-2.*ka*gy*gy,b22i=ki*h22;
+        float m11r=1.-uS2*b11r,m11i=-uS2*b11i,m12r=-uS2*b12r,m12i=-uS2*b12i,m22r=1.-uS2*b22r,m22i=-uS2*b22i;
+        float dr=m11r*m22r-m11i*m22i-(m12r*m12r-m12i*m12i),di=m11r*m22i+m11i*m22r-2.*m12r*m12i;
+        float nr=m22r*gx*gx-2.*m12r*gx*gy+m11r*gy*gy,ni=m22i*gx*gx-2.*m12i*gx*gy+m11i*gy*gy;
+        float dd=dr*dr+di*di,qr=(nr*dr+ni*di)/dd,qi=(ni*dr-nr*di)/dd,k2r=kr*kr-ki*ki,k2i=2.*kr*ki;
+        float er=-ka*dm*dm+0.5*uS2*(k2r*qr-k2i*qi)-0.25*log(dd),ei=ph+0.5*uS2*(k2r*qi+k2i*qr)-0.5*atan(di,dr);
+        f=er<-40.?0.:exp(er)*cosA(ei);
+      }else{float qq=1.+2.*ka*t2,ex=-(ka*dm*dm+0.5*kb*kb*t2)/qq;f=ex>-40.?exp(ex)*cosA(ph-kb*dm*(qq-1.)/qq)/(ka>0.?sqrt(qq):1.):0.;}
+      float w=s0.x*(1.+f);acc+=vec4(w*s1.xyz,w);}}
+  return acc;}`;
+const TONE_GLSL=`
+vec3 tone(vec4 x){vec3 c=vec3(dot(vec3(3.2406,-1.5372,-0.4986),x.xyz),dot(vec3(-0.9689,1.8758,0.0415),x.xyz),dot(vec3(0.0557,-0.2040,1.0570),x.xyz));
+  float m=min(min(c.r,c.g),min(c.b,0.));c=(c-m)*uGain;return vec3(gam(c.r),gam(c.g),gam(c.b));}`;
+/* WGSL is different enough that it is written out separately (same expressions, line for line) */
+const WGSL_HEAD=`struct Prm{a:vec4f,b:vec4f,c:vec4f};
+@group(0) @binding(0) var<uniform> P:Prm;`;
+const WGSL=WGSL_HEAD+`
+@group(0) @binding(1) var<storage,read> SB:array<vec4f>;
+@group(0) @binding(2) var<storage,read> GR:array<vec4f>;
+@group(0) @binding(3) var<storage,read_write> OUT:array<vec4f>;
+fn cosA(x:f32)->f32{var y=abs(x-6.283185307*floor(x/6.283185307+0.5));var sg=1.;if(y>1.5707963){y=3.14159265-y;sg=-1.;}
+  let z=y*y;return sg*(1.+z*(-0.5+z*(1./24.+z*(-1./720.+z*(1./40320.+z*(-1./3628800.+z*(1./479001600.+z*(-1./87178291200.))))))));}
+fn pix(u:f32,v:f32)->vec4f{
+  let uD=P.b.y;let uT=P.b.z;let uKx=P.b.w;let uKy=P.c.x;let uS2=P.c.y;let uKbm=P.c.z;let NG=i32(P.a.y);
+  let r=sqrt(u*u+v*v);let x2=r*r*uT*uT;let q=1.+x2;let sq=sqrt(q);let c=uT/q;let cp=-2.*r*uT*uT*uT/(q*q);let s=r*uT/sq;let co=1./sq;
+  let f1=-2.*uD*s*c;let f2=-2.*uD*(co*c*c+s*cp);let fr=select(f2,f1/r,r>1e-12);let ux=select(1.,u/r,r>1e-12);let uy=select(0.,v/r,r>1e-12);
+  let gx=f1*ux+uKx;let gy=f1*uy+uKy;let h11=f2*ux*ux+fr*(1.-ux*ux);let h22=f2*uy*uy+fr*(1.-uy*uy);let h12=(f2-fr)*ux*uy;
+  let sh2=x2/(2.*sq*(sq+1.));let Dl=-4.*uD*sh2+uKx*u+uKy*v;let dm=2.*uD+Dl;
+  let quad=uKbm*uS2*max(abs(f2),abs(fr))>=3e-4;
+  let t2=uS2*(gx*gx+gy*gy);let dmin=max(0.,abs(dm)-5.*sqrt(t2));
+  var acc=vec4f(0.);
+  for(var gi=0;gi<NG;gi++){let g0=GR[2*gi];let g1=GR[2*gi+1];
+    if(g0.z*dmin*dmin>30.){acc+=vec4f(g1.xyz,g0.w);continue;}
+    let a=i32(g0.x+0.5);let b=i32(g0.y+0.5);
+    for(var k=a;k<b;k++){let s0=SB[2*k];let s1=SB[2*k+1];let ka=s0.y;let kb=s0.z;let ph=s0.w+kb*Dl;var f=0.;
+      if(quad){
+        let kr=-2.*ka*dm;let ki=kb;
+        let b11r=kr*h11-2.*ka*gx*gx;let b11i=ki*h11;let b12r=kr*h12-2.*ka*gx*gy;let b12i=ki*h12;let b22r=kr*h22-2.*ka*gy*gy;let b22i=ki*h22;
+        let m11r=1.-uS2*b11r;let m11i=-uS2*b11i;let m12r=-uS2*b12r;let m12i=-uS2*b12i;let m22r=1.-uS2*b22r;let m22i=-uS2*b22i;
+        let dr=m11r*m22r-m11i*m22i-(m12r*m12r-m12i*m12i);let di=m11r*m22i+m11i*m22r-2.*m12r*m12i;
+        let nr=m22r*gx*gx-2.*m12r*gx*gy+m11r*gy*gy;let ni=m22i*gx*gx-2.*m12i*gx*gy+m11i*gy*gy;
+        let dd=dr*dr+di*di;let qr=(nr*dr+ni*di)/dd;let qi=(ni*dr-nr*di)/dd;let k2r=kr*kr-ki*ki;let k2i=2.*kr*ki;
+        let er=-ka*dm*dm+0.5*uS2*(k2r*qr-k2i*qi)-0.25*log(dd);let ei=ph+0.5*uS2*(k2r*qi+k2i*qr)-0.5*atan2(di,dr);
+        if(er>=-40.){f=exp(er)*cosA(ei);}
+      }else{let qq=1.+2.*ka*t2;let ex=-(ka*dm*dm+0.5*kb*kb*t2)/qq;if(ex>-40.){f=exp(ex)*cosA(ph-kb*dm*(qq-1.)/qq)/select(1.,sqrt(qq),ka>0.);}}
+      let w=s0.x*(1.+f);acc+=vec4f(w*s1.xyz,w);}}
+  return acc;}
+@compute @workgroup_size(8,8) fn cmain(@builtin(global_invocation_id) id:vec3u){
+  let N=f32(P.a.x);let k=P.a.z;let Nl=u32(P.a.w);if(id.x>=Nl||id.y>=Nl){return;}let h=N*0.5;
+  let u=((f32(id.x)+0.5)*k-h)/h;let v=-((f32(id.y)+0.5)*k-h)/h;OUT[id.y*Nl+id.x]=pix(u,v);}`;
+const WGSL_R=WGSL_HEAD+`
+@group(0) @binding(3) var<storage,read> OUT:array<vec4f>;
+fn gam(v0:f32)->f32{let v=clamp(v0,0.,1.);return select(1.055*pow(v,1./2.4)-0.055,12.92*v,v<=0.0031308);}
+@vertex fn vmain(@builtin(vertex_index) i:u32)->@builtin(position) vec4f{var p=array<vec2f,3>(vec2f(-1.,-1.),vec2f(3.,-1.),vec2f(-1.,3.));return vec4f(p[i],0.,1.);}
+@fragment fn fmain(@builtin(position) pos:vec4f)->@location(0) vec4f{
+  let k=u32(P.a.z);let Nl=u32(P.a.w);let i=min(u32(pos.x)/k,Nl-1u);let j=min(u32(pos.y)/k,Nl-1u);let x=OUT[j*Nl+i];
+  var c=vec3f(dot(vec3f(3.2406,-1.5372,-0.4986),x.xyz),dot(vec3f(-0.9689,1.8758,0.0415),x.xyz),dot(vec3f(0.0557,-0.2040,1.0570),x.xyz));
+  let m=min(min(c.r,c.g),min(c.b,0.));c=(c-m)*P.c.w;return vec4f(gam(c.r),gam(c.g),gam(c.b),1.);}`;
+/* fragment-shader version for WebGL2 */
+const GLSL_HEAD=`#version 300 es
+precision highp float;precision highp int;precision highp sampler2D;
+uniform sampler2D uSB,uGR,uOut;uniform int uNG,uN,uK;uniform float uD,uT,uKx,uKy,uS2,uKbm,uGain;out vec4 o;
+vec4 fetchS(int t){return texelFetch(uSB,ivec2(t%1024,t/1024),0);}vec4 fetchG(int t){return texelFetch(uGR,ivec2(t%1024,t/1024),0);}`;
+const GLSL_PIX=GLSL_HEAD+PIX_GLSL+`
+void main(){float h=float(uN)*0.5,k=float(uK);vec2 p=(floor(gl_FragCoord.xy)+0.5)*k;float u=(p.x-h)/h,v=(p.y-h)/h;o=pix(u,v);}`;
+const GLSL_TONE=GLSL_HEAD+`
+float gam(float v){v=clamp(v,0.,1.);return v<=0.0031308?12.92*v:1.055*pow(v,1./2.4)-0.055;}`+TONE_GLSL+`
+void main(){o=vec4(tone(texelFetch(uOut,ivec2(gl_FragCoord.xy)/uK,0)),1.);}`;
+const GLSL_VS=`#version 300 es
+void main(){vec2 p=vec2(gl_VertexID==1?3.:-1.,gl_VertexID==2?3.:-1.);gl_Position=vec4(p,0.,1.);}`;
+
+/* ---- WebGPU ---- */
+async function initWebGPU(cv){if(!navigator.gpu)throw new Error('no navigator.gpu');const ad=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});if(!ad)throw new Error('no adapter');
+  const dev=await ad.requestDevice(),ctx=cv.getContext('webgpu'),fmt=navigator.gpu.getPreferredCanvasFormat();ctx.configure({device:dev,format:fmt,alphaMode:'opaque'});
+  const mk=async code=>{const m=dev.createShaderModule({code}),info=await m.getCompilationInfo();if(info.messages.some(x=>x.type==='error'))throw new Error(info.messages.map(x=>x.message).join('; '));return m};
+  const mod=await mk(WGSL),modR=await mk(WGSL_R);
+  const bgl=dev.createBindGroupLayout({entries:[{binding:0,visibility:4,buffer:{type:'uniform'}},{binding:1,visibility:4,buffer:{type:'read-only-storage'}},{binding:2,visibility:4,buffer:{type:'read-only-storage'}},{binding:3,visibility:4,buffer:{type:'storage'}}]});
+  const bglR=dev.createBindGroupLayout({entries:[{binding:0,visibility:3,buffer:{type:'uniform'}},{binding:3,visibility:2,buffer:{type:'read-only-storage'}}]});
+  const cp=dev.createComputePipeline({layout:dev.createPipelineLayout({bindGroupLayouts:[bgl]}),compute:{module:mod,entryPoint:'cmain'}});
+  const rp=dev.createRenderPipeline({layout:dev.createPipelineLayout({bindGroupLayouts:[bglR]}),vertex:{module:modR,entryPoint:'vmain'},fragment:{module:modR,entryPoint:'fmain',targets:[{format:fmt}]},primitive:{topology:'triangle-list'}});
+  const G={dev,ctx,cp,rp,bgl,bglR,ubuf:dev.createBuffer({size:48,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),sb:null,gr:null,out:null,sizes:{}};
+  dev.lost.then(i=>{console.warn('WebGPU device lost',i.message);RB.gpu=null;pickBackend('webgpu lost')});
+  dev.addEventListener('uncapturederror',e=>{console.warn('WebGPU error:',e.error.message);if(!RB.gpuBad){RB.gpuBad=true;RB.gpu=null;pickBackend('webgpu error')}});
+  return G}
+const growBuf=(G,key,bytes,usage)=>{if(!G[key]||G.sizes[key]<bytes){G[key]&&G[key].destroy();G[key]=G.dev.createBuffer({size:bytes,usage});G.sizes[key]=bytes}return G[key]};
+function gpuDraw(G,N,M,pk,s2,gain,k){const dev=G.dev,SU=GPUBufferUsage,Nl=Math.ceil(N/k);
+  dev.queue.writeBuffer(G.ubuf,0,new Float32Array([N,pk.ng,k,Nl, 2*M.d,M.d,M.T,M.kx, M.ky,s2,pk.kbm,gain]));
+  dev.queue.writeBuffer(growBuf(G,'sb',pk.sb.byteLength,SU.STORAGE|SU.COPY_DST),0,pk.sb);dev.queue.writeBuffer(growBuf(G,'gr',pk.gr.byteLength,SU.STORAGE|SU.COPY_DST),0,pk.gr);
+  const out=growBuf(G,'out',N*N*16,SU.STORAGE|SU.COPY_SRC);
+  const ents=[{binding:0,resource:{buffer:G.ubuf}},{binding:1,resource:{buffer:G.sb}},{binding:2,resource:{buffer:G.gr}},{binding:3,resource:{buffer:out}}];
+  const bg=dev.createBindGroup({layout:G.bgl,entries:ents}),bgR=dev.createBindGroup({layout:G.bglR,entries:[ents[0],ents[3]]});
+  const enc=dev.createCommandEncoder();{const p=enc.beginComputePass();p.setPipeline(G.cp);p.setBindGroup(0,bg);p.dispatchWorkgroups(Math.ceil(Nl/8),Math.ceil(Nl/8));p.end()}
+  {const p=enc.beginRenderPass({colorAttachments:[{view:G.ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});p.setPipeline(G.rp);p.setBindGroup(0,bgR);p.draw(3);p.end()}
+  dev.queue.submit([enc.finish()]);G.lastN=Nl;return dev.queue.onSubmittedWorkDone()}
+async function gpuRead(G){const N=G.lastN,bytes=N*N*16,rb=G.dev.createBuffer({size:bytes,usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST});
+  const enc=G.dev.createCommandEncoder();enc.copyBufferToBuffer(G.out,0,rb,0,bytes);G.dev.queue.submit([enc.finish()]);await rb.mapAsync(GPUMapMode.READ);
+  const a=new Float32Array(rb.getMappedRange().slice(0));rb.unmap();rb.destroy();return a}
+
+/* ---- WebGL2 ---- */
+function initWebGL2(cv){const gl=cv.getContext('webgl2',{antialias:false,depth:false,preserveDrawingBuffer:true});if(!gl)throw new Error('no webgl2');
+  if(!gl.getExtension('EXT_color_buffer_float'))throw new Error('no float render targets');
+  const sh=(t,src)=>{const s=gl.createShader(t);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s};
+  const prog=fs=>{const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,GLSL_VS));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));return p};
+  const L={gl,pPix:prog(GLSL_PIX),pTone:prog(GLSL_TONE),tSB:gl.createTexture(),tGR:gl.createTexture(),tOut:gl.createTexture(),fb:gl.createFramebuffer(),vao:gl.createVertexArray(),N:0};
+  for(const t of [L.tSB,L.tGR,L.tOut]){gl.bindTexture(gl.TEXTURE_2D,t);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST)}
+  cv.addEventListener('webglcontextlost',e=>{e.preventDefault();RB.gl=null;pickBackend('webgl lost')});return L}
+function glData(gl,tex,arr){const texels=arr.length/4,w=Math.min(1024,texels),h=Math.ceil(texels/1024),buf=new Float32Array(w*h*4);buf.set(arr);
+  gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,w,h,0,gl.RGBA,gl.FLOAT,buf)}
+function glDraw(L,N,M,pk,s2,gain,k){const gl=L.gl,Nl=Math.ceil(N/k);
+  if(L.N!==N){gl.bindTexture(gl.TEXTURE_2D,L.tOut);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,N,N,0,gl.RGBA,gl.FLOAT,null);gl.bindFramebuffer(gl.FRAMEBUFFER,L.fb);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,L.tOut,0);L.N=N}
+  glData(gl,L.tSB,pk.sb);glData(gl,L.tGR,pk.gr);gl.bindVertexArray(L.vao);
+  const set=(p)=>{gl.useProgram(p);const U=n=>gl.getUniformLocation(p,n);gl.uniform1i(U('uSB'),0);gl.uniform1i(U('uGR'),1);gl.uniform1i(U('uOut'),2);gl.uniform1i(U('uNG'),pk.ng);gl.uniform1i(U('uN'),N);gl.uniform1i(U('uK'),k);
+    gl.uniform1f(U('uD'),M.d);gl.uniform1f(U('uT'),M.T);gl.uniform1f(U('uKx'),M.kx);gl.uniform1f(U('uKy'),M.ky);gl.uniform1f(U('uS2'),s2);gl.uniform1f(U('uKbm'),pk.kbm);gl.uniform1f(U('uGain'),gain)};
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,L.tSB);gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,L.tGR);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,L.fb);gl.viewport(0,0,Nl,Nl);set(L.pPix);gl.drawArrays(gl.TRIANGLES,0,3);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,N,N);gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,L.tOut);set(L.pTone);gl.drawArrays(gl.TRIANGLES,0,3);
+  /* resolve when the GPU has finished, polling a fence so the page never blocks on it */
+  const fence=gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0);gl.flush();
+  return new Promise(res=>{const poll=()=>{const r=gl.clientWaitSync(fence,0,0);if(r===gl.TIMEOUT_EXPIRED)setTimeout(poll,1);else{gl.deleteSync(fence);res()}};poll()})}
+function glRead(L){const gl=L.gl,N=L.N,a=new Float32Array(N*N*4);gl.bindFramebuffer(gl.FRAMEBUFFER,L.fb);gl.readPixels(0,0,N,N,gl.RGBA,gl.FLOAT,a);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  /* GL rows run bottom-up: flip to top-down like the other backends */
+  const o=new Float32Array(N*N*4);for(let j=0;j<N;j++)o.set(a.subarray((N-1-j)*N*4,(N-j)*N*4),j*N*4);return o}
+
+/* ---- CPU workers: the same pixVal()/avgQ() source, run on every core ---- */
+function initWorkers(){if(!window.Worker||!window.Blob)throw new Error('no workers');const n=clamp((navigator.hardwareConcurrency||4)-1,2,8);
+  const src=`const avgQ=${avgQ.toString()};
+${pixVal.toString()}
+const PV=[0,0,0,0];
+onmessage=e=>{const m=e.data,{N,st,j0,j1,d,T,kx,ky,s2,kbm,pr}=m,h=N/2,out=new Float32Array(((j1-j0)/st|0)*Math.ceil(N/st)*4+8);let o=0;
+  const rad=r=>{const th=Math.atan(r*T),q=1+r*r*T*T,c=T/q,cp=-2*r*T**3/(q*q),f1=-2*d*Math.sin(th)*c,f2=-2*d*(Math.cos(th)*c*c+Math.sin(th)*cp);return[f1,f2,r>1e-12?f1/r:f2]};
+  for(let j=j0;j<j1;j+=st){const v=-(j+st/2-h)/h;for(let i=0;i<N;i+=st){const u=(i+st/2-h)/h,r=Math.hypot(u,v),[f1,f2,fr]=rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
+    const gx=f1*ux+kx,gy=f1*uy+ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=st===1&&kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;
+    const p=pixVal(2*d*Math.cos(Math.atan(r*T))+kx*u+ky*v,gx,gy,h11,h12,h22,s2,pr,quad);out[o++]=p[0];out[o++]=p[1];out[o++]=p[2];out[o++]=p[3]}}
+  postMessage({id:m.id,j0,j1,st,out},[out.buffer])}`;
+  const url=URL.createObjectURL(new Blob([src],{type:'text/javascript'}));const W={pool:Array.from({length:n},()=>new Worker(url)),n,job:0};
+  return W}
+
+/* ---- backend selection ---- */
+const BACKENDS=[['webgpu','WebGPU'],['webgl2','WebGL2'],['workers','CPU, all cores'],['cpu','CPU, one core']];
+async function probeBackends(){const ok=[];
+  try{RB.gpu=await initWebGPU($('ringGPU'));ok.push('webgpu')}catch(e){RB.gpuErr=e.message}
+  try{RB.gl=initWebGL2($('ringGL'));ok.push('webgl2')}catch(e){RB.glErr=e.message}
+  try{RB.workers=initWorkers();ok.push('workers')}catch(e){}
+  ok.push('cpu');pickBackend()}
+function pickBackend(why){RB.busy=false;RB.dirty=false;const avail=BACKENDS.map(b=>b[0]).filter(k=>(k==='webgpu'&&RB.gpu)||(k==='webgl2'&&RB.gl)||(k==='workers'&&RB.workers)||k==='cpu');
+  RB.active=RB.pref!=='auto'&&avail.includes(RB.pref)?RB.pref:avail[0];
+  $('ring').hidden=!['cpu','workers'].includes(RB.active);$('ringGL').hidden=RB.active!=='webgl2';$('ringGPU').hidden=RB.active!=='webgpu';
+  const sel=$('rendSel');sel.innerHTML=`<option value="auto">Auto (${BACKENDS.find(b=>b[0]===avail[0])[1]})</option>`+BACKENDS.map(([k,t])=>`<option value="${k}" ${avail.includes(k)?'':'disabled'}>${t}${avail.includes(k)?'':' (not available)'}</option>`).join('');sel.value=RB.pref;
+  sel.title=`Rendering the pattern with ${BACKENDS.find(b=>b[0]===RB.active)[1]}`+(RB.gpuErr&&!RB.gpu?` · WebGPU unavailable: ${RB.gpuErr}`:'')+(RB.glErr&&!RB.gl?` · WebGL2 unavailable: ${RB.glErr}`:'');
+  if(why)console.info('renderer:',RB.active,why);update(false)}
+
+/* Timing: the tilted (non-radial) image costs one exact pixel average per block. While moving, the block size comes from the
+   adaptive preview below. At rest, the full-resolution image is computed in ~12 ms slices between frames,
+   sharpening top-down, so the page never blocks; a newer render cancels an unfinished one. Verification renders synchronously. */
+let ringJob=0;
+/* Adaptive preview resolution, while anything is moving (dragging, sweeping, scrolling). At rest the image is always
+   rendered at every pixel. Per path we keep the measured frame time (ms, running average) for every block size s that has been used. A size not yet
+   tried is predicted from the nearest measured one, scaling with the number of blocks, (N/s)^p (p = 1 radial, 2 otherwise).
+   The finest size predicted to fit the budget is chosen; going finer needs a 15% margin, so the choice doesn't flicker.
+   Budget: CPU — what is left of a 60 Hz frame after the plots, but at least 6 ms (or 60% of the plots' time on slow devices);
+   GPU — 14 ms of GPU time, which runs alongside the page. */
+const LQ={other:4,ms:0,cpuR:{p:1,t:{},s:2},cpuT:{p:2,t:{},s:4},wk:{p:2,t:{},s:2},gpu:{p:2,t:{},s:1}},STEPS=[1,2,3,4,5,6,8,10,12,16];
+/* measurements expire after 3 s and are cleared when the spectrum changes (cost scales with its number of sub-bands) */
+const lqFresh=(q,s)=>{const e=q.t[s];return e&&performance.now()-e.at<3000?e.ms:null};
+function lqPredict(q,s){const own=lqFresh(q,s);if(own!=null)return own;let best=null;for(const k in q.t){const kk=+k;if(lqFresh(q,kk)==null)continue;if(best===null||Math.abs(Math.log(kk/s))<Math.abs(Math.log(best/s)))best=kk}
+  return best===null?(s>=8?5:1e9):lqFresh(q,best)*Math.pow(best/s,q.p)}
+function lqPick(key,N,gpu){const q=LQ[key],n=sublines().length;if(q.n!==n){q.n=n;q.t={}}const B=gpu?14:Math.max(6,16.7-LQ.other,0.6*LQ.other);
+  const s=STEPS.find(x=>lqPredict(q,x)<=(x<q.s?0.85*B:B))||16;q.s=s;return s}
+function lqRecord(key,st,ms){const q=LQ[key],e=q.t[st],old=e&&performance.now()-e.at<3000?e.ms:null;q.t[st]={ms:old==null?ms:0.7*old+0.3*ms,at:performance.now()}}
+const showRes=(N,st,live)=>{const e=$('resV');if(e)e.textContent=`${Math.ceil(N/st)}²${live&&st>1?' preview':''}`};
+let ringKey='',ringWasLive=false;
+function ringInputs(){return JSON.stringify([sublines().map(o=>[o.s,o.p,o.w]),$('d').value,$('fov').value,$('tx').value,$('ty').value,ring.width,RB.active,$('prof').clientWidth,$('prof').clientHeight,document.documentElement.dataset.theme])}
+function renderRingIfNeeded(){const k=ringInputs();if(k===ringKey&&!(ringWasLive&&!ringLive))return;ringKey=k;ringWasLive=ringLive;renderRing()}
+/* reusable image buffers (one per size) and the small off-screen canvas for previews */
+const ringImgs=new Map();function ringImg(n){let im=ringImgs.get(n);if(!im){if(ringImgs.size>6)ringImgs.clear();im=rctx.createImageData(n,n);ringImgs.set(n,im)}
+  if(!RB.off)RB.off=document.createElement('canvas');if(RB.off.width!==n){RB.off.width=n;RB.off.height=n}return im}
+function renderRing(sync){
+  const N=ring.width,M=ringModel(),cs=act(),tilted=!!(M.kx||M.ky),job=ringJob+1;RB.wDone=null;  /* job is claimed only once this call really renders */
+  let st=1;const T0=performance.now();
+  if(RB.active==='webgpu'||RB.active==='webgl2'){/* GPU */
+    const pr=cs.length?prepSL(sublines()):{n:0,G:[],KB:[]};let gain=1;
+    if(cs.length){let fX=0,fY=0,fZ=0;for(const o of sublines()){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}gain=1/Math.max(...desat(toLin([fX,fY,fZ])),1e-9)}
+    /* one frame in flight at a time: a newer request waits and then draws the latest state. While dragging, the block size k is
+       chosen by the adaptive preview (14 ms of GPU time); at rest k = 1 (every pixel). Each block is still an exact
+       footprint average, over the whole block. */
+    ringProfile(M);if(RB.busy&&!sync){RB.dirty=true;return}
+    ringJob=job;
+    const k=ringLive?lqPick('gpu',N,true):1;showRes(N,k,ringLive);
+    const pk=packRing(pr,M),s2=(PIXSD*2*k/N)**2;Ibuf=null;RB.busy=true;const t0=performance.now();
+    let done;try{done=RB.active==='webgpu'?gpuDraw(RB.gpu,N,M,pk,s2,gain,k):glDraw(RB.gl,N,M,pk,s2,gain,k)}catch(e){RB.busy=false;console.warn(RB.active,'failed, falling back',e);if(RB.active==='webgpu')RB.gpu=null;else RB.gl=null;pickBackend('error');return}
+    /* a lost device rejects the pending frame: fall back instead of leaving an unhandled rejection and a renderer stuck busy */
+    const be=RB.active;
+    RB.done=done.then(()=>{if(ringLive)lqRecord('gpu',k,performance.now()-t0);RB.busy=false;if(RB.dirty){RB.dirty=false;renderRing()}},
+      e=>{RB.busy=false;RB.dirty=false;console.warn(be,'frame failed, falling back:',e&&e.message);if(be==='webgpu')RB.gpu=null;else RB.gl=null;if(RB.active===be)pickBackend(be+' frame failed')});
+    return}
+  const pathKey=!tilted?'cpuR':RB.active==='workers'?'wk':'cpuT';
+  if(RB.active==='workers'&&tilted&&!sync&&RB.workers.busy&&ringLive){RB.workers.dirty=true;ringProfile(M);return}  /* one worker job in flight while moving */
+  ringJob=job;if(RB.workers)RB.workers.busy=false;  /* a newer render supersedes any worker job in flight */
+  if(ringLive)st=lqPick(pathKey,N,false);showRes(N,st,ringLive);
+  /* a moving preview is rendered one pixel per block into a small image and scaled up smoothly, so its fixed cost shrinks with it */
+  const small=ringLive&&st>1,W2=small?Math.ceil(N/st):N,img=ringImg(W2),D=img.data;Ibuf=small?null:new Float32Array(N*N);
+  const present=(jA,jB)=>{if(small){RB.off.getContext('2d').putImageData(img,0,0);rctx.imageSmoothingEnabled=true;rctx.imageSmoothingQuality='high';rctx.drawImage(RB.off,0,0,W2,W2,0,0,W2*st,W2*st)}else rctx.putImageData(img,0,0,0,jA,N,jB-jA)};
+  if(cs.length){const SL=sublines(),pr=prepSL(SL),A=cs.reduce((t,c)=>t+P(c),0);let fX=0,fY=0,fZ=0;for(const o of SL){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}
+    const fl=desat(toLin([fX,fY,fZ])),gain=1/Math.max(...fl,1e-9),h=N/2,px=2/N*st,sd=PIXSD*px;
+    const put=(j0,i0,X,Y,Z,I)=>{let r=MX[0][0]*X+MX[0][1]*Y+MX[0][2]*Z,g=MX[1][0]*X+MX[1][1]*Y+MX[1][2]*Z,b=MX[2][0]*X+MX[2][1]*Y+MX[2][2]*Z;const m=Math.min(r,g,b,0);
+      const r8=enc((r-m)*gain),g8=enc((g-m)*gain),b8=enc((b-m)*gain),In=I/A;
+      if(small){const o=4*((j0/st)*W2+i0/st);D[o]=r8;D[o+1]=g8;D[o+2]=b8;D[o+3]=255;return}
+      for(let jj=j0;jj<Math.min(N,j0+st);jj++)for(let ii=i0;ii<Math.min(N,i0+st);ii++){const o=4*(jj*N+ii);D[o]=r8;D[o+1]=g8;D[o+2]=b8;D[o+3]=255;Ibuf[jj*N+ii]=In}};
+    if(M.kx===0&&M.ky===0){const Nr=Math.ceil(1.42*h/st*(ringLive?4:16))+2,dr=1.42/(Nr-1),RX=new Float64Array(Nr),RY=new Float64Array(Nr),RZ=new Float64Array(Nr),RI=new Float64Array(Nr);
+      for(let k=0;k<Nr;k++){const r=k*dr,dm=2*M.d*Math.cos(Math.atan(r*M.T)),[f1,f2,fr]=M.rad(r),v=pixVal(dm,f1,0,f2,0,fr,sd*sd,pr,true);RX[k]=v[0];RY[k]=v[1];RZ[k]=v[2];RI[k]=v[3]}
+      for(let j=0;j<N;j+=st){const v=-(j+st/2-h)/h;for(let i=0;i<N;i+=st){const u=(i+st/2-h)/h,t=Math.hypot(u,v)/dr,k=Math.min(Nr-2,t|0),f=t-k;
+        put(j,i,RX[k]+(RX[k+1]-RX[k])*f,RY[k]+(RY[k+1]-RY[k])*f,RZ[k]+(RZ[k+1]-RZ[k])*f,RI[k]+(RI[k+1]-RI[k])*f)}}}
+    else{const kbm=Math.max(...SL.map(o=>o.kb)),s2=sd*sd;
+      const rows=(j0,j1)=>{for(let j=j0;j<j1;j+=st){const v=-(j+st/2-h)/h;for(let i=0;i<N;i+=st){const u=(i+st/2-h)/h,r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
+        const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=!ringLive&&kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;  /* the second-order correction only in the at-rest pass */
+        const p=pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad);put(j,i,p[0],p[1],p[2],p[3])}}};
+      if(RB.active==='workers'&&!sync){/* split the rows over every worker; each block is painted as it arrives */
+        const W=RB.workers,id=++W.job,blk=Math.max(st,8*st),t0=performance.now(),live=ringLive;let pending=0,next=0,done;RB.wDone=new Promise(r=>done=r);W.busy=true;
+        const msg={N,st,d:M.d,T:M.T,kx:M.kx,ky:M.ky,s2:sd*sd,kbm,pr:{n:pr.n,P:pr.P,KA:pr.KA,KB:pr.KB,X:pr.X,Y:pr.Y,Z:pr.Z,G:pr.G}};
+        const send=w=>{if(next>=N)return;const j0=next,j1=Math.min(N,next+blk);next=j1;pending++;w.postMessage({...msg,id,j0,j1})};
+        W.pool.forEach(w=>{w.onmessage=e=>{const r=e.data;if(r.id!==W.job||job!==ringJob)return;pending--;let o=0;
+          for(let j=r.j0;j<r.j1;j+=r.st)for(let i=0;i<N;i+=r.st){put(j,i,r.out[o],r.out[o+1],r.out[o+2],r.out[o+3]);o+=4}
+          present(r.j0,r.j1);send(w);if(!pending){if(live)lqRecord('wk',st,performance.now()-t0);W.busy=false;done();if(W.dirty){W.dirty=false;renderRing()}}};send(w)});
+        ringProfile(M);return}
+      if(ringLive||sync)rows(0,N);
+      else{/* progressive full-resolution pass */
+        let j=0;const slice=()=>{if(job!==ringJob)return;const t0=performance.now(),jj=j;while(j<N&&performance.now()-t0<12){rows(j,j+4);j+=4}
+          present(jj,j);if(j<N)setTimeout(slice,0)};
+        slice();ringProfile(M);return}}
+  }else{D.fill(0);for(let o=3;o<D.length;o+=4)D[o]=255}
+  present(0,N);ringProfile(M);if(ringLive&&cs.length)lqRecord(pathKey,st,performance.now()-T0);LQ.ms=performance.now()-T0}
+function ringProfile(M){const cs=act();
+  /* profile cut: through the centre along the tilt direction n = (αx, αy)/|α| (along x when there is no tilt) */
+  const ax=+$('tx').value,ay=+$('ty').value,an=Math.hypot(ax,ay),nx=an?ax/an:1,ny=an?ay/an:0,phi=Math.atan2(ny,nx)*180/Math.PI;
+  const svg=$('prof'),W=svg.clientWidth,H=svg.clientHeight;if(!W)return;
+  const pl=46,pr2=10,pt=10,pb=42,x=u=>pl+(u+1)/2*(W-pl-pr2),y=v=>pt+(1-v)*(H-pt-pb),mute=css('--mute');
+  let s='';for(const v of [0,0.5,1])s+=`<line x1="${pl}" x2="${W-pr2}" y1="${y(v)}" y2="${y(v)}" stroke="${mute}" stroke-opacity="${v?0.15:0.5}"/><text x="${pl-6}" y="${y(v)+4}" font-size="12" fill="${mute}" text-anchor="end">${v}</text>`;
+  for(const u of [-1,-0.5,0,0.5,1]){const t=Math.sign(u)*M.th(Math.abs(u))*180/Math.PI;s+=`<text x="${x(u)}" y="${H-pb+16}" font-size="12" fill="${mute}" text-anchor="${u<-0.9?'start':u>0.9?'end':'middle'}">${F(t,2)}°</text>`}
+  /* same anti-aliased range plot as the interferogram, along the cut */
+  {const pc=$('profC'),dpr=window.devicePixelRatio||1;pc.width=Math.round(W*dpr);pc.height=Math.round(H*dpr);const pg=pc.getContext('2d');pg.clearRect(0,0,pc.width,pc.height);
+    if(cs.length){const col=cssRGB('--fr');densityPlot(pg,Math.round(pl*dpr),Math.round(pt*dpr),Math.round((W-pl-pr2)*dpr),Math.round((H-pt-pb)*dpr),t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},cs,()=>col)}}
+  s+=`<text x="${(pl+W-pr2)/2}" y="${H-4}" font-size="12" fill="${mute}" text-anchor="middle">${an?`θ along the tilt direction (${F(phi,3)}° from x)`:"θ along x"}</text><text transform="translate(12 ${(pt+H-pb)/2}) rotate(-90)" font-size="12" fill="${mute}" text-anchor="middle">I / I_tot</text>`;svg.innerHTML=s}
+
+/* ---------- verification: every rendered quantity checked against an independent computation ---------- */
+function simpson(f,a,b,n){n+=n%2;const h=(b-a)/n;let s=f(a)+f(b);for(let i=1;i<n;i++)s+=(i%2?4:2)*f(a+i*h);return s*h/3}
+function quadSpec(fn,delta){/* ∫ S(σ)·fn(σ) dσ, lines exact, Gaussians by Simpson over ±8w with ≥40 points per fringe */
+  let s=0;for(const c of act()){if(!c.f){s+=P(c)*fn(c.s);continue}const w=wOf(c),n=clamp(Math.ceil(16*w*Math.abs(delta)*40),4000,400000);s+=simpson(sg=>dens(c,sg)*fn(sg),c.s-8*w,c.s+8*w,n)}return s}
+async function verify(){
+  const cs=act(),out=[];if(!cs.length){$('ver').innerHTML='<tr><td colspan="4" class="empty">Switch on at least one component.</td></tr>';return}
+  const A=cs.reduce((t,c)=>t+P(c),0),SL=sublines(),R=RANGE(),d0=D0(),M=ringModel(),fmt=v=>v===0?'0':v.toExponential(2);
+  const row=(name,what,err,tol)=>out.push(`<tr><td>${name}</td><td>${what}</td><td>${fmt(err)}</td><td>${fmt(tol)}</td><td style="color:${err<=tol?'#1a8f4a':'#e0115f'};font-weight:700">${err<=tol?'pass':'FAIL'}</td></tr>`);
+  /* 1 interferogram closed form vs direct numerical integration of ½∫S(1+cos) */
+  let e1=0;const Dm=Math.max(R,Math.abs(d0));for(let i=0;i<=24;i++){const d=Dm*i/24,Ia=0.5*(1+gamma(d,cs)[0]),Iq=quadSpec(sg=>0.5*(1+Math.cos(2*Math.PI*sg*d)),d)/A;e1=Math.max(e1,Math.abs(Ia-Iq))}
+  row('Interferogram','closed-form I(δ) vs numerical ½∫S(σ)[1+cos 2πσδ]dσ, 25 OPDs',e1,1e-6);
+  /* 2 interfered spectrum identity */
+  const Io=quadSpec(sg=>0.5*(1+Math.cos(2*Math.PI*sg*d0)),d0)/A,e2=Math.abs(Io-0.5*(1+gamma(d0,cs)[0]));
+  row('Interfered spectrum','∫S_out(σ;δ₀)dσ vs I(δ₀)',e2,1e-6);
+  /* 3 sub-band model vs analytic fringe term over every OPD the page can show */
+  let hiD=Math.max(R,Math.abs(d0),2*Math.abs(M.d)+1.42*(Math.abs(M.kx)+Math.abs(M.ky))),e3=0;
+  for(let i=0;i<=6000;i++){const d=hiD*i/6000;let v=0;for(const o of SL)v+=o.p*avgTerm(o.ka,o.kb,d,0);e3=Math.max(e3,Math.abs(v/A-gamma(d,cs)[0]))}
+  row('Colour sub-bands','Σ sub-band fringe terms vs Re γ(δ), 0 ≤ δ ≤ '+F(hiD,3)+' µm',e3,1e-3);
+  /* 4 colour: sub-band XYZ vs full spectral integral with the CVRL functions */
+  let e4=0;for(const d of [0,d0,R/2]){const q=[0,1,2].map(k=>quadSpec(sg=>0.5*(1+Math.cos(2*Math.PI*sg*d))*visXYZ(1000/sg)[k],d)),sb=xyzAt(d,0,SL);
+    e4=Math.max(e4,Math.hypot(sb[0]-q[0],sb[1]-q[1],sb[2]-q[2])/Math.max(1e-12,Math.hypot(...q)))}
+  row('Colour (XYZ)','sub-band XYZ vs ∫S·½(1+cos)·x̄ȳz̄ dσ at δ = 0, δ₀, δmax/2 (relative)',e4,1e-2);
+  /* 5 rendered ring pixels vs brute-force 2-D integration of the exact pattern over each pixel's footprint */
+  ringLive=false;if(RB.active==='workers'){renderRing();if(RB.wDone)await RB.wDone}else{while(RB.busy)await RB.done;renderRing(true);if(RB.done)await RB.done}await ringReadback();let e5=0;const N=ring.width,hN=N/2,sd=PIXSD*2/N;
+  for(const[fi,fj]of [[0.5,0.5],[0.503,0.497],[0.508,0.512],[0.75,0.5],[0.675,0.325],[0.15,0.3],[0.972,0.475],[0.6,0.95]]){const i0=Math.floor(fi*N),j0=Math.floor(fj*N);const u0=(i0+0.5-hN)/hN,v0=-(j0+0.5-hN)/hN;
+    const gr=M.grad(u0,v0),fr=8*sd*Math.hypot(...gr)*Math.max(...SL.map(o=>o.s)),n=clamp(Math.ceil(fr*12)+21,21,801);
+    let sw=0,si=0;for(let a=0;a<n;a++){const du=-4*sd+8*sd*a/(n-1),wa=Math.exp(-0.5*(du/sd)**2);for(let b=0;b<n;b++){const dv=-4*sd+8*sd*b/(n-1),wt=wa*Math.exp(-0.5*(dv/sd)**2);si+=wt*0.5*(1+gamma(M.opd(u0+du,v0+dv),cs)[0]);sw+=wt}}
+    e5=Math.max(e5,Math.abs(Ibuf[j0*N+i0]-si/sw))}
+  row('Ring pixels',`rendered pixel intensity (${BACKENDS.find(b=>b[0]===RB.active)[1]}) vs brute-force 2-D integral of the exact pattern over its footprint, 8 pixels`,e5,1e-3);
+  /* 6 coherence */
+  const C=coherence();
+  if(isFinite(C.hw)){row('Coherence (HWHM)','|γ(l_c)| − ½ at the reported value',Math.abs(Math.hypot(...gamma(C.hw,cs))-0.5),1e-3)}
+  if(isFinite(C.mandel)){const wmin=Math.min(...cs.map(wOf)),L=7/(Math.PI*wmin),spread=Math.max(...cs.map(c=>c.s))-Math.min(...cs.map(c=>c.s))+0.01,n=clamp(Math.ceil(2*L*spread*40),20000,2000000);
+    const num=simpson(d=>{const g2=gamma(d,cs);return g2[0]*g2[0]+g2[1]*g2[1]},-L,L,n);row('Coherence (Mandel)','closed form vs numerical ∫|γ|²dδ (relative)',Math.abs(num-C.mandel)/C.mandel,1e-4)}
+  if(cs.length===1&&cs[0].f){row('Single Gaussian','numerical HWHM vs (2 ln2/π)/Δσ (relative)',Math.abs(C.hw-2*LN2/(Math.PI*cs[0].f))/(2*LN2/(Math.PI*cs[0].f)),1e-3)}
+  /* 7 auto range follows its stated definition */
+  const gs=cs.filter(c=>c.f);if(gs.length){const sOPD=settleOPD(),b=gs.reduce((t,c)=>t+P(c)*Math.exp(-((Math.PI*wOf(c)*sOPD)**2)),0)/A;
+    if(sOPD>3/(cs.reduce((t,c)=>t+c.s*P(c),0)/A)+1e-9&&b<0.02+1e-9&&gs.reduce((t,c)=>t+P(c),0)/A>0.02)row('Auto range','Σ I_g e^{−(πw_gδ_s)²}/I_tot − 0.02 at the settle point',Math.abs(b-0.02),1e-6)}
+  $('ver').innerHTML=out.join('');$('verAt').textContent=`Last run: ${cs.length} component${cs.length>1?'s':''}, d = ${F(+$('d').value,4)} µm, tilt (${$('tx').value}, ${$('ty').value}) µrad, θmax = ${$('fov').value}°.`}
+
+/* ---------- coherence ---------- */
+function coherence(){
+  const cs=act(),A=cs.reduce((t,c)=>t+P(c),0);if(!A)return null;
+  const ss=cs.map(c=>c.s),spread=Math.max(...ss)-Math.min(...ss)+4*Math.max(...cs.map(wOf))+0.002;
+  const step=Math.min(0.5,1/(30*spread)),LMAX=5000;let hw=Infinity,prev=1;
+  for(let d=step;d<=LMAX;d+=step){const[re,im]=gamma(d,cs),m=Math.hypot(re,im);if(m<=0.5){hw=d-step*(0.5-m)/Math.max(1e-9,prev-m);break}prev=m}
+  let mandel=Infinity;if(cs.every(c=>c.f>0)){mandel=0;for(const a of cs)for(const b of cs){const s2=wOf(a)**2+wOf(b)**2;mandel+=P(a)*P(b)*Math.exp(-((a.s-b.s)**2)/s2)/Math.sqrt(Math.PI*s2)}mandel/=A*A}
+  return{hw,mandel,A}}
+const um=v=>!isFinite(v)?'∞':v>=1000?(v/1000).toPrecision(3)+' mm':v.toPrecision(3)+' µm';
+
+/* ---------- equations ---------- */
+/* live equations: one term per line (aligned), so nothing needs sideways scrolling */
+const ML=8,more=n=>n>ML?`\\\\&\\quad+\\cdots\\ (\\text{${n-ML} more})`:'';
+/* two terms per line: the equation popups are wide enough, and it halves the height */
+const EQK=()=>window.innerWidth>=900?2:1;  /* terms per line: 2 when the popup is wide, 1 on narrow screens */
+const rows=(lhs,first,terms,k=EQK())=>{const t=terms.slice(0,ML);let o=`\\begin{aligned}${lhs}&=${first}`,i=0;
+  if(k>1&&t.length)o+=`+${t[i++]}`;for(;i<t.length;i+=k)o+=`\\\\&\\quad+`+t.slice(i,i+k).join('+');return o+more(terms.length)+'\\end{aligned}'};
+function eqs(){
+  const d=+$('d').value,d0=D0(),cs=act(),A=cs.reduce((t,c)=>t+P(c),0),ax=+$('tx').value,ay=+$('ty').value;
+  const ids=['eqS','eqI','eqP','eqO','eqC'];
+  if(!cs.length){ids.filter(k=>$(k)).forEach(k=>$(k).innerHTML='<div class="empty">Add (or switch on) a wavelength to see the equations.</div>');$('coh').innerHTML='';return}
+  const G=c=>`${F(c.a)}\\,e^{-(\\sigma-${F(c.s,4)})^2/${F(wOf(c))}^2}`;
+  const sT=cs.map(c=>c.f?G(c):`${F(P(c))}\\,\\delta_D(\\sigma-${F(c.s,4)})`);
+  const iT=arg=>cs.map(c=>c.f?`\\tfrac{${F(P(c))}}{2}e^{-(\\pi\\,${F(wOf(c))}\\,${arg})^2}\\cos(2\\pi\\,${F(c.s,4)}\\,${arg})`:`\\tfrac{${F(P(c))}}{2}\\cos(2\\pi\\,${F(c.s,4)}\\,${arg})`);
+  const lines=cs.filter(c=>!c.f),gs=cs.filter(c=>c.f),T=s=>0.5*(1+Math.cos(2*Math.PI*s*d0));
+  const set=(k,t)=>{if($(k))$(k).innerHTML='$$'+t+'$$'};
+  set('eqS',rows('S(\\sigma)',sT[0],sT.slice(1)));
+  set('eqI',rows('I(\\delta)',`\\tfrac{${F(A)}}{2}`,iT('\\delta')));
+  const tl=(ax||ay)?`${ax?(ax>0?'+':'-')+F(Math.abs(0.002*ax))+'\\,x':''}${ay?(ay>0?'+':'-')+F(Math.abs(0.002*ay))+'\\,y':''}`:'';
+  set('eqP',rows('I(x,y)',`\\tfrac{${F(A)}}{2}`,iT('\\delta')).replace('\\end{aligned}',`\\\\[4pt]\\delta(x,y)&=${F(2*d)}\\cos\\theta${tl}\\end{aligned}`)+(tl?'\\\\ \\small (x,y\\ \\text{in mm})':''));
+  const oT=lines.map(c=>`${F(P(c)*T(c.s))}\\,\\delta_D(\\sigma-${F(c.s,4)})`).concat(gs.map(c=>`T(\\sigma)\\,${G(c)}`));
+  set('eqO',rows(`S_{\\rm out}(\\sigma;${F(d0)})`,oT[0],oT.slice(1),gs.length?1:EQK())+(gs.length?`\\\\ T(\\sigma)=\\tfrac12\\big[1+\\cos(2\\pi\\sigma\\cdot ${F(d0)})\\big]`:''));
+  const C=coherence();
+  $('coh').innerHTML=`<div class="stat"><div class="v">${um(C.hw)}</div><div class="k">HWHM of |γ(δ)|, numerical</div></div><div class="stat"><div class="v">${um(C.mandel)}</div><div class="k">Mandel ∫|γ|²dδ${isFinite(C.mandel)?'':' (diverges with a pure line)'}</div></div>`+
+    gs.map(c=>`<div class="stat"><div class="v">${um(2*LN2/(Math.PI*c.f))}</div><div class="k"><span class="sw" style="background:${col(c)}"></span> Gaussian at ${(1000/c.s).toFixed(1)} nm alone</div></div>`).join('');
+  const gT=cs.map(c=>c.f?`\\tfrac{${F(P(c))}}{${F(A)}}e^{-(\\pi ${F(wOf(c))}\\delta)^2}e^{i2\\pi ${F(c.s,4)}\\delta}`:`\\tfrac{${F(P(c))}}{${F(A)}}e^{i2\\pi ${F(c.s,4)}\\delta}`);
+  const hw=`l_c^{\\rm HWHM}&=${isFinite(C.hw)?F(C.hw)+'\\ \\mu\\text{m}':'>5\\ \\text{mm}'}`;
+  set('eqC',isFinite(C.mandel)?`\\begin{aligned}l_c^{\\rm Mandel}&=\\frac{1}{I_{\\rm tot}^2}\\sum_{m,n}\\frac{I_mI_n\\,e^{-(\\sigma_m-\\sigma_n)^2/(w_m^2+w_n^2)}}{\\sqrt{\\pi(w_m^2+w_n^2)}}\\\\&=${F(C.mandel)}\\ \\mu\\text{m}\\\\${hw}\\end{aligned}`
+    :rows('\\gamma(\\delta)',gT[0],gT.slice(1)).replace('\\end{aligned}',`\\\\[4pt]${hw}\\end{aligned}`));
+  if(window.MathJax&&MathJax.typesetPromise){const els=ids.map($).filter(Boolean);MathJax.typesetClear(els);MathJax.typesetPromise(els).catch(()=>{})}
+}
+
+/* ---------- table ---------- */
+function table(){$('nComp').textContent=comps.length;
+  if($('tb').contains(document.activeElement)&&document.activeElement.type==='number')return;
+  $('tb').innerHTML=comps.length?comps.map((c,i)=>`<tr class="${c.on?'':'off'}"${i===sel?' style="background:var(--panel)"':''}><td><label class="tog"><input type="checkbox" data-tog="${i}" ${c.on?'checked':''} aria-label="Component on"><span class="sw" style="background:${col(c)}"></span>${c.f?'Gaussian':'Line'}</label></td>
+    <td><input type="number" step="0.1" data-i="${i}" data-k="l" value="${(1000/c.s).toFixed(2)}" aria-label="wavelength"></td>
+    <td><input type="number" step="0.05" min="0.03" max="1" data-i="${i}" data-k="a" value="${c.a.toFixed(2)}" aria-label="height"></td>
+    <td><input type="number" step="0.1" min="0" data-i="${i}" data-k="f" value="${(1000*c.f/(c.s*c.s)).toFixed(2)}" aria-label="FWHM"></td>
+    <td><button data-del="${i}" aria-label="Remove" style="min-height:30px">Remove</button></td></tr>`).join(''):`<tr><td colspan="5" class="empty">No components yet. Click the spectrum or pick a preset.</td></tr>`}
+$('tb').addEventListener('change',e=>{const t=e.target;
+  if(t.dataset.tog!==undefined){comps[+t.dataset.tog].on=t.checked;update(false);return}
+  const i=+t.dataset.i,c=comps[i],v=parseFloat(t.value);if(!c||!isFinite(v))return;
+  if(t.dataset.k==='l')c.s=clamp(1000/Math.max(v,1),SMIN,SMAX);if(t.dataset.k==='a')c.a=clamp(v,0.03,1);if(t.dataset.k==='f')c.f=clamp(v*c.s*c.s/1000,0,0.9);t.blur();update(false)});
+$('tb').addEventListener('click',e=>{const b=e.target.closest('[data-del]');if(b){comps.splice(+b.dataset.del,1);sel=-1;update(false)}});
+
+/* ---------- auto ranges ---------- */
+const nice=x=>{if(!(x>0))return 1;const e=Math.pow(10,Math.floor(Math.log10(x))),m=x/e;return e*(m<=1?1:m<=2?2:m<=5?5:10)};
+/* Where the envelope |gamma| levels out. Lines never decay (infinite coherence), so they only set a constant floor or a periodic beat.
+   The decaying part is the Gaussians: |gamma(delta)| differs from its long-run value by at most sum_g I_g e^{-(pi w_g delta)^2} / I_tot.
+   The envelope has levelled out once that bound drops below 2% of the total power. With no Gaussians (or negligible ones):
+   two or more lines -> one beat period 1/(smallest spacing); a single line -> about 30 fringes. */
+function settleOPD(){const cs=act();if(!cs.length)return 40;const A=cs.reduce((t,c)=>t+P(c),0),gs=cs.filter(c=>c.f),tgt=0.02*A;
+  const bound=d=>gs.reduce((t,c)=>t+P(c)*Math.exp(-((Math.PI*wOf(c)*d)**2)),0);
+  const smean=cs.reduce((t,c)=>t+c.s*P(c),0)/A;
+  if(gs.length&&bound(0)>tgt){let lo=0,hi=1;while(bound(hi)>tgt&&hi<1e5)hi*=2;for(let k=0;k<50;k++){const m=(lo+hi)/2;if(bound(m)>tgt)lo=m;else hi=m}
+    return Math.min(Math.max(hi,3/smean),10000)}
+  const ls=cs.filter(c=>!c.f).map(c=>c.s).sort((a,b)=>a-b);let dmin=Infinity;
+  for(let i=1;i<ls.length;i++)if(ls[i]-ls[i-1]>1e-6)dmin=Math.min(dmin,ls[i]-ls[i-1]);
+  return Math.min(isFinite(dmin)?1/dmin:30/smean,10000)}
+const DMAX=()=>+$('d').max;
+const autoMax=()=>Math.min(5000,nice(1.2*settleOPD()/2));
+/* the slider moves the mirror by d; the optical path difference is twice that, so both are shown */
+function fitRange(force){const d=$('d'),cur=+d.value,a=autoMax(),m=force?a:Math.max(a,nice(Math.abs(cur)));
+  d.min=-m;d.max=m;d.step='any';d.value=clamp(cur,-m,m)}
+function fitR(){Rauto=autoR()}
+$('rAuto').addEventListener('change',()=>update(false));
+$('envOn').addEventListener('change',()=>update(false));
+$('oAuto').addEventListener('change',()=>update(false));
+{const box=$('outBox'),lAt=px=>OG.l1-(px-OG.pl)/(OG.W-OG.pl-OG.pr)*(OG.l1-OG.l0);let pan=null;
+  box.addEventListener('wheel',e=>{e.preventDefault();const r=box.getBoundingClientRect(),c=lAt(e.clientX-r.left),f=Math.pow(1.0015,e.deltaY);setOutMan(c-(c-OG.l0)*f,c+(OG.l1-c)*f);update(true);settle()},{passive:false});
+  box.addEventListener('pointerdown',e=>{pan={x:e.clientX,l0:OG.l0,l1:OG.l1};box.setPointerCapture(e.pointerId)});
+  box.addEventListener('pointermove',e=>{if(!pan)return;const dl=(e.clientX-pan.x)/(OG.W-OG.pl-OG.pr)*(pan.l1-pan.l0);setOutMan(pan.l0+dl,pan.l1+dl);update(true)});
+  const stop=()=>{if(pan){pan=null;update(false)}};box.addEventListener('pointerup',stop);box.addEventListener('pointercancel',stop)}
+/* interferogram auto-fit: 8% past the settle point, rounded up to 2 significant figures (tight, unlike the mirror's 1–2–5 range) */
+const up2=x=>{const e=Math.pow(10,Math.floor(Math.log10(x))-1);return Math.ceil(x/e-1e-9)*e};
+const autoR=()=>clamp(up2(1.08*settleOPD()),0.5,5000);
+let stT=0;function settle(){clearTimeout(stT);stT=setTimeout(()=>update(false),200)}
+$('ifgBox').addEventListener('wheel',e=>{e.preventDefault();const R=RANGE(),nR=clamp(R*Math.pow(1.0015,e.deltaY),0.5,2*autoR());
+  $('rAuto').checked=false;Rman=nR;update(true);settle()},{passive:false});
+
+/* ---------- presets ---------- */
+document.querySelectorAll('[data-p]').forEach(b=>b.addEventListener('click',()=>{stopPlay();comps=presets[b.dataset.p].map(c=>({...c,on:true}));sel=-1;
+  $('d').value=0;fitRange(true);$('d').value=b.dataset.p==='na'?145:0.4*DMAX();update(false)}));
+$('clear').addEventListener('click',()=>{comps=[];sel=-1;update(false)});
+['d','fov','tx','ty'].forEach(k=>{$(k).addEventListener('input',()=>{if(k==='d')stopPlay();update(true)});$(k).addEventListener('change',()=>update(false))});
+$('verBtn').addEventListener('click',()=>{$('verAt').textContent='Running…';setTimeout(verify,30)});
+$('tReset').addEventListener('click',()=>{$('tx').value=0;$('ty').value=0;update(false)});
+
+/* ---------- direct manipulation: drag on the pattern for tilt / field of view, mirror rail for d ---------- */
+const ov=$('ringOv'),TMAXU=500;let rdrag=null;
+/* field of view: 0.5–85° (the ring maps tanθ linearly, so 85° is near the lens limit) */
+const setFov=v=>widen('fov',+clamp(v,0.5,85).toPrecision(4),false);
+const setTilt=(x,y)=>{widen('tx',Math.round(x*10)/10,true);widen('ty',Math.round(y*10)/10,true)};
+function ovGeom(e){const r=ov.getBoundingClientRect(),R=r.width/2,x=e.clientX-r.left-R,y=e.clientY-r.top-R;return{R,x,y,rr:Math.hypot(x,y)}}
+const onRim=g=>Math.abs(g.rr-g.R)<Math.max(9,0.06*g.R);
+/* tilt handle: the white dot sits at (αx, αy) scaled so 500 µrad = 92% of the radius, and follows the cursor 1:1 while dragged.
+   Within SNAP px of the centre it locks to 0, 0. At 0, 0 it is hidden until the pointer is over the pattern. */
+const DOTK=0.92,SNAP=10;let ovHover=null;
+const dotPos=c=>{const ax=+$('tx').value,ay=+$('ty').value,f=c*DOTK/TMAXU;let x=ax*f,y=-ay*f;const L=Math.hypot(x,y),mx=c*DOTK;if(L>mx){x*=mx/L;y*=mx/L}return[c+x,c+y]};
+function renderOv(){const s=ov.clientWidth;if(!s)return;const c=s/2,[ex,ey]=dotPos(c),L=Math.hypot(ex-c,ey-c),zero=L<0.5;
+  const hx=c+(c-3)*Math.SQRT1_2,hy=c+(c-3)*Math.SQRT1_2,drag=rdrag&&rdrag.m!=='rim';
+  const showDot=!zero||!!ovHover||drag;  /* at 0, 0 the dot shows whenever the pointer is over the pattern */
+  const big=drag||(ovHover&&Math.hypot(ovHover[0]-ex,ovHover[1]-ey)<14);
+  const tx=+$('tx').value,ty=+$('ty').value,tn=Math.hypot(tx,ty),nx=tn?tx/tn:1,ny=tn?ty/tn:0;  /* dashed profile cut through the centre along the tilt direction */
+  /* the cut line is a persistent element, only moved when the tilt direction or the size changes, never repainted with the pattern */
+  if(!ov.querySelector('#ovCut')){ov.innerHTML='<line id="ovCut" stroke="#fff" stroke-opacity=".55" stroke-width="1.5" stroke-dasharray="6 5" pointer-events="none"/><g id="ovDyn"></g>'}
+  const cut=ov.querySelector('#ovCut'),key=[c,nx,ny].join();if(cut.dataset.k!==key){cut.dataset.k=key;cut.setAttribute('x1',c-nx*c);cut.setAttribute('y1',c+ny*c);cut.setAttribute('x2',c+nx*c);cut.setAttribute('y2',c-ny*c)}
+  ov.querySelector('#ovDyn').innerHTML=`<circle cx="${c}" cy="${c}" r="${c-3}" fill="none" stroke="#fff" stroke-opacity="${rdrag&&rdrag.m==='rim'?.9:.25}" stroke-width="2" stroke-dasharray="5 6"/>`+
+   (drag?`<circle cx="${c}" cy="${c}" r="${SNAP}" fill="none" stroke="#fff" stroke-opacity=".6" stroke-dasharray="2 2"/>`:'')+
+   (L>1.5?`<line x1="${c}" y1="${c}" x2="${ex}" y2="${ey}" stroke="#fff" stroke-opacity=".85" stroke-width="2.5" stroke-linecap="round"/>`:'')+
+   (showDot?`<circle cx="${ex}" cy="${ey}" r="${big?7:5.5}" fill="#fff" fill-opacity="${zero&&!drag?.75:.95}" stroke="#000" stroke-opacity=".35"/>`:'')+
+   `<circle cx="${hx}" cy="${hy}" r="6" fill="${css('--acc')}" stroke="#fff" stroke-width="1.5"/>`}
+function tiltFromDot(c,x,y,fine){/* x,y: dot position relative to the centre, in px */
+  if(!fine&&Math.hypot(x,y)<SNAP){setTilt(0,0);return}const f=TMAXU/(c*DOTK);setTilt(x*f,-y*f)}
+ov.addEventListener('pointermove',e=>{const g=ovGeom(e);ovHover=[g.x+g.R,g.y+g.R];
+  if(!rdrag){const[dx,dy]=dotPos(g.R),onDot=Math.hypot(ovHover[0]-dx,ovHover[1]-dy)<14;ov.style.cursor=onDot?'grab':onRim(g)?'nwse-resize':'default';renderOv();return}
+  if(rdrag.m==='rim')setFov(rdrag.f0*Math.max(g.rr,4)/Math.max(rdrag.r0,4));
+  else tiltFromDot(g.R,g.x,g.y,e.shiftKey);update(true)});
+ov.addEventListener('pointerleave',()=>{ovHover=null;if(!rdrag)renderOv()});
+ov.addEventListener('pointerdown',e=>{const g=ovGeom(e);if(g.rr>g.R+4)return;
+  const[dx,dy]=dotPos(g.R),onDot=Math.hypot(g.x+g.R-dx,g.y+g.R-dy)<14;
+  const m=onDot?'dot':onRim(g)?'rim':null;if(!m)return;
+  e.preventDefault();ov.setPointerCapture(e.pointerId);rdrag={m,r0:g.rr,f0:+$('fov').value,cx:e.clientX,cy:e.clientY,px0:dx-g.R,py0:dy-g.R};if(onDot)ov.style.cursor='grabbing';renderOv()});
+const rend=()=>{if(rdrag){const wasDot=rdrag.m==='dot';rdrag=null;ov.style.cursor=wasDot?'grab':'default';renderOv();update(false)}};ov.addEventListener('pointerup',rend);ov.addEventListener('pointercancel',rend);
+ov.addEventListener('dblclick',()=>{$('tx').value=0;$('ty').value=0;update(false)});
+/* scrolling on the pattern zooms: scroll up narrows the field of view (zoom in), scroll down widens it */
+let wT=0;ov.addEventListener('wheel',e=>{e.preventDefault();setFov(+$('fov').value*Math.pow(1.0015,e.deltaY));update(true);clearTimeout(wT);wT=setTimeout(()=>update(false),200)},{passive:false});
+ov.addEventListener('keydown',e=>{const st=e.shiftKey?1:10,k={ArrowLeft:[-st,0],ArrowRight:[st,0],ArrowUp:[0,st],ArrowDown:[0,-st]}[e.key];
+  if(k){e.preventDefault();setTilt(+$('tx').value+k[0],+$('ty').value+k[1]);update(false)}
+  if(e.key==='+'||e.key==='-'){e.preventDefault();setFov(+$('fov').value*(e.key==='+'?1.1:1/1.1));update(false)}});
+/* mirror rail: a ruler spanning the current range ±m; drag (or click) the carriage, scroll to rescale the range */
+const rail=$('rail'),RPAD=16;let raildrag=false;
+function renderRail(){const W=rail.clientWidth,H=rail.clientHeight;if(!W)return;const m=DMAX(),d=+$('d').value,X=v=>RPAD+(v+m)/(2*m)*(W-2*RPAD),st=nice(2*m/(W<360?4:8)),mute=css('--mute'),acc=css('--acc'),ink=css('--ink');
+  let h=`<rect x="${RPAD}" y="10" width="${W-2*RPAD}" height="6" rx="3" fill="${mute}" fill-opacity=".18"/>`;const dec=Math.max(0,-Math.floor(Math.log10(st)+1e-9));
+  for(let v=Math.ceil(-m/st)*st;v<=m+1e-9*m;v+=st){h+=`<line x1="${X(v)}" x2="${X(v)}" y1="7" y2="19" stroke="${mute}" stroke-opacity=".6"/><text x="${X(v)}" y="33" font-size="10.5" fill="${mute}" text-anchor="middle">${v.toFixed(dec)}</text>`}
+  for(let v=Math.ceil(-m/(st/5))*(st/5);v<=m+1e-9*m;v+=st/5)h+=`<line x1="${X(v)}" x2="${X(v)}" y1="11" y2="15" stroke="${mute}" stroke-opacity=".35"/>`;
+  h+=`<line x1="${X(0)}" x2="${X(d)}" y1="13" y2="13" stroke="${acc}" stroke-width="3"/><rect x="${X(d)-6}" y="2" width="12" height="22" rx="3" fill="${acc}" stroke="${ink}" stroke-opacity=".35"/>`;
+  rail.innerHTML=h}
+const railV=e=>{const r=rail.getBoundingClientRect(),m=DMAX();return clamp(((e.clientX-r.left-RPAD)/(r.width-2*RPAD))*2*m-m,-m,m)};
+rail.addEventListener('pointerdown',e=>{stopPlay();raildrag=true;rail.setPointerCapture(e.pointerId);e.preventDefault();$('d').value=railV(e);update(true)});
+rail.addEventListener('pointermove',e=>{if(raildrag){$('d').value=railV(e);update(true)}});
+const railEnd=()=>{if(raildrag){raildrag=false;update(false)}};rail.addEventListener('pointerup',railEnd);rail.addEventListener('pointercancel',railEnd);
+function setRange(m){const d=$('d');m=clamp(m,0.01,5000);d.min=-m;d.max=m;d.step='any';d.value=clamp(+d.value,-m,m)}
+let rwT=0;rail.addEventListener('wheel',e=>{e.preventDefault();$('dAuto').checked=false;setRange(DMAX()*Math.pow(1.0015,e.deltaY));update(true);clearTimeout(rwT);rwT=setTimeout(()=>update(false),200)},{passive:false});
+rail.addEventListener('keydown',e=>{const m=DMAX(),st=(e.shiftKey?0.001:0.01)*m,k={ArrowLeft:-st,ArrowRight:st,ArrowDown:-st,ArrowUp:st}[e.key];if(k){e.preventDefault();stopPlay();$('d').value=clamp(+$('d').value+k,-m,m);update(false)}});
+$('dFit').addEventListener('click',()=>{fitRange(true);update(true)});
+$('dAuto').addEventListener('change',()=>{if($('dAuto').checked)fitRange(false);update(false)});
+/* ---------- Michelson schematic: M₂ moves with d and turns with the tilt; the detector cone opens with θmax; drag M₂ to move it ---------- */
+const msvg=$('miniSvg'),MZ=160,MS=34;
+function renderMini(){const X=MZ+(+$('d').value)/DMAX()*MS,ax=+$('tx').value,ay=+$('ty').value,ang=clamp(ax*0.02,-12,12),f=clamp(+$('fov').value,0,60)*Math.PI/180,L=16,w=Math.tan(f)*L*1.6;
+  $('m2r').setAttribute('x',X-4);$('m2r').setAttribute('transform',`rotate(${ang} ${X} 110)`);$('m2h').setAttribute('x',X-14);$('m2t').setAttribute('x',X);$('mBeam').setAttribute('x2',X-4);$('dArr').setAttribute('x2',X-4);
+  $('fovCone').setAttribute('d',`M100 170 L${100-w} ${170+L} L${100+w} ${170+L}Z`);
+  $('m2t').textContent=(ax||ay)?`M₂ tilt (${F(ax,3)}, ${F(ay,3)}) µrad`:'M₂ ⇆'}
+let mdrag=false;
+const mset=e=>{const pt=msvg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const p=pt.matrixTransform(msvg.getScreenCTM().inverse());$('d').value=clamp((p.x-MZ)/MS,-1,1)*DMAX();update(true)};
+$('m2').addEventListener('pointerdown',e=>{stopPlay();mdrag=true;msvg.setPointerCapture(e.pointerId);e.preventDefault()});
+msvg.addEventListener('pointermove',e=>{if(mdrag)mset(e)});
+const mend=()=>{if(mdrag){mdrag=false;update(false)}};msvg.addEventListener('pointerup',mend);msvg.addEventListener('pointercancel',mend);
+/* sweep: one full pass from -max to +max takes 8 s, then it turns around */
+let playing=false,pdir=1,plast=0;
+function stopPlay(){if(!playing)return;playing=false;$('dPlay').setAttribute('aria-pressed','false');$('dPlay').textContent='▶ Sweep';update(false)}
+function tick(t){if(!playing)return;const dt=plast?Math.min(0.1,(t-plast)/1000):0;plast=t;const m=DMAX();let v=+$('d').value+pdir*dt*2*m/8;
+  if(v>=m){v=m;pdir=-1}if(v<=-m){v=-m;pdir=1}$('d').value=v;update(true);requestAnimationFrame(tick)}
+$('dPlay').addEventListener('click',()=>{if(playing){stopPlay();return}playing=true;plast=0;$('dPlay').setAttribute('aria-pressed','true');$('dPlay').textContent='❚❚ Pause';requestAnimationFrame(tick)});
+
+/* read the active renderer's pixels back as I/I_tot, for the verification table */
+async function ringReadback(){if(Ibuf)return;const A=act().reduce((t,c)=>t+P(c),0)||1;let a=null;
+  if(RB.active==='webgpu')a=await gpuRead(RB.gpu);else if(RB.active==='webgl2')a=glRead(RB.gl);if(!a)return;
+  Ibuf=new Float32Array(a.length/4);for(let k=0;k<Ibuf.length;k++)Ibuf[k]=a[4*k+3]/A}
+$('rendSel').addEventListener('change',e=>{RB.pref=e.target.value;try{localStorage.setItem('mich-renderer',RB.pref)}catch(_){}pickBackend('chosen')});
+probeBackends();
+
+/* ---------- type-in values: click any readout's number to enter an exact value ---------- */
+const editing=new Set();
+function editable(id,get,set){const el=$(id);el.classList.add('edit');el.title='Click to type an exact value';el.tabIndex=0;el.setAttribute('role','button');
+  const open=()=>{if(editing.has(id))return;editing.add(id);const inp=document.createElement('input');inp.type='number';inp.step='any';inp.value=String(get());inp.className='vin';inp.setAttribute('aria-label','Exact value');
+    el.textContent='';el.appendChild(inp);inp.focus();inp.select();let done=false;
+    const fin=ok=>{if(done)return;done=true;editing.delete(id);const v=parseFloat(inp.value);if(ok&&isFinite(v))set(v);el.textContent='';update(false)};
+    inp.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){e.preventDefault();fin(true)}else if(e.key==='Escape'){e.preventDefault();fin(false)}});
+    inp.addEventListener('blur',()=>fin(true));inp.addEventListener('click',e=>e.stopPropagation())};
+  el.addEventListener('click',e=>{e.preventDefault();open()});el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}})}
+const setD=v=>{stopPlay();const d=$('d'),m=Math.max(+d.max,Math.abs(v));if(m>+d.max){const n=nice(m);d.min=-n;d.max=n}d.step='any';d.value=v};
+const widen=(id,v,sym)=>{const e=$(id);e.step='any';if(sym){const m=Math.ceil(Math.abs(v));if(m>+e.max){e.max=m;e.min=-m}}else{if(v>+e.max)e.max=Math.ceil(v);if(v<+e.min)e.min=v}e.value=v};
+editable('dV',()=>+$('d').value,v=>setD(v));
+editable('dV0',()=>D0(),v=>setD(v/2));
+editable('dRV',()=>DMAX(),v=>{if(!(Math.abs(v)>0))return;$('dAuto').checked=false;setRange(Math.abs(v))});
+editable('rV',()=>RANGE(),v=>{Rman=clamp(Math.abs(v),0.1,2*autoR());$('rAuto').checked=false});
+editable('fV',()=>+$('fov').value,v=>widen('fov',clamp(v,0.01,85),false));
+editable('txV',()=>+$('tx').value,v=>widen('tx',v,true));
+editable('tyV',()=>+$('ty').value,v=>widen('ty',v,true));
+
+/* ---------- ring sizing: the canvas fills the largest square that fits its panel ---------- */
+function fitRing(){const b=$('ringBox'),s=Math.max(120,Math.floor(Math.min(b.clientWidth,b.clientHeight||b.clientWidth)));
+  $('ringWrap').style.width=$('ringWrap').style.height=s+'px';const gpu=RB.active==='webgpu'||RB.active==='webgl2',n=clamp(Math.round(s*(window.devicePixelRatio||1)),200,gpu?1024:480);
+  for(const c of [ring,$('ringGL'),$('ringGPU')])if(c.width!==n){c.width=n;c.height=n}}  /* GPUs render at full device resolution (up to 1024²); the CPU caps at 480² */
+
+/* ---------- each panel's equations and notes open as a centred modal window ---------- */
+document.querySelectorAll('.eqbtn').forEach(b=>b.addEventListener('click',()=>openDlg(b.dataset.dlg)));
+
+/* ---------- dialogs and citation links ---------- */
+const openDlg=id=>{const d=$(id);if(!d.open)d.showModal()};
+$('openMethod').addEventListener('click',()=>openDlg('dlgMethod'));
+$('openSrc').addEventListener('click',()=>openDlg('dlgSrc'));
+$('openComp').addEventListener('click',()=>{const d=$('dlgComp');d.open?d.close():d.show()});
+document.querySelectorAll('dialog [data-close]').forEach(b=>b.addEventListener('click',()=>b.closest('dialog').close()));
+document.querySelectorAll('dialog.dlg').forEach(d=>d.addEventListener('click',e=>{if(e.target===d)d.close()}));
+document.addEventListener('click',e=>{const a=e.target.closest('a[href^="#s"]');if(!a)return;const li=document.getElementById(a.getAttribute('href').slice(1));if(!li||!li.closest('#dlgSrc'))return;
+  e.preventDefault();openDlg('dlgSrc');document.querySelectorAll('ol.src li.hl').forEach(x=>x.classList.remove('hl'));li.classList.add('hl');li.scrollIntoView({block:'center'})});
+
+/* ---------- loop ---------- */
+let raf=0,eqT=0;
+const setTxt=(id,t)=>{if(!editing.has(id))$(id).textContent=t};
+function draw(){raf=0;/* d and δ0 to the nearest nm (3 decimals in µm), with a fixed-width minus slot so the row never reflows */
+  const nm3=v=>{const t=Math.abs(v).toFixed(3);return (v<0&&+t?'−':'\u2007')+t+' µm'};setTxt('dV',nm3(+$('d').value));setTxt('dV0',nm3(D0()));setTxt('dRV',`${F(DMAX(),3)} µm`);
+  setTxt('rV',`±${F(RANGE(),4)} µm`);{const[a,b]=outWin(),dg=b-a<5?2:b-a<50?1:0;$('oV').textContent=`${a.toFixed(dg)}–${b.toFixed(dg)} nm`}setTxt('fV',`${F(+$('fov').value,4)}°`);setTxt('txV',`${F(+$('tx').value,4)} µrad`);setTxt('tyV',`${F(+$('ty').value,4)} µrad`);
+  const t0=performance.now();LQ.ms=0;fitRing();renderSpec();renderOut();renderIfg();renderRingIfNeeded();renderOv();renderRail();renderMini();
+  if(ringLive)LQ.other=0.7*LQ.other+0.3*Math.max(0,performance.now()-t0-LQ.ms)}
+function runEq(){eqT=0;eqs();table();save()}
+function update(live){ringLive=!!live;if(!live){if($('dAuto').checked)fitRange(false);if($('rAuto').checked)fitR()}
+  if(!raf)raf=requestAnimationFrame(draw);
+  if(live){if(!eqT)eqT=setTimeout(runEq,350)}else{clearTimeout(eqT);eqT=setTimeout(runEq,40)}  /* let the released frame paint first */
+  $('verAt').textContent='Settings changed since the last run. Press Run checks to verify the current state.'}
+const ro=new ResizeObserver(()=>{if(!raf)raf=requestAnimationFrame(draw)});
+let lastK=EQK();window.addEventListener('resize',()=>{if(EQK()!==lastK){lastK=EQK();eqs()}});
+['specBox','profBox','ringBox','railBox'].forEach(k=>ro.observe($(k)));document.querySelectorAll('.plot').forEach(p=>ro.observe(p));
+const mo=new MutationObserver(()=>update(false));mo.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+const waitMJ=setInterval(()=>{if(window.MathJax&&MathJax.typesetPromise){clearInterval(waitMJ);eqs()}},200);
+update(false);
+}
+</script>
+</body>
+</html>
