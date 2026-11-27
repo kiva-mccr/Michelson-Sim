@@ -23,6 +23,7 @@ Claude builds only the steps that Kiva has approved. To find a step, search for 
 Kiva added these on 2026-11-27. Add a step here only once Kiva has approved it.
 
 - [ ] MS-13: A new optimization study: profile, find speed-ups, deliver them as verified PRs (bit-identical outputs where possible).
+- [ ] MS-14: Sweep duration controls: let the user set how long one mirror sweep takes (today fixed at 8 s per pass). Written down only; build once Kiva approves the design (Kiva, 2026-11-27).
 
 
 ## Decisions
