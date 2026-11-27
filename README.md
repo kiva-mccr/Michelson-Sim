@@ -8,7 +8,7 @@ Open `index.html` in a browser. It needs no server (MathJax comes from a CDN).
 - `src/`, `build.py`: the sources it is built from
 - `reference/michelson-table.html`: the sourced formula table (single line → N lines → Gaussian → N Gaussians → arbitrary spectrum)
 - `mockups/controls-mockups.html`: the drag-control mockups (A, B and C)
-- `tests/`: Playwright checks for correctness, layout and performance
+- `tests/`: Playwright checks for correctness, layout and performance, plus `snapshot.js` / `compare_snapshots.py` (Node) to confirm that a change leaves every output identical
 - `CLAUDE.md`: requirements, architecture and conventions for working on this project with Claude Code
 
 ```

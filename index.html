@@ -353,7 +353,7 @@ let Rauto=50,Rman=91;  /* interferogram half-range (µm): automatic, or manual o
 const RANGE=()=>$('rAuto').checked?Rauto:Rman;
 try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');if(v&&v.rm)Rman=v.rm}catch(e){}
 const col=c=>markHex(1000/c.s);
-function gamma(d,cs=act()){let re=0,im=0,A=0;for(const c of cs){const w=wOf(c),e=P(c)*Math.exp(-((Math.PI*w*d)**2)),p=2*Math.PI*c.s*d;re+=e*Math.cos(p);im+=e*Math.sin(p);A+=P(c)}
+function gamma(d,cs=act()){let re=0,im=0,A=0;for(const c of cs){const w=wOf(c),pc=P(c),e=w?pc*Math.exp(-((Math.PI*w*d)**2)):pc,p=2*Math.PI*c.s*d;re+=e*Math.cos(p);im+=e*Math.sin(p);A+=pc}  /* a line (w = 0) has e^0 = 1 exactly */
   return A?[re/A,im/A]:[0,0]}
 const shape=(c,s)=>c.f?c.a*Math.exp(-4*LN2*(s-c.s)**2/(c.f*c.f)):0;
 const dens=(c,s)=>c.f?c.a*Math.exp(-(((s-c.s)/wOf(c))**2)):0;
@@ -391,9 +391,11 @@ function axes(W,H,pl,pr,pt,pb,ylab,l0=LMIN,l1=LMAX,ym=1){
 function gpath(x,y,W,pl,pr,f,l0=LMIN,l1=LMAX){let p='';const n=Math.max(200,Math.round((W-pl-pr)*2));for(let i=0;i<=n;i++){const s=1000/(l0+(l1-l0)*i/n);p+=(i?'L':'M')+x(s).toFixed(1)+' '+y(f(s)).toFixed(1)}return p}
 
 /* ---------- editor ---------- */
-const spec=$('spec');let G={};
+const spec=$('spec');let G={},specKey='';
 function renderSpec(){
   const W=spec.clientWidth,H=spec.clientHeight;if(!W)return;
+  /* the editor depends only on the components, the selection, drag state, size and theme colours, not on d: skip identical redraws */
+  const key=JSON.stringify([comps,sel,!!drag,W,H,css('--fr'),css('--ink'),css('--mute')]);if(key===specKey)return;specKey=key;
   const pl=40,pr=12,pt=20,pb=36,ym=calcYM(),A=axes(W,H,pl,pr,pt,pb,'Spectral density (rel.)',LMIN,LMAX,ym),{x,y}=A;G={x,y,W,H,pl,pr,pt,pb,ym};
   let h=A.h;const ts=trueShape();
   if(ts)h+=`<path d="${gpath(x,y,W,pl,pr,ts)}" fill="none" stroke="${css('--fr')}" stroke-width="1.5" stroke-dasharray="4 3"/>`;
@@ -444,14 +446,23 @@ function outAutoWin(){const cs=act();if(!cs.length)return[LMIN,LMAX];let lo=1e9,
 const outWin=()=>(!$('oAuto').checked&&outMan)?outMan:outAutoWin();
 function setOutMan(a,b){const span=clamp(b-a,0.05,LMAX-LMIN);let m=(a+b)/2;a=m-span/2;b=m+span/2;if(a<LMIN){b+=LMIN-a;a=LMIN}if(b>LMAX){a-=b-LMAX;b=LMAX}
   outMan=[Math.max(LMIN,a),Math.min(LMAX,b)];$('oAuto').checked=false}
+/* the axes, the sample grid and S(σ) do not depend on d, so they are cached; moving the mirror only re-evaluates T(σ;δ₀) */
+let outC={key:''};
 function renderOut(){
   const svg=$('out'),W=svg.clientWidth,H=svg.clientHeight;if(!W)return;
-  const pl=40,pr=10,pt=8,pb=36,[l0,l1]=outWin(),A=axes(W,H,pl,pr,pt,pb,'S_out (rel.)',l0,l1,YM),{x,y}=A,fr=css('--fr'),fill=css('--fill');OG={W,pl,pr,l0,l1};
-  const gp=f=>gpath(x,y,W,pl,pr,f,l0,l1);
-  let h=A.h;const d0=D0(),T=s=>0.5*(1+Math.cos(2*Math.PI*s*d0)),ts=trueShape();
-  h+=`<path d="${gp(T)}" fill="none" stroke="${A.mute}" stroke-opacity=".55" stroke-width="1"/>`;
-  if(ts){h+=`<path d="${gp(ts)}" fill="none" stroke="${fr}" stroke-dasharray="4 3"/>`;
-    h+=`<path d="${gp(s=>ts(s)*T(s))}L${x(1000/l1)} ${y(0)}L${x(1000/l0)} ${y(0)}Z" fill="${fill}" fill-opacity=".85" stroke="${fr}" stroke-width="1.5"/>`}
+  const pl=40,pr=10,pt=8,pb=36,[l0,l1]=outWin(),fr=css('--fr'),fill=css('--fill'),ts=trueShape();OG={W,pl,pr,l0,l1};
+  const key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),l0,l1,W,H,YM,fr,css('--mute')]);
+  if(key!==outC.key){const A=axes(W,H,pl,pr,pt,pb,'S_out (rel.)',l0,l1,YM),{x,y}=A,n=Math.max(200,Math.round((W-pl-pr)*2)),S=new Float64Array(n+1),TS=ts?new Float64Array(n+1):null,XS=[];
+    /* the same grid and strings as gpath() */
+    for(let i=0;i<=n;i++){const s=1000/(l0+(l1-l0)*i/n);S[i]=s;XS.push((i?'L':'M')+x(s).toFixed(1)+' ');if(ts)TS[i]=ts(s)}
+    let tp='';if(ts)for(let i=0;i<=n;i++)tp+=XS[i]+y(TS[i]).toFixed(1);
+    outC={key,A,S,TS,XS,n,tp}}
+  const {A,S,TS,XS,n,tp}=outC,{x,y}=A;
+  let h=A.h;const d0=D0(),T=s=>0.5*(1+Math.cos(2*Math.PI*s*d0));
+  let pT='',pP='';for(let i=0;i<=n;i++){const t=T(S[i]);pT+=XS[i]+y(t).toFixed(1);if(TS)pP+=XS[i]+y(TS[i]*t).toFixed(1)}
+  h+=`<path d="${pT}" fill="none" stroke="${A.mute}" stroke-opacity=".55" stroke-width="1"/>`;
+  if(ts){h+=`<path d="${tp}" fill="none" stroke="${fr}" stroke-dasharray="4 3"/>`;
+    h+=`<path d="${pP}L${x(1000/l1)} ${y(0)}L${x(1000/l0)} ${y(0)}Z" fill="${fill}" fill-opacity=".85" stroke="${fr}" stroke-width="1.5"/>`}
   for(const c of act())if(!c.f){const lc=1000/c.s;if(lc<l0||lc>l1)continue;const v=c.a*T(c.s);
     h+=`<line x1="${x(c.s)}" x2="${x(c.s)}" y1="${y(0)}" y2="${y(c.a)}" stroke="${fr}" stroke-dasharray="3 3"/><line x1="${x(c.s)}" x2="${x(c.s)}" y1="${y(0)}" y2="${y(v)}" stroke="${col(c)}" stroke-width="3"/><circle cx="${x(c.s)}" cy="${y(v)}" r="3.5" fill="${col(c)}"/>`}
   svg.innerHTML=h}
@@ -476,19 +487,23 @@ const enc=v=>GL[v<=0?0:v>=1?4096:(v*4096+0.5)|0];
 function spanOf(t0,t1,dAt,cs,smax){const fr=Math.abs(dAt(t1)-dAt(t0))*smax;let lo=1,hi=0;
   if(fr>=1){for(let q=0;q<=4;q++){const[re,im]=gamma(dAt(t0+(t1-t0)*q/4),cs),m=Math.hypot(re,im);lo=Math.min(lo,0.5*(1-m));hi=Math.max(hi,0.5*(1+m))}}
   else{const k=Math.max(2,Math.ceil(16*fr)+1);for(let q=0;q<=k;q++){const v=0.5*(1+gamma(dAt(t0+(t1-t0)*q/k),cs)[0]);lo=Math.min(lo,v);hi=Math.max(hi,v)}}return[lo,hi]}
+/* buffers are reused between calls, one set per target canvas; only the rows a column (or its filter neighbours) touched are visited */
 function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=ringLive?2:8,  /* 2 sub-columns while moving, 8 at rest */
-  img=ctx.createImageData(Wd,Hd),D=img.data,C=new Float32Array(Wd*Hd),cols=[],smax=Math.max(...cs.map(c=>c.s)),MINH=1.25*(window.devicePixelRatio||1);
-  for(let px=0;px<Wd;px++){const base=px*Hd;
+  B=ctx.__dp&&ctx.__dp.Wd===Wd&&ctx.__dp.Hd===Hd?ctx.__dp:(ctx.__dp={Wd,Hd,img:ctx.createImageData(Wd,Hd),C:new Float32Array(Wd*Hd),r0:new Int32Array(Wd),r1:new Int32Array(Wd),off:document.createElement('canvas')});
+  const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],smax=Math.max(...cs.map(c=>c.s)),MINH=1.25*(window.devicePixelRatio||1);
+  D.fill(0);C.fill(0);
+  for(let px=0;px<Wd;px++){const base=px*Hd;let c0=Hd,c1=-1;
     for(let k=0;k<K;k++){const[lo,hi]=spanOf((px+k/K)/Wd,(px+(k+1)/K)/Wd,dAt,cs,smax);let ya=(1-hi)*(Hd-1),yb=(1-lo)*(Hd-1);
       if(yb-ya<MINH){const m=(ya+yb)/2;ya=m-MINH/2;yb=m+MINH/2}
-      for(let yy=Math.max(0,Math.floor(ya));yy<=Math.min(Hd-1,Math.ceil(yb));yy++){const o=Math.min(yy+1,yb)-Math.max(yy,ya);if(o>0)C[base+yy]+=o/K}}
-    cols.push(colourAt((px+0.5)/Wd))}
+      const ja=Math.max(0,Math.floor(ya)),jb=Math.min(Hd-1,Math.ceil(yb));if(ja<c0)c0=ja;if(jb>c1)c1=jb;
+      for(let yy=ja;yy<=jb;yy++){const o=Math.min(yy+1,yb)-Math.max(yy,ya);if(o>0)C[base+yy]+=o/K}}
+    r0[px]=c0;r1[px]=c1;cols.push(colourAt((px+0.5)/Wd))}
   /* horizontal Gaussian low-pass (sd 0.7 px) on top of the box filter removes the box filter's sinc side-lobes, which are what still beat into moiré */
   const KW=[0.0097,0.205,0.5706,0.205,0.0097];
-  for(let px=0;px<Wd;px++){const c=cols[px];
-    for(let yy=0;yy<Hd;yy++){let v=0;for(let t=-2;t<=2;t++){const q=px+t;if(q>=0&&q<Wd)v+=KW[t+2]*C[q*Hd+yy]}if(v<=0.002)continue;
+  for(let px=0;px<Wd;px++){const c=cols[px];let ja=Hd,jb=-1;for(let q=Math.max(0,px-2);q<=Math.min(Wd-1,px+2);q++){if(r0[q]<ja)ja=r0[q];if(r1[q]>jb)jb=r1[q]}
+    for(let yy=ja;yy<=jb;yy++){let v=0;for(let t=-2;t<=2;t++){const q=px+t;if(q>=0&&q<Wd)v+=KW[t+2]*C[q*Hd+yy]}if(v<=0.002)continue;
       const a=Math.pow(Math.min(1,v),0.45),o=4*(yy*Wd+px);D[o]=c[0];D[o+1]=c[1];D[o+2]=c[2];D[o+3]=255*a}}
-  const off=document.createElement('canvas');off.width=Wd;off.height=Hd;off.getContext('2d').putImageData(img,0,0);
+  const off=B.off;if(off.width!==Wd||off.height!==Hd){off.width=Wd;off.height=Hd}off.getContext('2d').putImageData(img,0,0);
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(off,x0,y0);ctx.restore()}
 const rgb8=c=>c.map(v=>enc(v)|0);
 let _probe=null;function cssRGB(v){if(!_probe){_probe=document.createElement('span');_probe.style.display='none';document.body.appendChild(_probe)}_probe.style.color=`var(${v})`;return getComputedStyle(_probe).color.match(/\d+/g).slice(0,3).map(Number)}
@@ -534,26 +549,49 @@ function ringModel(){const d=+$('d').value,tm=(+$('fov').value)*Math.PI/180,T=Ma
    e^{-a_parent·δmin²} < e^{-30} for every OPD in the footprint (δmin = |δ̄| − 5τ), i.e. below 1e-13. */
 function prepSL(SL){const n=SL.length,o={n,P:new Float64Array(n),KA:new Float64Array(n),KB:new Float64Array(n),X:new Float64Array(n),Y:new Float64Array(n),Z:new Float64Array(n),G:[]};
   SL.forEach((s,k)=>{o.P[k]=0.5*s.p;o.KA[k]=s.ka;o.KB[k]=s.kb;o.X[k]=s.X[0];o.Y[k]=s.X[1];o.Z[k]=s.X[2];
-    let g=o.G[o.G.length-1];if(!g||g.id!==s.g){g={id:s.g,a:k,b:k+1,pka:s.pka,cX:0,cY:0,cZ:0,cI:0};o.G.push(g)}g.b=k+1;g.cX+=o.P[k]*s.X[0];g.cY+=o.P[k]*s.X[1];g.cZ+=o.P[k]*s.X[2];g.cI+=o.P[k]});return o}
+    let g=o.G[o.G.length-1];if(!g||g.id!==s.g){g={id:s.g,a:k,b:k+1,pka:s.pka,cX:0,cY:0,cZ:0,cI:0};o.G.push(g)}g.b=k+1;g.cX+=o.P[k]*s.X[0];g.cY+=o.P[k]*s.X[1];g.cZ+=o.P[k]*s.X[2];g.cI+=o.P[k]});
+  /* lin: the k_b step of a group whose sub-bands share a and are evenly spaced in k_b (every split Gaussian), for pixVal's fast path */
+  for(const g of o.G){g.lin=0;const n=g.b-g.a;if(n<3)continue;const D=(o.KB[g.b-1]-o.KB[g.a])/(n-1);let ok=D!==0;
+    for(let k=g.a;k<g.b&&ok;k++)ok=o.KA[k]===o.KA[g.a]&&Math.abs(o.KB[k]-(o.KB[g.a]+(k-g.a)*D))<=1e-12*Math.abs(o.KB[k]);if(ok)g.lin=D}
+  return o}
 /* Second-order footprint average. Over a Gaussian footprint Δ ~ N(0, s²I) the OPD is expanded to second order,
    δ = δ̄ + gᵀΔ + ½ΔᵀHΔ, and the sub-band envelope e^{-aδ²} to first order in Δ. Then for e^{-aδ²+ibδ} the average is the
    Gaussian integral  det(I − s²B)^{-1/2} · exp(−aδ̄² + ibδ̄ + ½κ²s² gᵀ(I − s²B)^{-1}g),  κ = −2aδ̄ + ib,  B = κH − 2a ggᵀ.
    With H = 0 it reduces exactly to avgTerm above; for lines (a = 0) it is exact for any quadratic OPD. */
-function avgQ(ka,kb,dm,gx,gy,h11,h12,h22,s2){
-  const kr=-2*ka*dm,ki=kb;
-  const b11r=kr*h11-2*ka*gx*gx,b11i=ki*h11,b12r=kr*h12-2*ka*gx*gy,b12i=ki*h12,b22r=kr*h22-2*ka*gy*gy,b22i=ki*h22;
-  const m11r=1-s2*b11r,m11i=-s2*b11i,m12r=-s2*b12r,m12i=-s2*b12i,m22r=1-s2*b22r,m22i=-s2*b22i;
-  const dr=m11r*m22r-m11i*m22i-(m12r*m12r-m12i*m12i),di=m11r*m22i+m11i*m22r-2*m12r*m12i;
-  const nr=m22r*gx*gx-2*m12r*gx*gy+m11r*gy*gy,ni=m22i*gx*gx-2*m12i*gx*gy+m11i*gy*gy;
-  const dd=dr*dr+di*di,qr=(nr*dr+ni*di)/dd,qi=(ni*dr-nr*di)/dd,k2r=kr*kr-ki*ki,k2i=2*kr*ki;
-  const er=-ka*dm*dm+0.5*s2*(k2r*qr-k2i*qi)-0.25*Math.log(dd),ei=kb*dm+0.5*s2*(k2r*qi+k2i*qr)-0.5*Math.atan2(di,dr);
+/* It is split in two so pixVal() can evaluate the parts shared by every sub-band of one Gaussian (same a, same pixel) once:
+   avgQpre() for those, avgQ() for the rest. The expressions are the same as written in full, so the result is bit-identical. */
+const QS={kr:0,k2:0,kk:0,b11r:0,b12r:0,b22r:0,m11r:0,m12r:0,m22r:0,p1:0,p2:0,nr:0,e0:0,hs:0};
+function avgQpre(ka,dm,gx,gy,h11,h12,h22,s2){const Q=QS,kr=-2*ka*dm;Q.kr=kr;Q.kk=kr*kr;Q.k2=2*kr;
+  const b11r=kr*h11-2*ka*gx*gx,b12r=kr*h12-2*ka*gx*gy,b22r=kr*h22-2*ka*gy*gy;Q.b11r=b11r;Q.b12r=b12r;Q.b22r=b22r;
+  const m11r=1-s2*b11r,m12r=-s2*b12r,m22r=1-s2*b22r;Q.m11r=m11r;Q.m12r=m12r;Q.m22r=m22r;Q.p1=m11r*m22r;Q.p2=m12r*m12r;
+  Q.nr=m22r*gx*gx-2*m12r*gx*gy+m11r*gy*gy;Q.e0=-ka*dm*dm;Q.hs=0.5*s2}
+function avgQ(kb,dm,gx,gy,h11,h12,h22,s2){const Q=QS,ki=kb;
+  const b11i=ki*h11,b12i=ki*h12,b22i=ki*h22;
+  const m11r=Q.m11r,m12r=Q.m12r,m22r=Q.m22r,m11i=-s2*b11i,m12i=-s2*b12i,m22i=-s2*b22i;
+  const dr=Q.p1-m11i*m22i-(Q.p2-m12i*m12i),di=m11r*m22i+m11i*m22r-2*m12r*m12i;
+  const nr=Q.nr,ni=m22i*gx*gx-2*m12i*gx*gy+m11i*gy*gy;
+  const dd=dr*dr+di*di,qr=(nr*dr+ni*di)/dd,qi=(ni*dr-nr*di)/dd,k2r=Q.kk-ki*ki,k2i=Q.k2*ki;
+  const er=Q.e0+Q.hs*(k2r*qr-k2i*qi)-0.25*Math.log(dd),ei=kb*dm+Q.hs*(k2r*qi+k2i*qr)-0.5*Math.atan2(di,dr);
   return er<-40?0:Math.exp(er)*Math.cos(ei)}
 const PV=[0,0,0,0];
-/* quad=false uses the first-order form (H = 0); it is only chosen when the curvature phase kb·s²·|H| < 3e-4, below which the two agree to that level */
+/* quad=false uses the first-order form (H = 0); it is only chosen when the curvature phase kb·s²·|H| < 3e-4, below which the two agree to that level.
+   All sub-bands of one Gaussian share a, so the terms that depend only on a are computed once per run of equal a.
+   First-order fast path for an evenly spaced group (gr.lin = Δk_b): along the group the exponent is quadratic and the phase linear in k,
+   so e^{ex} and cos/sin of the phase are stepped by exact ratios (two multiplies and a rotation per sub-band) and re-evaluated
+   directly every 16 sub-bands. The drift between re-evaluations is a few ulp (< 1e-14 relative); the −40 cut-off is tested exactly. */
 function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2*(gx*gx+gy*gy),dmin=Math.max(0,Math.abs(dm)-5*Math.sqrt(t2));
   for(const gr of pr.G){if(gr.pka*dmin*dmin>30){X+=gr.cX;Y+=gr.cY;Z+=gr.cZ;I+=gr.cI;continue}
+  if(!quad&&gr.lin){const D=gr.lin,ka=pr.KA[gr.a],q=1+2*ka*t2,sq=ka?Math.sqrt(q):1,e0=ka*dm*dm,ph1=D*dm/q,c1=Math.cos(ph1),s1=Math.sin(ph1),g2=Math.exp(-(t2*D*D)/q);
+    let E=0,R=0,C=0,S=0,j=16;
+    for(let k=gr.a;k<gr.b;k++){const kb=pr.KB[k],ex=-(e0+0.5*kb*kb*t2)/q;let f=0;
+      if(ex>-40){if(j>=16){E=Math.exp(ex);const ph=kb*dm/q;C=Math.cos(ph);S=Math.sin(ph);R=Math.exp(-(t2*kb*D+0.5*t2*D*D)/q);j=0}
+        f=E*C/sq;E*=R;R*=g2;const c=C*c1-S*s1;S=S*c1+C*s1;C=c;j++}else j=16;
+      const v=pr.P[k]*(1+f);I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}
+    continue}
+  let kaG=NaN,q=0,sq=1,e0=0;
   for(let k=gr.a;k<gr.b;k++){const ka=pr.KA[k],kb=pr.KB[k];let f;
-    if(quad)f=avgQ(ka,kb,dm,gx,gy,h11,h12,h22,s2);else{const q=1+2*ka*t2,ex=-(ka*dm*dm+0.5*kb*kb*t2)/q;f=ex>-40?Math.exp(ex)*Math.cos(kb*dm/q)/(ka?Math.sqrt(q):1):0}
+    if(ka!==kaG){kaG=ka;if(quad)avgQpre(ka,dm,gx,gy,h11,h12,h22,s2);else{q=1+2*ka*t2;sq=ka?Math.sqrt(q):1;e0=ka*dm*dm}}
+    if(quad)f=avgQ(kb,dm,gx,gy,h11,h12,h22,s2);else{const ex=-(e0+0.5*kb*kb*t2)/q;f=ex>-40?Math.exp(ex)*Math.cos(kb*dm/q)/sq:0}
     const v=pr.P[k]*(1+f);I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}}
   PV[0]=X;PV[1]=Y;PV[2]=Z;PV[3]=I;return PV}
 
@@ -719,7 +757,9 @@ function glRead(L){const gl=L.gl,N=L.N,a=new Float32Array(N*N*4);gl.bindFramebuf
 
 /* ---- CPU workers: the same pixVal()/avgQ() source, run on every core ---- */
 function initWorkers(){if(!window.Worker||!window.Blob)throw new Error('no workers');const n=clamp((navigator.hardwareConcurrency||4)-1,2,8);
-  const src=`const avgQ=${avgQ.toString()};
+  const src=`const QS=${JSON.stringify(QS)};
+${avgQpre.toString()}
+${avgQ.toString()}
 ${pixVal.toString()}
 const PV=[0,0,0,0];
 onmessage=e=>{const m=e.data,{N,st,j0,j1,d,T,kx,ky,s2,kbm,pr}=m,h=N/2,out=new Float32Array(((j1-j0)/st|0)*Math.ceil(N/st)*4+8);let o=0;

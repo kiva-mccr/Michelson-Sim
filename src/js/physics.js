@@ -44,7 +44,7 @@ let Rauto=50,Rman=91;  /* interferogram half-range (µm): automatic, or manual o
 const RANGE=()=>$('rAuto').checked?Rauto:Rman;
 try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');if(v&&v.rm)Rman=v.rm}catch(e){}
 const col=c=>markHex(1000/c.s);
-function gamma(d,cs=act()){let re=0,im=0,A=0;for(const c of cs){const w=wOf(c),e=P(c)*Math.exp(-((Math.PI*w*d)**2)),p=2*Math.PI*c.s*d;re+=e*Math.cos(p);im+=e*Math.sin(p);A+=P(c)}
+function gamma(d,cs=act()){let re=0,im=0,A=0;for(const c of cs){const w=wOf(c),pc=P(c),e=w?pc*Math.exp(-((Math.PI*w*d)**2)):pc,p=2*Math.PI*c.s*d;re+=e*Math.cos(p);im+=e*Math.sin(p);A+=pc}  /* a line (w = 0) has e^0 = 1 exactly */
   return A?[re/A,im/A]:[0,0]}
 const shape=(c,s)=>c.f?c.a*Math.exp(-4*LN2*(s-c.s)**2/(c.f*c.f)):0;
 const dens=(c,s)=>c.f?c.a*Math.exp(-(((s-c.s)/wOf(c))**2)):0;

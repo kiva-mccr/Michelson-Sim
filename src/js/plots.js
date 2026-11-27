@@ -13,9 +13,11 @@ function axes(W,H,pl,pr,pt,pb,ylab,l0=LMIN,l1=LMAX,ym=1){
 function gpath(x,y,W,pl,pr,f,l0=LMIN,l1=LMAX){let p='';const n=Math.max(200,Math.round((W-pl-pr)*2));for(let i=0;i<=n;i++){const s=1000/(l0+(l1-l0)*i/n);p+=(i?'L':'M')+x(s).toFixed(1)+' '+y(f(s)).toFixed(1)}return p}
 
 /* ---------- editor ---------- */
-const spec=$('spec');let G={};
+const spec=$('spec');let G={},specKey='';
 function renderSpec(){
   const W=spec.clientWidth,H=spec.clientHeight;if(!W)return;
+  /* the editor depends only on the components, the selection, drag state, size and theme colours, not on d: skip identical redraws */
+  const key=JSON.stringify([comps,sel,!!drag,W,H,css('--fr'),css('--ink'),css('--mute')]);if(key===specKey)return;specKey=key;
   const pl=40,pr=12,pt=20,pb=36,ym=calcYM(),A=axes(W,H,pl,pr,pt,pb,'Spectral density (rel.)',LMIN,LMAX,ym),{x,y}=A;G={x,y,W,H,pl,pr,pt,pb,ym};
   let h=A.h;const ts=trueShape();
   if(ts)h+=`<path d="${gpath(x,y,W,pl,pr,ts)}" fill="none" stroke="${css('--fr')}" stroke-width="1.5" stroke-dasharray="4 3"/>`;
@@ -66,14 +68,23 @@ function outAutoWin(){const cs=act();if(!cs.length)return[LMIN,LMAX];let lo=1e9,
 const outWin=()=>(!$('oAuto').checked&&outMan)?outMan:outAutoWin();
 function setOutMan(a,b){const span=clamp(b-a,0.05,LMAX-LMIN);let m=(a+b)/2;a=m-span/2;b=m+span/2;if(a<LMIN){b+=LMIN-a;a=LMIN}if(b>LMAX){a-=b-LMAX;b=LMAX}
   outMan=[Math.max(LMIN,a),Math.min(LMAX,b)];$('oAuto').checked=false}
+/* the axes, the sample grid and S(σ) do not depend on d, so they are cached; moving the mirror only re-evaluates T(σ;δ₀) */
+let outC={key:''};
 function renderOut(){
   const svg=$('out'),W=svg.clientWidth,H=svg.clientHeight;if(!W)return;
-  const pl=40,pr=10,pt=8,pb=36,[l0,l1]=outWin(),A=axes(W,H,pl,pr,pt,pb,'S_out (rel.)',l0,l1,YM),{x,y}=A,fr=css('--fr'),fill=css('--fill');OG={W,pl,pr,l0,l1};
-  const gp=f=>gpath(x,y,W,pl,pr,f,l0,l1);
-  let h=A.h;const d0=D0(),T=s=>0.5*(1+Math.cos(2*Math.PI*s*d0)),ts=trueShape();
-  h+=`<path d="${gp(T)}" fill="none" stroke="${A.mute}" stroke-opacity=".55" stroke-width="1"/>`;
-  if(ts){h+=`<path d="${gp(ts)}" fill="none" stroke="${fr}" stroke-dasharray="4 3"/>`;
-    h+=`<path d="${gp(s=>ts(s)*T(s))}L${x(1000/l1)} ${y(0)}L${x(1000/l0)} ${y(0)}Z" fill="${fill}" fill-opacity=".85" stroke="${fr}" stroke-width="1.5"/>`}
+  const pl=40,pr=10,pt=8,pb=36,[l0,l1]=outWin(),fr=css('--fr'),fill=css('--fill'),ts=trueShape();OG={W,pl,pr,l0,l1};
+  const key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),l0,l1,W,H,YM,fr,css('--mute')]);
+  if(key!==outC.key){const A=axes(W,H,pl,pr,pt,pb,'S_out (rel.)',l0,l1,YM),{x,y}=A,n=Math.max(200,Math.round((W-pl-pr)*2)),S=new Float64Array(n+1),TS=ts?new Float64Array(n+1):null,XS=[];
+    /* the same grid and strings as gpath() */
+    for(let i=0;i<=n;i++){const s=1000/(l0+(l1-l0)*i/n);S[i]=s;XS.push((i?'L':'M')+x(s).toFixed(1)+' ');if(ts)TS[i]=ts(s)}
+    let tp='';if(ts)for(let i=0;i<=n;i++)tp+=XS[i]+y(TS[i]).toFixed(1);
+    outC={key,A,S,TS,XS,n,tp}}
+  const {A,S,TS,XS,n,tp}=outC,{x,y}=A;
+  let h=A.h;const d0=D0(),T=s=>0.5*(1+Math.cos(2*Math.PI*s*d0));
+  let pT='',pP='';for(let i=0;i<=n;i++){const t=T(S[i]);pT+=XS[i]+y(t).toFixed(1);if(TS)pP+=XS[i]+y(TS[i]*t).toFixed(1)}
+  h+=`<path d="${pT}" fill="none" stroke="${A.mute}" stroke-opacity=".55" stroke-width="1"/>`;
+  if(ts){h+=`<path d="${tp}" fill="none" stroke="${fr}" stroke-dasharray="4 3"/>`;
+    h+=`<path d="${pP}L${x(1000/l1)} ${y(0)}L${x(1000/l0)} ${y(0)}Z" fill="${fill}" fill-opacity=".85" stroke="${fr}" stroke-width="1.5"/>`}
   for(const c of act())if(!c.f){const lc=1000/c.s;if(lc<l0||lc>l1)continue;const v=c.a*T(c.s);
     h+=`<line x1="${x(c.s)}" x2="${x(c.s)}" y1="${y(0)}" y2="${y(c.a)}" stroke="${fr}" stroke-dasharray="3 3"/><line x1="${x(c.s)}" x2="${x(c.s)}" y1="${y(0)}" y2="${y(v)}" stroke="${col(c)}" stroke-width="3"/><circle cx="${x(c.s)}" cy="${y(v)}" r="3.5" fill="${col(c)}"/>`}
   svg.innerHTML=h}
@@ -98,19 +109,23 @@ const enc=v=>GL[v<=0?0:v>=1?4096:(v*4096+0.5)|0];
 function spanOf(t0,t1,dAt,cs,smax){const fr=Math.abs(dAt(t1)-dAt(t0))*smax;let lo=1,hi=0;
   if(fr>=1){for(let q=0;q<=4;q++){const[re,im]=gamma(dAt(t0+(t1-t0)*q/4),cs),m=Math.hypot(re,im);lo=Math.min(lo,0.5*(1-m));hi=Math.max(hi,0.5*(1+m))}}
   else{const k=Math.max(2,Math.ceil(16*fr)+1);for(let q=0;q<=k;q++){const v=0.5*(1+gamma(dAt(t0+(t1-t0)*q/k),cs)[0]);lo=Math.min(lo,v);hi=Math.max(hi,v)}}return[lo,hi]}
+/* buffers are reused between calls, one set per target canvas; only the rows a column (or its filter neighbours) touched are visited */
 function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=ringLive?2:8,  /* 2 sub-columns while moving, 8 at rest */
-  img=ctx.createImageData(Wd,Hd),D=img.data,C=new Float32Array(Wd*Hd),cols=[],smax=Math.max(...cs.map(c=>c.s)),MINH=1.25*(window.devicePixelRatio||1);
-  for(let px=0;px<Wd;px++){const base=px*Hd;
+  B=ctx.__dp&&ctx.__dp.Wd===Wd&&ctx.__dp.Hd===Hd?ctx.__dp:(ctx.__dp={Wd,Hd,img:ctx.createImageData(Wd,Hd),C:new Float32Array(Wd*Hd),r0:new Int32Array(Wd),r1:new Int32Array(Wd),off:document.createElement('canvas')});
+  const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],smax=Math.max(...cs.map(c=>c.s)),MINH=1.25*(window.devicePixelRatio||1);
+  D.fill(0);C.fill(0);
+  for(let px=0;px<Wd;px++){const base=px*Hd;let c0=Hd,c1=-1;
     for(let k=0;k<K;k++){const[lo,hi]=spanOf((px+k/K)/Wd,(px+(k+1)/K)/Wd,dAt,cs,smax);let ya=(1-hi)*(Hd-1),yb=(1-lo)*(Hd-1);
       if(yb-ya<MINH){const m=(ya+yb)/2;ya=m-MINH/2;yb=m+MINH/2}
-      for(let yy=Math.max(0,Math.floor(ya));yy<=Math.min(Hd-1,Math.ceil(yb));yy++){const o=Math.min(yy+1,yb)-Math.max(yy,ya);if(o>0)C[base+yy]+=o/K}}
-    cols.push(colourAt((px+0.5)/Wd))}
+      const ja=Math.max(0,Math.floor(ya)),jb=Math.min(Hd-1,Math.ceil(yb));if(ja<c0)c0=ja;if(jb>c1)c1=jb;
+      for(let yy=ja;yy<=jb;yy++){const o=Math.min(yy+1,yb)-Math.max(yy,ya);if(o>0)C[base+yy]+=o/K}}
+    r0[px]=c0;r1[px]=c1;cols.push(colourAt((px+0.5)/Wd))}
   /* horizontal Gaussian low-pass (sd 0.7 px) on top of the box filter removes the box filter's sinc side-lobes, which are what still beat into moiré */
   const KW=[0.0097,0.205,0.5706,0.205,0.0097];
-  for(let px=0;px<Wd;px++){const c=cols[px];
-    for(let yy=0;yy<Hd;yy++){let v=0;for(let t=-2;t<=2;t++){const q=px+t;if(q>=0&&q<Wd)v+=KW[t+2]*C[q*Hd+yy]}if(v<=0.002)continue;
+  for(let px=0;px<Wd;px++){const c=cols[px];let ja=Hd,jb=-1;for(let q=Math.max(0,px-2);q<=Math.min(Wd-1,px+2);q++){if(r0[q]<ja)ja=r0[q];if(r1[q]>jb)jb=r1[q]}
+    for(let yy=ja;yy<=jb;yy++){let v=0;for(let t=-2;t<=2;t++){const q=px+t;if(q>=0&&q<Wd)v+=KW[t+2]*C[q*Hd+yy]}if(v<=0.002)continue;
       const a=Math.pow(Math.min(1,v),0.45),o=4*(yy*Wd+px);D[o]=c[0];D[o+1]=c[1];D[o+2]=c[2];D[o+3]=255*a}}
-  const off=document.createElement('canvas');off.width=Wd;off.height=Hd;off.getContext('2d').putImageData(img,0,0);
+  const off=B.off;if(off.width!==Wd||off.height!==Hd){off.width=Wd;off.height=Hd}off.getContext('2d').putImageData(img,0,0);
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(off,x0,y0);ctx.restore()}
 const rgb8=c=>c.map(v=>enc(v)|0);
 let _probe=null;function cssRGB(v){if(!_probe){_probe=document.createElement('span');_probe.style.display='none';document.body.appendChild(_probe)}_probe.style.color=`var(${v})`;return getComputedStyle(_probe).color.match(/\d+/g).slice(0,3).map(Number)}
