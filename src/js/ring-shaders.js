@@ -87,7 +87,7 @@ fn pix(u:f32,v:f32)->vec4f{
   return acc;}
 @compute @workgroup_size(8,8) fn cmain(@builtin(global_invocation_id) id:vec3u){
   let N=f32(P.a.x);let k=P.a.z;let Nl=u32(P.a.w);if(id.x>=Nl||id.y>=Nl){return;}let h=N*0.5;
-  let u=((f32(id.x)+0.5)*k-h)/h;let v=-((f32(id.y)+0.5)*k-h)/h;OUT[id.y*Nl+id.x]=pix(u,v);}`;
+  let u=((f32(id.x)+0.5)*k-h)/h;let v=-((f32(id.y)+0.5)*k-h)/h;let rc=1.+6.*k/N;if(u*u+v*v>rc*rc){OUT[id.y*Nl+id.x]=vec4f(0.);return;}OUT[id.y*Nl+id.x]=pix(u,v);}`;
 const WGSL_R=WGSL_HEAD+`
 @group(0) @binding(3) var<storage,read> OUT:array<vec4f>;
 fn gam(v0:f32)->f32{let v=clamp(v0,0.,1.);return select(1.055*pow(v,1./2.4)-0.055,12.92*v,v<=0.0031308);}
@@ -107,7 +107,7 @@ precision highp float;precision highp int;precision highp sampler2D;
 uniform sampler2D uSB,uGR,uOut;uniform int uNG,uN,uNl;uniform float uD,uT,uKx,uKy,uS2,uKbm,uGain;out vec4 o;
 vec4 fetchS(int t){return texelFetch(uSB,ivec2(t%1024,t/1024),0);}vec4 fetchG(int t){return texelFetch(uGR,ivec2(t%1024,t/1024),0);}`;
 const GLSL_PIX=GLSL_HEAD+PIX_GLSL+`
-void main(){float h=float(uN)*0.5,k=float(uN)/float(uNl);vec2 p=(floor(gl_FragCoord.xy)+0.5)*k;float u=(p.x-h)/h,v=(p.y-h)/h;o=pix(u,v);}`;
+void main(){float h=float(uN)*0.5,k=float(uN)/float(uNl);vec2 p=(floor(gl_FragCoord.xy)+0.5)*k;float u=(p.x-h)/h,v=(p.y-h)/h,rc=1.+6.*k/float(uN);if(u*u+v*v>rc*rc){o=vec4(0.);return;}o=pix(u,v);}`;
 const GLSL_TONE=GLSL_HEAD+`
 float gam(float v){v=clamp(v,0.,1.);return v<=0.0031308?12.92*v:1.055*pow(v,1./2.4)-0.055;}`+TONE_GLSL+`
 void main(){if(uNl==uN){o=vec4(tone(texelFetch(uOut,ivec2(gl_FragCoord.xy),0)),1.);return;}

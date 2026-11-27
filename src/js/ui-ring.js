@@ -9,7 +9,7 @@ const onRim=g=>Math.abs(g.rr-g.R)<Math.max(9,0.06*g.R);
    Within SNAP px of the centre it locks to 0, 0. At 0, 0 it is hidden until the pointer is over the pattern. */
 const DOTK=0.92,SNAP=10;let ovHover=null;
 const dotPos=c=>{const ax=+$('tx').value,ay=+$('ty').value,f=c*DOTK/TMAXU;let x=ax*f,y=-ay*f;const L=Math.hypot(x,y),mx=c*DOTK;if(L>mx){x*=mx/L;y*=mx/L}return[c+x,c+y]};
-function renderOv(){const s=ov.clientWidth;if(!s)return;const c=s/2,[ex,ey]=dotPos(c),L=Math.hypot(ex-c,ey-c),zero=L<0.5;
+function renderOv(){const s=box(ov)[0];if(!s)return;const c=s/2,[ex,ey]=dotPos(c),L=Math.hypot(ex-c,ey-c),zero=L<0.5;
   const hx=c+(c-3)*Math.SQRT1_2,hy=c+(c-3)*Math.SQRT1_2,drag=rdrag&&rdrag.m!=='rim';
   const showDot=!zero||!!ovHover||drag;  /* at 0, 0 the dot shows whenever the pointer is over the pattern */
   const big=drag||(ovHover&&Math.hypot(ovHover[0]-ex,ovHover[1]-ey)<14);

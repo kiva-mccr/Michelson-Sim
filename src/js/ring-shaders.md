@@ -8,3 +8,4 @@ The renderer overview, the backend state `RB`, `packRing` (sub-bands and groups 
 - Any change to one shader language must be mirrored in the other.
 - The tone passes take the direct fetch when Nl = N (at rest) and interpolate bilinearly only for a preview grid. Keep it that way: the at-rest image must stay bit-identical.
 - `RB.pref` comes from `?renderer=` (tests only). The old menu's `mich-renderer` localStorage key is cleared on load.
+- The compute and fragment pixel passes return 0 beyond `rc = 1 + 6k/N` (the corner skip, see ring-model.md); keep it equal to `rcut()`.

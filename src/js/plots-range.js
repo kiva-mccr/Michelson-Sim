@@ -15,9 +15,10 @@ const enc=v=>GL[v<=0?0:v>=1?4096:(v*4096+0.5)|0];
    drawn at least 1.25 px tall, with 1/K coverage and fractional coverage at its ends (shown with a 0.45 display gamma, like scope persistence). Summing coverage is a box filter:
    proper anti-aliasing, so fringes near the pixel pitch blend into an even tone instead of beating into moiré.
    A small horizontal Gaussian (sd 0.7 px) then suppresses the box filter's own side-lobes. */
-function spanOf(t0,t1,dAt,cs,smax){const fr=Math.abs(dAt(t1)-dAt(t0))*smax;let lo=1,hi=0;
-  if(fr>=1){for(let q=0;q<=4;q++){const[re,im]=gamma(dAt(t0+(t1-t0)*q/4),cs),m=Math.hypot(re,im);lo=Math.min(lo,0.5*(1-m));hi=Math.max(hi,0.5*(1+m))}}
-  else{const k=Math.max(2,Math.ceil(16*fr)+1);for(let q=0;q<=k;q++){const v=0.5*(1+gamma(dAt(t0+(t1-t0)*q/k),cs)[0]);lo=Math.min(lo,v);hi=Math.max(hi,v)}}return[lo,hi]}
+function spanOf(t0,t1,dAt,g,smax){const fr=Math.abs(dAt(t1)-dAt(t0))*smax;let lo=1,hi=0;  /* g = gammaOf(cs) */
+  if(fr>=1){for(let q=0;q<=4;q++){const m=g.mag(dAt(t0+(t1-t0)*q/4));lo=Math.min(lo,0.5*(1-m));hi=Math.max(hi,0.5*(1+m))}}
+  else{const k=Math.max(2,Math.ceil(16*fr)+1);for(let q=0;q<=k;q++){const v=0.5*(1+g.re(dAt(t0+(t1-t0)*q/k)));lo=Math.min(lo,v);hi=Math.max(hi,v)}}SPAN2[0]=lo;SPAN2[1]=hi;return SPAN2}
+const SPAN2=[0,0];
 /* buffers are reused between calls, one set per target canvas; only the rows a column (or its filter neighbours) touched are visited */
 /* Sub-columns per pixel: 8 at rest. While moving, the ring has priority: the plots stay at 2 until the ring preview is at full
    resolution, then use only the time the frame has to spare. From the profile's measured cost per sub-column c and the last
@@ -29,10 +30,10 @@ function dpRecord(K,ms){const c=ms/K;DPQ.c=DPQ.c?0.7*DPQ.c+0.3*c:c;if(LQ.last>1)
   DPQ.k=[...DPK].reverse().find(k=>DPQ.c*k<=0.2*F&&DPQ.c*(k-K)<=(k>K?0.85*slack:slack))||2}
 function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=dpK(),
   B=ctx.__dp&&ctx.__dp.Wd===Wd&&ctx.__dp.Hd===Hd?ctx.__dp:(ctx.__dp={Wd,Hd,img:ctx.createImageData(Wd,Hd),C:new Float32Array(Wd*Hd),r0:new Int32Array(Wd),r1:new Int32Array(Wd),off:document.createElement('canvas')});
-  const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],smax=Math.max(...cs.map(c=>c.s)),MINH=1.25*(window.devicePixelRatio||1);
+  const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],smax=Math.max(...cs.map(c=>c.s)),g=gammaOf(cs),MINH=1.25*(window.devicePixelRatio||1);
   D.fill(0);C.fill(0);
   for(let px=0;px<Wd;px++){const base=px*Hd;let c0=Hd,c1=-1;
-    for(let k=0;k<K;k++){const[lo,hi]=spanOf((px+k/K)/Wd,(px+(k+1)/K)/Wd,dAt,cs,smax);let ya=(1-hi)*(Hd-1),yb=(1-lo)*(Hd-1);
+    for(let k=0;k<K;k++){const[lo,hi]=spanOf((px+k/K)/Wd,(px+(k+1)/K)/Wd,dAt,g,smax);let ya=(1-hi)*(Hd-1),yb=(1-lo)*(Hd-1);
       if(yb-ya<MINH){const m=(ya+yb)/2;ya=m-MINH/2;yb=m+MINH/2}
       const ja=Math.max(0,Math.floor(ya)),jb=Math.min(Hd-1,Math.ceil(yb));if(ja<c0)c0=ja;if(jb>c1)c1=jb;
       for(let yy=ja;yy<=jb;yy++){const o=Math.min(yy+1,yb)-Math.max(yy,ya);if(o>0)C[base+yy]+=o/K}}
@@ -45,14 +46,14 @@ function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=dpK(),
   const off=B.off;if(off.width!==Wd||off.height!==Hd){off.width=Wd;off.height=Hd}off.getContext('2d').putImageData(img,0,0);
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(off,x0,y0);ctx.restore()}
 const rgb8=c=>c.map(v=>enc(v)|0);
-let _probe=null;function cssRGB(v){if(!_probe){_probe=document.createElement('span');_probe.style.display='none';document.body.appendChild(_probe)}_probe.style.color=`var(${v})`;return getComputedStyle(_probe).color.match(/\d+/g).slice(0,3).map(Number)}
+let _probe=null;function cssRGB(v){const c=CSSC.get('rgb'+v);if(c)return c;if(!_probe){_probe=document.createElement('span');_probe.style.display='none';document.body.appendChild(_probe)}_probe.style.color=`var(${v})`;const r=getComputedStyle(_probe).color.match(/\d+/g).slice(0,3).map(Number);CSSC.set('rgb'+v,r);return r}
 
 /* ---------- interferogram (canvas trace coloured by perceived colour) ---------- */
 /* The trace and its envelope depend only on the spectrum, the range and the plot size, not on d, so they are cached:
    moving the mirror only redraws the δ₀ marker. */
 let ifgKey='',ifgEnv='';
 function renderIfg(){
-  const svg=$('ifg'),cv=$('ifgC'),W=svg.clientWidth,H=svg.clientHeight;if(!W)return;
+  const svg=$('ifg'),cv=$('ifgC'),[W,H]=box(svg);if(!W)return;
   const dpr=window.devicePixelRatio||1,key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr,dpK()]),fresh=key!==ifgKey;ifgKey=key;
   if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
   const R=RANGE(),pl=46,pr=10,pt=10,pb=42,x=d=>pl+(d+R)/(2*R)*(W-pl-pr),y=v=>pt+(1-v)*(H-pt-pb),mute=css('--mute');
