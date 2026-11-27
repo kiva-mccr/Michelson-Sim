@@ -13,4 +13,4 @@ The startup speed test (MS-18) that makes the page use the fastest renderer on t
 - The main-thread CPU run is sliced into 8-row chunks with a yield between them, and only the computing time counts.
 - The cache key (`benchSig`) holds `BENCH_V`, the user agent, `hardwareConcurrency`, the WebGPU adapter info, the WebGL renderer string and the list of available renderers; bump `BENCH_V` when the workload or the kernels change enough to reorder renderers. Entries expire after 30 days.
 - `?renderer=` (the tests) skips the test and the cache entirely.
-- The ranking is at equal work. The GPU renderers then draw at up to 1024² device pixels and the CPU ones at up to 480², as before.
+- The ranking is at equal work. Every renderer then draws one grid point per device pixel (MS-20).

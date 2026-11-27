@@ -1358,8 +1358,8 @@ editable('tyV',()=>+$('ty').value,v=>{tGlide=null;widen('ty',v,true)});
 
 /* ---------- ring sizing: the canvas fills the largest square that fits its panel ---------- */
 function fitRing(){const[bw,bh]=box($('ringBox')),s=Math.max(120,Math.floor(Math.min(bw,bh||bw)));
-  if($('ringWrap').style.width!==s+'px'){$('ringWrap').style.width=$('ringWrap').style.height=s+'px';SZC.delete(ov)}const gpu=RB.active==='webgpu'||RB.active==='webgl2',n=clamp(Math.round(s*(window.devicePixelRatio||1)),200,gpu?1024:480);
-  for(const c of [ring,$('ringGL'),$('ringGPU')])if(c.width!==n){c.width=n;c.height=n}}  /* GPUs render at full device resolution (up to 1024²); the CPU caps at 480² */
+  if($('ringWrap').style.width!==s+'px'){$('ringWrap').style.width=$('ringWrap').style.height=s+'px';SZC.delete(ov)}const n=clamp(Math.round(s*(window.devicePixelRatio||1)),200,4096);
+  for(const c of [ring,$('ringGL'),$('ringGPU')])if(c.width!==n){c.width=n;c.height=n}}  /* every renderer draws one sample per device pixel: an upscaled canvas showed lobes (see ui-loop.md) */
 
 /* ---------- each panel's equations and notes open as a centred modal window ---------- */
 document.querySelectorAll('.eqbtn').forEach(b=>b.addEventListener('click',()=>openDlg(b.dataset.dlg)));
