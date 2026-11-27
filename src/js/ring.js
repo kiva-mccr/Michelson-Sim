@@ -261,13 +261,21 @@ let ringJob=0;
    The finest size predicted to fit the budget is chosen; going finer needs a 15% margin, so the choice doesn't flicker.
    Budget: CPU — what is left of a 60 Hz frame after the plots, but at least 6 ms (or 60% of the plots' time on slow devices);
    GPU — 14 ms of GPU time, which runs alongside the page. */
-const LQ={other:4,ms:0,cpuR:{p:1,t:{},s:2},cpuT:{p:2,t:{},s:4},wk:{p:2,t:{},s:2},gpu:{p:2,t:{},s:1}},STEPS=[1,2,3,4,5,6,8,10,12,16];
+const LQ={other:4,ms:0,last:1,cpuR:{p:1,t:{},s:2},cpuT:{p:2,t:{},s:4},wk:{p:2,t:{},s:2},gpu:{p:2,t:{},s:1}},STEPS=[1,2,3,4,5,6,8,10,12,16];
 /* measurements expire after 3 s and are cleared when the spectrum changes (cost scales with its number of sub-bands) */
 const lqFresh=(q,s)=>{const e=q.t[s];return e&&performance.now()-e.at<3000?e.ms:null};
 function lqPredict(q,s){const own=lqFresh(q,s);if(own!=null)return own;let best=null;for(const k in q.t){const kk=+k;if(lqFresh(q,kk)==null)continue;if(best===null||Math.abs(Math.log(kk/s))<Math.abs(Math.log(best/s)))best=kk}
   return best===null?(s>=8?5:1e9):lqFresh(q,best)*Math.pow(best/s,q.p)}
-function lqPick(key,N,gpu){const q=LQ[key],n=sublines().length;if(q.n!==n){q.n=n;q.t={}}const B=gpu?14:Math.max(6,16.7-LQ.other,0.6*LQ.other);
-  const s=STEPS.find(x=>lqPredict(q,x)<=(x<q.s?0.85*B:B))||16;q.s=s;return s}
+/* The frame budget follows the display: FR is its refresh interval, measured from idle requestAnimationFrame steps (the 25th
+   percentile, so frames slowed by our own drawing don't count), at least 16.7 ms (60 Hz; faster displays still get 60 Hz-quality
+   previews) and at most 33.4 ms. It is re-measured on load, when the window is resized (it may have moved to another screen) and
+   when the page becomes visible again. */
+const FRM={fr:16.7,run:0};const FR=()=>FRM.fr;
+function measureFrame(){const run=++FRM.run,ts=[];const step=t=>{if(run!==FRM.run)return;ts.push(t);if(ts.length<40){requestAnimationFrame(step);return}
+  const d=[];for(let i=1;i<ts.length;i++){const x=ts[i]-ts[i-1];if(x>2&&x<200)d.push(x)}if(d.length<8)return;d.sort((a,b)=>a-b);FRM.fr=clamp(d[Math.floor(d.length/4)],16.7,33.4)};requestAnimationFrame(step)}
+measureFrame();document.addEventListener('visibilitychange',()=>{if(!document.hidden)measureFrame()});
+function lqPick(key,N,gpu){const q=LQ[key],n=sublines().length;if(q.n!==n){q.n=n;q.t={}}const B=gpu?0.85*FR():Math.max(6,FR()-LQ.other,0.6*LQ.other);
+  const s=STEPS.find(x=>lqPredict(q,x)<=(x<q.s?0.85*B:B))||16;q.s=s;LQ.last=s;return s}
 function lqRecord(key,st,ms){const q=LQ[key],e=q.t[st],old=e&&performance.now()-e.at<3000?e.ms:null;q.t[st]={ms:old==null?ms:0.7*old+0.3*ms,at:performance.now()}}
 const showRes=(N,st,live)=>{const e=$('resV');if(e)e.textContent=`${Math.ceil(N/st)}²${live&&st>1?' preview':''}`};
 let ringKey='',ringWasLive=false;
@@ -340,6 +348,6 @@ function ringProfile(M){const cs=act();
   for(const u of [-1,-0.5,0,0.5,1]){const t=Math.sign(u)*M.th(Math.abs(u))*180/Math.PI;s+=`<text x="${x(u)}" y="${H-pb+16}" font-size="12" fill="${mute}" text-anchor="${u<-0.9?'start':u>0.9?'end':'middle'}">${F(t,2)}°</text>`}
   /* same anti-aliased range plot as the interferogram, along the cut */
   {const pc=$('profC'),dpr=window.devicePixelRatio||1;pc.width=Math.round(W*dpr);pc.height=Math.round(H*dpr);const pg=pc.getContext('2d');pg.clearRect(0,0,pc.width,pc.height);
-    if(cs.length){const col=cssRGB('--fr');densityPlot(pg,Math.round(pl*dpr),Math.round(pt*dpr),Math.round((W-pl-pr2)*dpr),Math.round((H-pt-pb)*dpr),t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},cs,()=>col)}}
+    if(cs.length){const col=cssRGB('--fr'),t0=performance.now(),K=dpK();densityPlot(pg,Math.round(pl*dpr),Math.round(pt*dpr),Math.round((W-pl-pr2)*dpr),Math.round((H-pt-pb)*dpr),t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},cs,()=>col);if(ringLive)dpRecord(K,performance.now()-t0)}}
   s+=`<text x="${(pl+W-pr2)/2}" y="${H-4}" font-size="12" fill="${mute}" text-anchor="middle">${an?`θ along the tilt direction (${F(phi,3)}° from x)`:"θ along x"}</text><text transform="translate(12 ${(pt+H-pb)/2}) rotate(-90)" font-size="12" fill="${mute}" text-anchor="middle">I / I_tot</text>`;svg.innerHTML=s}
 

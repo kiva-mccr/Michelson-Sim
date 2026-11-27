@@ -110,7 +110,12 @@ function spanOf(t0,t1,dAt,cs,smax){const fr=Math.abs(dAt(t1)-dAt(t0))*smax;let l
   if(fr>=1){for(let q=0;q<=4;q++){const[re,im]=gamma(dAt(t0+(t1-t0)*q/4),cs),m=Math.hypot(re,im);lo=Math.min(lo,0.5*(1-m));hi=Math.max(hi,0.5*(1+m))}}
   else{const k=Math.max(2,Math.ceil(16*fr)+1);for(let q=0;q<=k;q++){const v=0.5*(1+gamma(dAt(t0+(t1-t0)*q/k),cs)[0]);lo=Math.min(lo,v);hi=Math.max(hi,v)}}return[lo,hi]}
 /* buffers are reused between calls, one set per target canvas; only the rows a column (or its filter neighbours) touched are visited */
-function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=ringLive?2:8,  /* 2 sub-columns while moving, 8 at rest */
+/* Sub-columns per pixel: 8 at rest. While moving, the ring has priority: the plots stay at 2 until the ring preview is at full
+   resolution, then take the most of 2, 3, 4, 6, 8 that keeps the profile (redrawn every frame) within a fifth of the frame budget,
+   from its measured cost per sub-column; going up needs a 15% margin so it doesn't flicker. */
+const DPQ={k:2,c:0},DPK=[2,3,4,6,8],dpK=()=>ringLive?DPQ.k:8;
+function dpRecord(K,ms){const c=ms/K;DPQ.c=DPQ.c?0.7*DPQ.c+0.3*c:c;const B=0.2*FR();DPQ.k=LQ.last>1?2:[...DPK].reverse().find(k=>DPQ.c*k<=(k>DPQ.k?0.85*B:B))||2}
+function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=dpK(),
   B=ctx.__dp&&ctx.__dp.Wd===Wd&&ctx.__dp.Hd===Hd?ctx.__dp:(ctx.__dp={Wd,Hd,img:ctx.createImageData(Wd,Hd),C:new Float32Array(Wd*Hd),r0:new Int32Array(Wd),r1:new Int32Array(Wd),off:document.createElement('canvas')});
   const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],smax=Math.max(...cs.map(c=>c.s)),MINH=1.25*(window.devicePixelRatio||1);
   D.fill(0);C.fill(0);
@@ -136,7 +141,7 @@ let _probe=null;function cssRGB(v){if(!_probe){_probe=document.createElement('sp
 let ifgKey='',ifgEnv='';
 function renderIfg(){
   const svg=$('ifg'),cv=$('ifgC'),W=svg.clientWidth,H=svg.clientHeight;if(!W)return;
-  const dpr=window.devicePixelRatio||1,key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr,ringLive?2:8]),fresh=key!==ifgKey;ifgKey=key;
+  const dpr=window.devicePixelRatio||1,key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr,dpK()]),fresh=key!==ifgKey;ifgKey=key;
   if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
   const R=RANGE(),pl=46,pr=10,pt=10,pb=42,x=d=>pl+(d+R)/(2*R)*(W-pl-pr),y=v=>pt+(1-v)*(H-pt-pb),mute=css('--mute');
   if(fresh){g.clearRect(0,0,W,H);g.fillStyle='#05070f';g.fillRect(pl,pt,W-pl-pr,H-pt-pb)}

@@ -488,7 +488,12 @@ function spanOf(t0,t1,dAt,cs,smax){const fr=Math.abs(dAt(t1)-dAt(t0))*smax;let l
   if(fr>=1){for(let q=0;q<=4;q++){const[re,im]=gamma(dAt(t0+(t1-t0)*q/4),cs),m=Math.hypot(re,im);lo=Math.min(lo,0.5*(1-m));hi=Math.max(hi,0.5*(1+m))}}
   else{const k=Math.max(2,Math.ceil(16*fr)+1);for(let q=0;q<=k;q++){const v=0.5*(1+gamma(dAt(t0+(t1-t0)*q/k),cs)[0]);lo=Math.min(lo,v);hi=Math.max(hi,v)}}return[lo,hi]}
 /* buffers are reused between calls, one set per target canvas; only the rows a column (or its filter neighbours) touched are visited */
-function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=ringLive?2:8,  /* 2 sub-columns while moving, 8 at rest */
+/* Sub-columns per pixel: 8 at rest. While moving, the ring has priority: the plots stay at 2 until the ring preview is at full
+   resolution, then take the most of 2, 3, 4, 6, 8 that keeps the profile (redrawn every frame) within a fifth of the frame budget,
+   from its measured cost per sub-column; going up needs a 15% margin so it doesn't flicker. */
+const DPQ={k:2,c:0},DPK=[2,3,4,6,8],dpK=()=>ringLive?DPQ.k:8;
+function dpRecord(K,ms){const c=ms/K;DPQ.c=DPQ.c?0.7*DPQ.c+0.3*c:c;const B=0.2*FR();DPQ.k=LQ.last>1?2:[...DPK].reverse().find(k=>DPQ.c*k<=(k>DPQ.k?0.85*B:B))||2}
+function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=dpK(),
   B=ctx.__dp&&ctx.__dp.Wd===Wd&&ctx.__dp.Hd===Hd?ctx.__dp:(ctx.__dp={Wd,Hd,img:ctx.createImageData(Wd,Hd),C:new Float32Array(Wd*Hd),r0:new Int32Array(Wd),r1:new Int32Array(Wd),off:document.createElement('canvas')});
   const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],smax=Math.max(...cs.map(c=>c.s)),MINH=1.25*(window.devicePixelRatio||1);
   D.fill(0);C.fill(0);
@@ -514,7 +519,7 @@ let _probe=null;function cssRGB(v){if(!_probe){_probe=document.createElement('sp
 let ifgKey='',ifgEnv='';
 function renderIfg(){
   const svg=$('ifg'),cv=$('ifgC'),W=svg.clientWidth,H=svg.clientHeight;if(!W)return;
-  const dpr=window.devicePixelRatio||1,key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr,ringLive?2:8]),fresh=key!==ifgKey;ifgKey=key;
+  const dpr=window.devicePixelRatio||1,key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr,dpK()]),fresh=key!==ifgKey;ifgKey=key;
   if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
   const R=RANGE(),pl=46,pr=10,pt=10,pb=42,x=d=>pl+(d+R)/(2*R)*(W-pl-pr),y=v=>pt+(1-v)*(H-pt-pb),mute=css('--mute');
   if(fresh){g.clearRect(0,0,W,H);g.fillStyle='#05070f';g.fillRect(pl,pt,W-pl-pr,H-pt-pb)}
@@ -795,13 +800,21 @@ let ringJob=0;
    The finest size predicted to fit the budget is chosen; going finer needs a 15% margin, so the choice doesn't flicker.
    Budget: CPU — what is left of a 60 Hz frame after the plots, but at least 6 ms (or 60% of the plots' time on slow devices);
    GPU — 14 ms of GPU time, which runs alongside the page. */
-const LQ={other:4,ms:0,cpuR:{p:1,t:{},s:2},cpuT:{p:2,t:{},s:4},wk:{p:2,t:{},s:2},gpu:{p:2,t:{},s:1}},STEPS=[1,2,3,4,5,6,8,10,12,16];
+const LQ={other:4,ms:0,last:1,cpuR:{p:1,t:{},s:2},cpuT:{p:2,t:{},s:4},wk:{p:2,t:{},s:2},gpu:{p:2,t:{},s:1}},STEPS=[1,2,3,4,5,6,8,10,12,16];
 /* measurements expire after 3 s and are cleared when the spectrum changes (cost scales with its number of sub-bands) */
 const lqFresh=(q,s)=>{const e=q.t[s];return e&&performance.now()-e.at<3000?e.ms:null};
 function lqPredict(q,s){const own=lqFresh(q,s);if(own!=null)return own;let best=null;for(const k in q.t){const kk=+k;if(lqFresh(q,kk)==null)continue;if(best===null||Math.abs(Math.log(kk/s))<Math.abs(Math.log(best/s)))best=kk}
   return best===null?(s>=8?5:1e9):lqFresh(q,best)*Math.pow(best/s,q.p)}
-function lqPick(key,N,gpu){const q=LQ[key],n=sublines().length;if(q.n!==n){q.n=n;q.t={}}const B=gpu?14:Math.max(6,16.7-LQ.other,0.6*LQ.other);
-  const s=STEPS.find(x=>lqPredict(q,x)<=(x<q.s?0.85*B:B))||16;q.s=s;return s}
+/* The frame budget follows the display: FR is its refresh interval, measured from idle requestAnimationFrame steps (the 25th
+   percentile, so frames slowed by our own drawing don't count), at least 16.7 ms (60 Hz; faster displays still get 60 Hz-quality
+   previews) and at most 33.4 ms. It is re-measured on load, when the window is resized (it may have moved to another screen) and
+   when the page becomes visible again. */
+const FRM={fr:16.7,run:0};const FR=()=>FRM.fr;
+function measureFrame(){const run=++FRM.run,ts=[];const step=t=>{if(run!==FRM.run)return;ts.push(t);if(ts.length<40){requestAnimationFrame(step);return}
+  const d=[];for(let i=1;i<ts.length;i++){const x=ts[i]-ts[i-1];if(x>2&&x<200)d.push(x)}if(d.length<8)return;d.sort((a,b)=>a-b);FRM.fr=clamp(d[Math.floor(d.length/4)],16.7,33.4)};requestAnimationFrame(step)}
+measureFrame();document.addEventListener('visibilitychange',()=>{if(!document.hidden)measureFrame()});
+function lqPick(key,N,gpu){const q=LQ[key],n=sublines().length;if(q.n!==n){q.n=n;q.t={}}const B=gpu?0.85*FR():Math.max(6,FR()-LQ.other,0.6*LQ.other);
+  const s=STEPS.find(x=>lqPredict(q,x)<=(x<q.s?0.85*B:B))||16;q.s=s;LQ.last=s;return s}
 function lqRecord(key,st,ms){const q=LQ[key],e=q.t[st],old=e&&performance.now()-e.at<3000?e.ms:null;q.t[st]={ms:old==null?ms:0.7*old+0.3*ms,at:performance.now()}}
 const showRes=(N,st,live)=>{const e=$('resV');if(e)e.textContent=`${Math.ceil(N/st)}²${live&&st>1?' preview':''}`};
 let ringKey='',ringWasLive=false;
@@ -874,7 +887,7 @@ function ringProfile(M){const cs=act();
   for(const u of [-1,-0.5,0,0.5,1]){const t=Math.sign(u)*M.th(Math.abs(u))*180/Math.PI;s+=`<text x="${x(u)}" y="${H-pb+16}" font-size="12" fill="${mute}" text-anchor="${u<-0.9?'start':u>0.9?'end':'middle'}">${F(t,2)}°</text>`}
   /* same anti-aliased range plot as the interferogram, along the cut */
   {const pc=$('profC'),dpr=window.devicePixelRatio||1;pc.width=Math.round(W*dpr);pc.height=Math.round(H*dpr);const pg=pc.getContext('2d');pg.clearRect(0,0,pc.width,pc.height);
-    if(cs.length){const col=cssRGB('--fr');densityPlot(pg,Math.round(pl*dpr),Math.round(pt*dpr),Math.round((W-pl-pr2)*dpr),Math.round((H-pt-pb)*dpr),t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},cs,()=>col)}}
+    if(cs.length){const col=cssRGB('--fr'),t0=performance.now(),K=dpK();densityPlot(pg,Math.round(pl*dpr),Math.round(pt*dpr),Math.round((W-pl-pr2)*dpr),Math.round((H-pt-pb)*dpr),t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},cs,()=>col);if(ringLive)dpRecord(K,performance.now()-t0)}}
   s+=`<text x="${(pl+W-pr2)/2}" y="${H-4}" font-size="12" fill="${mute}" text-anchor="middle">${an?`θ along the tilt direction (${F(phi,3)}° from x)`:"θ along x"}</text><text transform="translate(12 ${(pt+H-pb)/2}) rotate(-90)" font-size="12" fill="${mute}" text-anchor="middle">I / I_tot</text>`;svg.innerHTML=s}
 
 /* ---------- verification: every rendered quantity checked against an independent computation ---------- */
@@ -1150,7 +1163,7 @@ function update(live){ringLive=!!live;if(!live){if($('dAuto').checked)fitRange(f
   if(!raf)raf=requestAnimationFrame(draw);
   if(live){if(!eqT)eqT=setTimeout(runEq,350)}else{clearTimeout(eqT);eqT=setTimeout(runEq,40)}  /* let the released frame paint first */
   $('verAt').textContent='Settings changed since the last run. Press Run checks to verify the current state.'}
-const ro=new ResizeObserver(()=>{if(!raf)raf=requestAnimationFrame(draw)});
+const ro=new ResizeObserver(()=>{if(!raf)raf=requestAnimationFrame(draw)});window.addEventListener('resize',()=>measureFrame());
 let lastK=EQK();window.addEventListener('resize',()=>{if(EQK()!==lastK){lastK=EQK();eqs()}});
 ['specBox','profBox','ringBox','railBox'].forEach(k=>ro.observe($(k)));document.querySelectorAll('.plot').forEach(p=>ro.observe(p));
 const mo=new MutationObserver(()=>update(false));mo.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});

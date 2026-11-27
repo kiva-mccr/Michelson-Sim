@@ -70,6 +70,8 @@ A single-page, dependency-free simulator. You edit a source spectrum. The page t
 - **Adaptive preview resolution while moving** (`LQ`, `lqPick`, `lqRecord`):
   - Each path keeps measured frame times per block size. The finest size that fits the frame budget is chosen, with a 15% margin before going finer.
   - Measurements expire after 3 s and reset when the spectrum changes.
+  - The budget follows the device: the display's refresh interval is measured from idle `requestAnimationFrame` steps (`measureFrame`, `FR()`, 25th percentile, clamped to 16.7–33.4 ms) and re-measured on resize and when the page becomes visible. CPU paths get what is left of that frame after the plots; GPU paths get 85% of it.
+  - The profile and interferogram range plots adapt too (`DPQ`, `dpK`, `dpRecord`): 8 sub-columns per pixel at rest; while moving, they stay at 2 until the ring preview is at full resolution (the ring has priority), then take the most of 2, 3, 4, 6, 8 that keeps the profile within a fifth of the frame budget.
   - At rest, the image is always rendered at every pixel. On the CPU this is time-sliced into 12 ms slices so the page never blocks.
 - Only one GPU or worker frame is in flight at a time (busy/dirty).
 - The ring re-renders only when its inputs change (`ringInputs`, `renderRingIfNeeded`).
@@ -104,7 +106,7 @@ Headless Chrome can't display WebGPU canvases, so screenshots there show WebGPU 
 
 **Keep the project artifact up to date (owner's request):** whenever the sim changes, republish `index.html` as a new version of https://claude.ai/artifact/BtQ1cN1oU3jo5R4PFTovLf (same URL, never a new artifact).
 
-An earlier copy of this page is published as a claude.ai artifact (slug `03326018-be11-42b4-a9b7-bd0f496c0628`), where the owner leaves feedback as comments. `reference/michelson-table.html` is the original sourced formula table (also an artifact). `mockups/controls-mockups.html` holds the three control mockups that led to the current drag design.
+The owner can leave feedback as comments on that artifact. (The earlier artifact, slug `03326018-…`, was deleted at the owner's request.) `reference/michelson-table.html` is the original sourced formula table (also an artifact). `mockups/controls-mockups.html` holds the three control mockups that led to the current drag design.
 
 ## Ideas not done yet
 
