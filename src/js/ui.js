@@ -114,12 +114,14 @@ let rwT=0;rail.addEventListener('wheel',e=>{e.preventDefault();$('dAuto').checke
 rail.addEventListener('keydown',e=>{const m=DMAX(),st=(e.shiftKey?0.001:0.01)*m,k={ArrowLeft:-st,ArrowRight:st,ArrowDown:-st,ArrowUp:st}[e.key];if(k){e.preventDefault();stopPlay();$('d').value=clamp(+$('d').value+k,-m,m);update(false)}});
 $('dFit').addEventListener('click',()=>{fitRange(true);update(true)});
 $('dAuto').addEventListener('change',()=>{if($('dAuto').checked)fitRange(false);update(false)});
-/* ---------- Michelson schematic: M₂ moves with d and turns with the tilt; the detector cone opens with θmax; drag M₂ to move it ---------- */
+/* ---------- Michelson schematic: M₂ slides with d; the fixed mirror M₁ turns by the total tilt |α| = √(αx²+αy²) (exaggerated:
+   500 µrad draws as 10°, so it always turns the same way); the detector cone opens with θmax; drag M₂ to move it ---------- */
 const msvg=$('miniSvg'),MZ=160,MS=34;
-function renderMini(){const X=MZ+(+$('d').value)/DMAX()*MS,ax=+$('tx').value,ay=+$('ty').value,ang=clamp(ax*0.02,-12,12),f=clamp(+$('fov').value,0,60)*Math.PI/180,L=16,w=Math.tan(f)*L*1.6;
-  $('m2r').setAttribute('x',X-4);$('m2r').setAttribute('transform',`rotate(${ang} ${X} 110)`);$('m2h').setAttribute('x',X-14);$('m2t').setAttribute('x',X);$('mBeam').setAttribute('x2',X-4);$('dArr').setAttribute('x2',X-4);
+function renderMini(){const X=MZ+(+$('d').value)/DMAX()*MS,an=Math.hypot(+$('tx').value,+$('ty').value),ang=Math.min(an*0.02,12),f=clamp(+$('fov').value,0,60)*Math.PI/180,L=16,w=Math.tan(f)*L*1.6;
+  $('m2r').setAttribute('x',X-4);$('m2h').setAttribute('x',X-14);$('m2t').setAttribute('x',X);$('mBeam').setAttribute('x2',X-4);$('dArr').setAttribute('x2',X-4);
+  $('m1r').setAttribute('transform',`rotate(${-ang} 100 50.5)`);$('m1Ref').setAttribute('opacity',an?.45:0);
   $('fovCone').setAttribute('d',`M100 170 L${100-w} ${170+L} L${100+w} ${170+L}Z`);
-  $('m2t').textContent=(ax||ay)?`M₂ tilt (${F(ax,3)}, ${F(ay,3)}) µrad`:'M₂ ⇆'}
+  $('m1t').textContent=an?`M₁ tilt ${F(an,3)} µrad`:'M₁ fixed'}
 let mdrag=false;
 const mset=e=>{const pt=msvg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const p=pt.matrixTransform(msvg.getScreenCTM().inverse());$('d').value=clamp((p.x-MZ)/MS,-1,1)*DMAX();update(true)};
 $('m2').addEventListener('pointerdown',e=>{stopPlay();mdrag=true;msvg.setPointerCapture(e.pointerId);e.preventDefault()});
