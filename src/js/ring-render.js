@@ -29,7 +29,7 @@ function renderRing(sync){
   if(RB.active==='workers'&&tilted&&!sync&&RB.workers.busy&&ringLive){RB.workers.dirty=true;ringProfile(M);return}  /* one worker job in flight while moving */
   ringJob=job;if(RB.workers)RB.workers.busy=false;  /* a newer render supersedes any worker job in flight */
   if(ringLive)lqMotion(M,N);
-  const Nl=ringLive?lqPick(pathKey,N,false,pathKey!=='wk'):N,k=N/Nl;showRes(N,Nl,ringLive);
+  const Nl=ringLive?lqPick(pathKey,N,pathKey==='wk',pathKey!=='wk'):N,k=N/Nl;showRes(N,Nl,ringLive);
   /* a moving preview is an Nl×Nl grid of exact block averages, drawn into a small image and scaled up smoothly, so its fixed cost shrinks with it */
   const small=Nl<N,img=ringImg(Nl),D=img.data;Ibuf=small?null:new Float32Array(N*N);Pbuf=small?new Float32Array(Nl*Nl):null;  /* Pbuf: a preview's grid as I/I_tot, for tests/antialias.js */
   const present=(jA,jB)=>{if(small){RB.off.getContext('2d').putImageData(img,0,0);rctx.imageSmoothingEnabled=true;rctx.imageSmoothingQuality='high';rctx.drawImage(RB.off,0,0,Nl,Nl,0,0,N,N)}else rctx.putImageData(img,0,0,0,jA,N,jB-jA)};
@@ -59,13 +59,17 @@ function renderRing(sync){
           let j=0,done;RB.wDone=new Promise(r=>done=r);const slice=()=>{if(job!==ringJob)return done();const t0=performance.now();while(j<H&&performance.now()-t0<12){oct(j,j+1);j++}
             present(0,N);if(j<H)setTimeout(slice,0);else done()};
           slice();ringProfile(M);return}}
-      else if(RB.active==='workers'&&!sync){/* split the grid rows over every worker; each block is painted as it arrives */
-        const W=RB.workers,id=++W.job,blk=8,t0=performance.now(),live=ringLive;let pending=0,next=0,done;RB.wDone=new Promise(r=>done=r);W.busy=true;
+      else if(RB.active==='workers'&&!sync){/* split the grid rows over every worker. At rest, 8-row blocks painted as they arrive.
+          A moving preview is split evenly, one block per worker, and painted once when complete; its cost for the preview
+          controller is the workers' own compute time (the slowest worker's total), since they run in parallel with the main
+          thread's plots. Wall time from posting would count the main thread's remaining draw and the canvas flushes between
+          replies, and kept previews several times coarser than the single-threaded CPU's. */
+        const W=RB.workers,id=++W.job,live=ringLive,blk=live?Math.ceil(Nl/W.n):8,wc=new Float64Array(W.n);let pending=0,next=0,done;RB.wDone=new Promise(r=>done=r);W.busy=true;
         const msg={N,Nl,rc2,d:M.d,T:M.T,kx:M.kx,ky:M.ky,s2:sd*sd,kbm,pr:{n:pr.n,P:pr.P,KA:pr.KA,KB:pr.KB,X:pr.X,Y:pr.Y,Z:pr.Z,G:pr.G}};
         const send=w=>{if(next>=Nl)return;const j0=next,j1=Math.min(Nl,next+blk);next=j1;pending++;w.postMessage({...msg,id,j0,j1})};
-        W.pool.forEach(w=>{w.onmessage=e=>{const r=e.data;if(r.id!==W.job||job!==ringJob)return;pending--;let o=0;
+        W.pool.forEach((w,wi)=>{w.onmessage=e=>{const r=e.data;if(r.id!==W.job||job!==ringJob)return;pending--;wc[wi]+=r.ms;let o=0;
           for(let j=r.j0;j<r.j1;j++)for(let i=0;i<Nl;i++){put(j,i,r.out[o],r.out[o+1],r.out[o+2],r.out[o+3]);o+=4}
-          present(r.j0,r.j1);send(w);if(!pending){if(live)lqRecord('wk',Nl,performance.now()-t0);W.busy=false;done();if(W.dirty){W.dirty=false;renderRing()}}};send(w)});
+          if(!live)present(r.j0,r.j1);send(w);if(!pending){if(live){present(0,N);lqRecord('wk',Nl,Math.max(...wc))}W.busy=false;done();if(W.dirty){W.dirty=false;renderRing()}}};send(w)});
         ringProfile(M);return}
       else if(ringLive||sync)rows(0,Nl);
       else{/* progressive full-resolution pass */

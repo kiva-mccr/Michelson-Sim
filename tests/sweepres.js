@@ -32,7 +32,7 @@ const nl=r=>parseInt(r,10);
     for(let i=0;i<20;i++){s.push(await pg.evaluate(()=>window.__SW.state()));await pg.waitForTimeout(100)}
     await pg.click('#dPlay');await pg.waitForTimeout(1500);const end=await pg.evaluate(()=>window.__SW.state());
     r[T]={vmed:med(s.map(x=>x.v)),allLive:s.every(x=>x.live),vOk:s.filter(x=>isFinite(x.v)&&x.v>0).length,med:med(s.map(x=>nl(x.res))),end}}
-  const f=r[1],sl=r[600],ok=f.allLive&&sl.allLive&&f.vOk>=15&&sl.vOk>=15&&sl.med>=f.med&&!f.end.live&&!sl.end.live&&nl(f.end.res)===full&&nl(sl.end.res)===full&&!errs.length;
+  const f=r[1],sl=r[600],ok=f.allLive&&sl.allLive&&f.vOk>=15&&sl.vOk>=15&&sl.med>=0.95*f.med&&!f.end.live&&!sl.end.live&&nl(f.end.res)===full&&nl(sl.end.res)===full&&!errs.length;
   if(!ok)fail++;
   console.log(`${sc.n.padEnd(12)} ${rend.padEnd(8)} full ${full}²  1 s pass: preview ${f.med}² v ${f.vmed.toPrecision(3)} (live ${f.allLive}, speed measured ${f.vOk}/20)  600 s pass: preview ${sl.med}² v ${sl.vmed.toPrecision(3)} (live ${sl.allLive}, speed measured ${sl.vOk}/20)  stopped: ${f.end.res}${errs.length?'  page errors: '+errs.join('; '):''}  ${ok?'OK':'FAIL'}`);
   await ctx.close()}

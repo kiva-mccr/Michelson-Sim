@@ -844,12 +844,12 @@ ${avgQpre.toString()}
 ${avgQ.toString()}
 ${pixVal.toString()}
 const PV=[0,0,0,0];
-onmessage=e=>{const m=e.data,{N,Nl,rc2,j0,j1,d,T,kx,ky,s2,kbm,pr}=m,h=N/2,k=N/Nl,out=new Float32Array((j1-j0)*Nl*4+8);let o=0;
+onmessage=e=>{const t0=performance.now(),m=e.data,{N,Nl,rc2,j0,j1,d,T,kx,ky,s2,kbm,pr}=m,h=N/2,k=N/Nl,out=new Float32Array((j1-j0)*Nl*4+8);let o=0;
   const rad=r=>{const th=Math.atan(r*T),q=1+r*r*T*T,c=T/q,cp=-2*r*T**3/(q*q),f1=-2*d*Math.sin(th)*c,f2=-2*d*(Math.cos(th)*c*c+Math.sin(th)*cp);return[f1,f2,r>1e-12?f1/r:f2]};
   for(let j=j0;j<j1;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2){out[o++]=0;out[o++]=0;out[o++]=0;out[o++]=0;continue}const r=Math.hypot(u,v),[f1,f2,fr]=rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
     const gx=f1*ux+kx,gy=f1*uy+ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;
     const p=pixVal(2*d*Math.cos(Math.atan(r*T))+kx*u+ky*v,gx,gy,h11,h12,h22,s2,pr,quad);out[o++]=p[0];out[o++]=p[1];out[o++]=p[2];out[o++]=p[3]}}
-  postMessage({id:m.id,j0,j1,out},[out.buffer])}`;
+  postMessage({id:m.id,j0,j1,out,ms:performance.now()-t0},[out.buffer])}`;
   const url=URL.createObjectURL(new Blob([src],{type:'text/javascript'}));const W={pool:Array.from({length:n},()=>new Worker(url)),n,job:0};
   return W}
 
@@ -1007,7 +1007,7 @@ function renderRing(sync){
   if(RB.active==='workers'&&tilted&&!sync&&RB.workers.busy&&ringLive){RB.workers.dirty=true;ringProfile(M);return}  /* one worker job in flight while moving */
   ringJob=job;if(RB.workers)RB.workers.busy=false;  /* a newer render supersedes any worker job in flight */
   if(ringLive)lqMotion(M,N);
-  const Nl=ringLive?lqPick(pathKey,N,false,pathKey!=='wk'):N,k=N/Nl;showRes(N,Nl,ringLive);
+  const Nl=ringLive?lqPick(pathKey,N,pathKey==='wk',pathKey!=='wk'):N,k=N/Nl;showRes(N,Nl,ringLive);
   /* a moving preview is an Nl×Nl grid of exact block averages, drawn into a small image and scaled up smoothly, so its fixed cost shrinks with it */
   const small=Nl<N,img=ringImg(Nl),D=img.data;Ibuf=small?null:new Float32Array(N*N);Pbuf=small?new Float32Array(Nl*Nl):null;  /* Pbuf: a preview's grid as I/I_tot, for tests/antialias.js */
   const present=(jA,jB)=>{if(small){RB.off.getContext('2d').putImageData(img,0,0);rctx.imageSmoothingEnabled=true;rctx.imageSmoothingQuality='high';rctx.drawImage(RB.off,0,0,Nl,Nl,0,0,N,N)}else rctx.putImageData(img,0,0,0,jA,N,jB-jA)};
@@ -1037,13 +1037,17 @@ function renderRing(sync){
           let j=0,done;RB.wDone=new Promise(r=>done=r);const slice=()=>{if(job!==ringJob)return done();const t0=performance.now();while(j<H&&performance.now()-t0<12){oct(j,j+1);j++}
             present(0,N);if(j<H)setTimeout(slice,0);else done()};
           slice();ringProfile(M);return}}
-      else if(RB.active==='workers'&&!sync){/* split the grid rows over every worker; each block is painted as it arrives */
-        const W=RB.workers,id=++W.job,blk=8,t0=performance.now(),live=ringLive;let pending=0,next=0,done;RB.wDone=new Promise(r=>done=r);W.busy=true;
+      else if(RB.active==='workers'&&!sync){/* split the grid rows over every worker. At rest, 8-row blocks painted as they arrive.
+          A moving preview is split evenly, one block per worker, and painted once when complete; its cost for the preview
+          controller is the workers' own compute time (the slowest worker's total), since they run in parallel with the main
+          thread's plots. Wall time from posting would count the main thread's remaining draw and the canvas flushes between
+          replies, and kept previews several times coarser than the single-threaded CPU's. */
+        const W=RB.workers,id=++W.job,live=ringLive,blk=live?Math.ceil(Nl/W.n):8,wc=new Float64Array(W.n);let pending=0,next=0,done;RB.wDone=new Promise(r=>done=r);W.busy=true;
         const msg={N,Nl,rc2,d:M.d,T:M.T,kx:M.kx,ky:M.ky,s2:sd*sd,kbm,pr:{n:pr.n,P:pr.P,KA:pr.KA,KB:pr.KB,X:pr.X,Y:pr.Y,Z:pr.Z,G:pr.G}};
         const send=w=>{if(next>=Nl)return;const j0=next,j1=Math.min(Nl,next+blk);next=j1;pending++;w.postMessage({...msg,id,j0,j1})};
-        W.pool.forEach(w=>{w.onmessage=e=>{const r=e.data;if(r.id!==W.job||job!==ringJob)return;pending--;let o=0;
+        W.pool.forEach((w,wi)=>{w.onmessage=e=>{const r=e.data;if(r.id!==W.job||job!==ringJob)return;pending--;wc[wi]+=r.ms;let o=0;
           for(let j=r.j0;j<r.j1;j++)for(let i=0;i<Nl;i++){put(j,i,r.out[o],r.out[o+1],r.out[o+2],r.out[o+3]);o+=4}
-          present(r.j0,r.j1);send(w);if(!pending){if(live)lqRecord('wk',Nl,performance.now()-t0);W.busy=false;done();if(W.dirty){W.dirty=false;renderRing()}}};send(w)});
+          if(!live)present(r.j0,r.j1);send(w);if(!pending){if(live){present(0,N);lqRecord('wk',Nl,Math.max(...wc))}W.busy=false;done();if(W.dirty){W.dirty=false;renderRing()}}};send(w)});
         ringProfile(M);return}
       else if(ringLive||sync)rows(0,Nl);
       else{/* progressive full-resolution pass */

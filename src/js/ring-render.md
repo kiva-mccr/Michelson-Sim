@@ -15,3 +15,4 @@ Drawing the ring: `ringInputs`/`renderRingIfNeeded` (re-render only on a change)
 - `gridPix` is the one grid-point evaluation for the main thread (and the speed test's CPU run); the worker source has its own copy of the same expressions, keep them identical.
 - Every progressive at-rest pass sets `RB.wDone`, resolved when it finishes or is superseded (the speed test waits for it).
 - `renderRingIfNeeded` does nothing while the speed test runs (`RB.benching`).
+- Worker previews (MS-19) are split evenly, one block per worker, and painted once when complete. Their cost for `lqRecord('wk')` is the slowest worker's own compute time (each reply carries `ms`), not the wall time from posting: that counted the main thread's remaining draw (about 4–9 ms) and a canvas flush after each per-block paint (about 2 ms each), so previews settled about 9× coarser (28² vs 260² on a fast sweep) at the same frame rate. At rest, 8-row blocks are still painted as they arrive.
