@@ -102,7 +102,9 @@ Headless Chrome can't display WebGPU canvases, so screenshots there show WebGPU 
 
 ## Artifact
 
-A copy of this page is published as a claude.ai artifact (slug `03326018-be11-42b4-a9b7-bd0f496c0628`), where the owner leaves feedback as comments. `reference/michelson-table.html` is the original sourced formula table (also an artifact). `mockups/controls-mockups.html` holds the three control mockups that led to the current drag design.
+**Keep the project artifact up to date (owner's request):** whenever the sim changes, republish `index.html` as a new version of https://claude.ai/artifact/BtQ1cN1oU3jo5R4PFTovLf (same URL, never a new artifact).
+
+An earlier copy of this page is published as a claude.ai artifact (slug `03326018-be11-42b4-a9b7-bd0f496c0628`), where the owner leaves feedback as comments. `reference/michelson-table.html` is the original sourced formula table (also an artifact). `mockups/controls-mockups.html` holds the three control mockups that led to the current drag design.
 
 ## Ideas not done yet
 
