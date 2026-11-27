@@ -15,12 +15,15 @@ Claude builds only the steps that Kiva has approved. To find a step, search for 
 - [x] MS-7: Tilt on the fixed arm. Show the tilt on M₁, the mirror that doesn't move, instead of on the moving M₂. Draw the tilt as the total magnitude √(αx² + αy²) of both components. Today the schematic rotates M₂ by αx alone. Revised (Kiva, 2026-11-27): αx turns M₁ either way in the drawing's plane, and αy leans it, drawn as a shaded strip of its silvered face (+αy) or dark back (−αy).
 - [x] MS-8: Remove the renderer controls. The Renderer menu is gone and the page always uses the automatic choice (WebGPU → WebGL2 → workers → CPU). A round ? on the pattern panel opens a popup with the renderer in use and the live resolution (Kiva, 2026-11-27). Tests force a renderer with `?renderer=`.
 - [x] MS-9: Animate the tilt snap. Entering the snap circle glides the tilt value itself to 0, 0 over 150 ms (ease-out), so every frame is the true pattern; leaving glides back to the cursor. Reset tilt and double-click glide too; reduced motion jumps.
+- [x] MS-11: Scale the live preview to how fast it is changing. Continuous resolution (any grid size N/16…N) from the last frame's measured time, k·(t/0.9B)^(1/p); the budget grows when the fringes move slowly (a frame may last as long as the motion takes to cross one preview pixel, up to 100 ms), so slow drags are sharp and fast ones keep the display rate; a pause with the button held shows the exact image (Kiva, 2026-11-27).
 
 ## Next
 
 Kiva added these on 2026-11-27. Add a step here only once Kiva has approved it.
 
-- [ ] MS-11: Scale the live preview to how fast it is changing, not only to the device. The preview should always show the highest resolution that still holds the frame rate. Builds on MS-10 (Kiva, 2026-11-27).
+- [ ] MS-12: Decide whether splitting the source files into smaller modules makes them easier for an LLM to work with, and split them if it does (bit-identical outputs).
+- [ ] MS-13: A new optimization study: profile, find speed-ups, deliver them as verified PRs (bit-identical outputs where possible).
+
 
 ## Decisions
 

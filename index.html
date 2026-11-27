@@ -703,19 +703,28 @@ const WGSL_R=WGSL_HEAD+`
 fn gam(v0:f32)->f32{let v=clamp(v0,0.,1.);return select(1.055*pow(v,1./2.4)-0.055,12.92*v,v<=0.0031308);}
 @vertex fn vmain(@builtin(vertex_index) i:u32)->@builtin(position) vec4f{var p=array<vec2f,3>(vec2f(-1.,-1.),vec2f(3.,-1.),vec2f(-1.,3.));return vec4f(p[i],0.,1.);}
 @fragment fn fmain(@builtin(position) pos:vec4f)->@location(0) vec4f{
-  let k=u32(P.a.z);let Nl=u32(P.a.w);let i=min(u32(pos.x)/k,Nl-1u);let j=min(u32(pos.y)/k,Nl-1u);let x=OUT[j*Nl+i];
+  let Nl=u32(P.a.w);var x:vec4f;
+  if(Nl==u32(P.a.x)){x=OUT[min(u32(pos.y),Nl-1u)*Nl+min(u32(pos.x),Nl-1u)];}
+  else{/* a preview grid: bilinear between the 4 nearest grid points, in XYZ and I (linear light), then toned */
+    let k=P.a.x/f32(Nl);let fx=clamp(pos.x/k-0.5,0.,f32(Nl-1u));let fy=clamp(pos.y/k-0.5,0.,f32(Nl-1u));
+    let i0=u32(fx);let j0=u32(fy);let i1=min(i0+1u,Nl-1u);let j1=min(j0+1u,Nl-1u);let tx=fx-f32(i0);let ty=fy-f32(j0);
+    x=mix(mix(OUT[j0*Nl+i0],OUT[j0*Nl+i1],tx),mix(OUT[j1*Nl+i0],OUT[j1*Nl+i1],tx),ty);}
   var c=vec3f(dot(vec3f(3.2406,-1.5372,-0.4986),x.xyz),dot(vec3f(-0.9689,1.8758,0.0415),x.xyz),dot(vec3f(0.0557,-0.2040,1.0570),x.xyz));
   let m=min(min(c.r,c.g),min(c.b,0.));c=(c-m)*P.c.w;return vec4f(gam(c.r),gam(c.g),gam(c.b),1.);}`;
 /* fragment-shader version for WebGL2 */
 const GLSL_HEAD=`#version 300 es
 precision highp float;precision highp int;precision highp sampler2D;
-uniform sampler2D uSB,uGR,uOut;uniform int uNG,uN,uK;uniform float uD,uT,uKx,uKy,uS2,uKbm,uGain;out vec4 o;
+uniform sampler2D uSB,uGR,uOut;uniform int uNG,uN,uNl;uniform float uD,uT,uKx,uKy,uS2,uKbm,uGain;out vec4 o;
 vec4 fetchS(int t){return texelFetch(uSB,ivec2(t%1024,t/1024),0);}vec4 fetchG(int t){return texelFetch(uGR,ivec2(t%1024,t/1024),0);}`;
 const GLSL_PIX=GLSL_HEAD+PIX_GLSL+`
-void main(){float h=float(uN)*0.5,k=float(uK);vec2 p=(floor(gl_FragCoord.xy)+0.5)*k;float u=(p.x-h)/h,v=(p.y-h)/h;o=pix(u,v);}`;
+void main(){float h=float(uN)*0.5,k=float(uN)/float(uNl);vec2 p=(floor(gl_FragCoord.xy)+0.5)*k;float u=(p.x-h)/h,v=(p.y-h)/h;o=pix(u,v);}`;
 const GLSL_TONE=GLSL_HEAD+`
 float gam(float v){v=clamp(v,0.,1.);return v<=0.0031308?12.92*v:1.055*pow(v,1./2.4)-0.055;}`+TONE_GLSL+`
-void main(){o=vec4(tone(texelFetch(uOut,ivec2(gl_FragCoord.xy)/uK,0)),1.);}`;
+void main(){if(uNl==uN){o=vec4(tone(texelFetch(uOut,ivec2(gl_FragCoord.xy),0)),1.);return;}
+  /* a preview grid: bilinear between the 4 nearest grid points, in XYZ and I (linear light), then toned */
+  float k=float(uN)/float(uNl),m=float(uNl-1);vec2 f=clamp(gl_FragCoord.xy/k-0.5,0.,m);ivec2 a=ivec2(f),b=min(a+1,uNl-1);vec2 t=f-vec2(a);
+  vec4 x=mix(mix(texelFetch(uOut,a,0),texelFetch(uOut,ivec2(b.x,a.y),0),t.x),mix(texelFetch(uOut,ivec2(a.x,b.y),0),texelFetch(uOut,b,0),t.x),t.y);
+  o=vec4(tone(x),1.);}`;
 const GLSL_VS=`#version 300 es
 void main(){vec2 p=vec2(gl_VertexID==1?3.:-1.,gl_VertexID==2?3.:-1.);gl_Position=vec4(p,0.,1.);}`;
 
@@ -733,7 +742,7 @@ async function initWebGPU(cv){if(!navigator.gpu)throw new Error('no navigator.gp
   dev.addEventListener('uncapturederror',e=>{console.warn('WebGPU error:',e.error.message);if(!RB.gpuBad){RB.gpuBad=true;RB.gpu=null;pickBackend('webgpu error')}});
   return G}
 const growBuf=(G,key,bytes,usage)=>{if(!G[key]||G.sizes[key]<bytes){G[key]&&G[key].destroy();G[key]=G.dev.createBuffer({size:bytes,usage});G.sizes[key]=bytes}return G[key]};
-function gpuDraw(G,N,M,pk,s2,gain,k){const dev=G.dev,SU=GPUBufferUsage,Nl=Math.ceil(N/k);
+function gpuDraw(G,N,M,pk,s2,gain,Nl){const dev=G.dev,SU=GPUBufferUsage,k=N/Nl;
   dev.queue.writeBuffer(G.ubuf,0,new Float32Array([N,pk.ng,k,Nl, 2*M.d,M.d,M.T,M.kx, M.ky,s2,pk.kbm,gain]));
   dev.queue.writeBuffer(growBuf(G,'sb',pk.sb.byteLength,SU.STORAGE|SU.COPY_DST),0,pk.sb);dev.queue.writeBuffer(growBuf(G,'gr',pk.gr.byteLength,SU.STORAGE|SU.COPY_DST),0,pk.gr);
   const out=growBuf(G,'out',N*N*16,SU.STORAGE|SU.COPY_SRC);
@@ -756,10 +765,10 @@ function initWebGL2(cv){const gl=cv.getContext('webgl2',{antialias:false,depth:f
   cv.addEventListener('webglcontextlost',e=>{e.preventDefault();RB.gl=null;pickBackend('webgl lost')});return L}
 function glData(gl,tex,arr){const texels=arr.length/4,w=Math.min(1024,texels),h=Math.ceil(texels/1024),buf=new Float32Array(w*h*4);buf.set(arr);
   gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,w,h,0,gl.RGBA,gl.FLOAT,buf)}
-function glDraw(L,N,M,pk,s2,gain,k){const gl=L.gl,Nl=Math.ceil(N/k);
+function glDraw(L,N,M,pk,s2,gain,Nl){const gl=L.gl;
   if(L.N!==N){gl.bindTexture(gl.TEXTURE_2D,L.tOut);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,N,N,0,gl.RGBA,gl.FLOAT,null);gl.bindFramebuffer(gl.FRAMEBUFFER,L.fb);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,L.tOut,0);L.N=N}
   glData(gl,L.tSB,pk.sb);glData(gl,L.tGR,pk.gr);gl.bindVertexArray(L.vao);
-  const set=(p)=>{gl.useProgram(p);const U=n=>gl.getUniformLocation(p,n);gl.uniform1i(U('uSB'),0);gl.uniform1i(U('uGR'),1);gl.uniform1i(U('uOut'),2);gl.uniform1i(U('uNG'),pk.ng);gl.uniform1i(U('uN'),N);gl.uniform1i(U('uK'),k);
+  const set=(p)=>{gl.useProgram(p);const U=n=>gl.getUniformLocation(p,n);gl.uniform1i(U('uSB'),0);gl.uniform1i(U('uGR'),1);gl.uniform1i(U('uOut'),2);gl.uniform1i(U('uNG'),pk.ng);gl.uniform1i(U('uN'),N);gl.uniform1i(U('uNl'),Nl);
     gl.uniform1f(U('uD'),M.d);gl.uniform1f(U('uT'),M.T);gl.uniform1f(U('uKx'),M.kx);gl.uniform1f(U('uKy'),M.ky);gl.uniform1f(U('uS2'),s2);gl.uniform1f(U('uKbm'),pk.kbm);gl.uniform1f(U('uGain'),gain)};
   gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,L.tSB);gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,L.tGR);
   gl.bindFramebuffer(gl.FRAMEBUFFER,L.fb);gl.viewport(0,0,Nl,Nl);set(L.pPix);gl.drawArrays(gl.TRIANGLES,0,3);
@@ -778,12 +787,12 @@ ${avgQpre.toString()}
 ${avgQ.toString()}
 ${pixVal.toString()}
 const PV=[0,0,0,0];
-onmessage=e=>{const m=e.data,{N,st,j0,j1,d,T,kx,ky,s2,kbm,pr}=m,h=N/2,out=new Float32Array(((j1-j0)/st|0)*Math.ceil(N/st)*4+8);let o=0;
+onmessage=e=>{const m=e.data,{N,Nl,j0,j1,d,T,kx,ky,s2,kbm,pr}=m,h=N/2,k=N/Nl,out=new Float32Array((j1-j0)*Nl*4+8);let o=0;
   const rad=r=>{const th=Math.atan(r*T),q=1+r*r*T*T,c=T/q,cp=-2*r*T**3/(q*q),f1=-2*d*Math.sin(th)*c,f2=-2*d*(Math.cos(th)*c*c+Math.sin(th)*cp);return[f1,f2,r>1e-12?f1/r:f2]};
-  for(let j=j0;j<j1;j+=st){const v=-(j+st/2-h)/h;for(let i=0;i<N;i+=st){const u=(i+st/2-h)/h,r=Math.hypot(u,v),[f1,f2,fr]=rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
-    const gx=f1*ux+kx,gy=f1*uy+ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=st===1&&kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;
+  for(let j=j0;j<j1;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h,r=Math.hypot(u,v),[f1,f2,fr]=rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
+    const gx=f1*ux+kx,gy=f1*uy+ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=Nl===N&&kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;
     const p=pixVal(2*d*Math.cos(Math.atan(r*T))+kx*u+ky*v,gx,gy,h11,h12,h22,s2,pr,quad);out[o++]=p[0];out[o++]=p[1];out[o++]=p[2];out[o++]=p[3]}}
-  postMessage({id:m.id,j0,j1,st,out},[out.buffer])}`;
+  postMessage({id:m.id,j0,j1,out},[out.buffer])}`;
   const url=URL.createObjectURL(new Blob([src],{type:'text/javascript'}));const W={pool:Array.from({length:n},()=>new Worker(url)),n,job:0};
   return W}
 
@@ -807,17 +816,40 @@ function pickBackend(why){RB.busy=false;RB.dirty=false;const avail=BACKENDS.map(
    adaptive preview below. At rest, the full-resolution image is computed in ~12 ms slices between frames,
    sharpening top-down, so the page never blocks; a newer render cancels an unfinished one. Verification renders synchronously. */
 let ringJob=0;
-/* Adaptive preview resolution, while anything is moving (dragging, sweeping, scrolling). At rest the image is always
-   rendered at every pixel. Per path we keep the measured frame time (ms, running average) for every block size s that has been used. A size not yet
-   tried is predicted from the nearest measured one, scaling with the number of blocks, (N/s)^p (p = 1 radial, 2 otherwise).
-   The finest size predicted to fit the budget is chosen; going finer needs a 15% margin, so the choice doesn't flicker.
-   Budget: CPU — what is left of a 60 Hz frame after the plots, but at least 6 ms (or 60% of the plots' time on slow devices);
-   GPU — 14 ms of GPU time, which runs alongside the page. */
-const LQ={other:4,ms:0,tot:16.7,last:1,cpuR:{p:1,t:{},s:2},cpuT:{p:2,t:{},s:4},wk:{p:2,t:{},s:2},gpu:{p:2,t:{},s:1}},STEPS=[1,2,3,4,5,6,8,10,12,16];
-/* measurements expire after 3 s and are cleared when the spectrum changes (cost scales with its number of sub-bands) */
-const lqFresh=(q,s)=>{const e=q.t[s];return e&&performance.now()-e.at<3000?e.ms:null};
-function lqPredict(q,s){const own=lqFresh(q,s);if(own!=null)return own;let best=null;for(const k in q.t){const kk=+k;if(lqFresh(q,kk)==null)continue;if(best===null||Math.abs(Math.log(kk/s))<Math.abs(Math.log(best/s)))best=kk}
-  return best===null?(s>=8?5:1e9):lqFresh(q,best)*Math.pow(best/s,q.p)}
+/* Adaptive preview resolution (MS-10, MS-11), while anything is moving (dragging, sweeping, scrolling). At rest the image is
+   always rendered at every pixel, exactly. While moving, each path renders an Nl×Nl grid of exact footprint averages, Nl any
+   whole number from N/16 to N, each over a block of k = N/Nl device pixels, and scales it up.
+   Cost model: a frame costs t ≈ a·(N/k)^p (p = 1 for the radial pattern, 2 otherwise). After every preview frame the measured
+   time updates a (running average in log space), and the next scale is the one predicted to take 90% of the budget B:
+   k* = N/(0.9·B/a)^(1/p), the same as k·(t/0.9B)^(1/p) from the last frame. It goes coarser at once and finer half the way
+   (in log space) per frame, so noisy timings don't make it flicker. Measurements expire after 3 s and reset when the number of
+   sub-bands changes.
+   Budget: the base is MS-10's (CPU: what is left of a display frame after the plots, at least 6 ms or 60% of the plots' time;
+   GPU: 85% of a display frame). MS-11 adds time when the picture moves slowly: what matters is that the motion looks as smooth
+   as it would at the display's rate, so a frame may take as long as the fringes need to move one preview pixel (k device px),
+   T = k / v, up to 100 ms (50 ms on the main-thread CPU, which blocks the page). B = base + (T − FR) when T > FR.
+   The fringe speed v (device px/ms) is the largest shift |Δδ|/|∇δ| of the pattern between the last two preview frames, at 32
+   points over the field (|∇δ| floored at one fringe per field radius), over their time apart. A spectrum change, or no recent
+   frame, counts as fast. When the inputs stop changing for IDLE ms with the button still held, the exact image is rendered. */
+const LQ={other:4,ms:0,tot:16.7,last:1,cpuR:{p:1},cpuT:{p:2},wk:{p:2},gpu:{p:2},mv:{v:Infinity,at:0,M:null,sk:''}},KMAX=16,IDLE=150;
+const lqPts=(()=>{const o=[];for(const r of [0.3,0.6,0.85,1])for(let a=0;a<8;a++)o.push([r*Math.cos(a*Math.PI/4+r),r*Math.sin(a*Math.PI/4+r)]);return o})();
+/* fringe speed between the previous preview frame and this one */
+function lqMotion(M,N){const mv=LQ.mv,now=performance.now(),sk=JSON.stringify(sublines().map(o=>[o.s,o.p,o.w]));
+  if(!mv.M||sk!==mv.sk||now-mv.at>250)mv.v=Infinity;
+  else{const smax=Math.max(...sublines().map(o=>o.s),1e-9),gmin=2/(smax*N),dt=Math.max(now-mv.at,1);let disp=0;
+    for(const[u,v]of lqPts){const g=M.grad(u,v),gp=Math.max(Math.hypot(g[0],g[1])*2/N,gmin);disp=Math.max(disp,Math.abs(M.opd(u,v)-mv.M.opd(u,v))/gp)}
+    const vn=disp/dt;mv.v=vn>mv.v||!isFinite(mv.v)?vn:0.6*mv.v+0.4*vn}  /* faster at once, slower gradually */
+  mv.M=M;mv.sk=sk;mv.at=now}
+function lqBudget(k,gpu,main){const F=FR(),base=gpu?0.85*F:Math.max(6,F-LQ.other,0.6*LQ.other),v=LQ.mv.v,T=Math.min(v>0?k/v:Infinity,main?50:100);
+  return base+Math.max(0,T-F)}
+/* the preview grid size Nl for a path: k from the cost model and the budget, then rounded to a whole Nl */
+function lqPick(key,N,gpu,main){const q=LQ[key],n=sublines().length;
+  if(q.n!==n||!q.at||performance.now()-q.at>3000){q.n=n;q.a=null}
+  if(q.a==null)q.k=4;  /* no fresh measurement: start coarse, the next frame's time corrects it */
+  else{let k=q.k||4,kt=k;for(let it=0;it<2;it++){kt=clamp(N/Math.pow(0.9*lqBudget(k,gpu,main)/q.a,1/q.p),1,KMAX);k=kt}  /* the budget depends on k (one preview pixel of motion): two passes settle it */
+    q.k=kt>=q.k?kt:Math.exp(0.5*Math.log(q.k)+0.5*Math.log(kt))}  /* coarser at once, finer half the way (log space) */
+  const Nl=q.k<1.03?N:clamp(Math.round(N/q.k),Math.ceil(N/KMAX),N);LQ.last=N/Nl;return Nl}
+function lqRecord(key,Nl,ms){const q=LQ[key],a=ms/Math.pow(Nl,q.p);q.a=q.a==null?a:Math.exp(0.7*Math.log(q.a)+0.3*Math.log(a));q.at=performance.now()}
 /* The frame budget follows the display: FR is its refresh interval, measured from idle requestAnimationFrame steps (the 25th
    percentile, so frames slowed by our own drawing don't count), at least 16.7 ms (60 Hz; faster displays still get 60 Hz-quality
    previews) and at most 33.4 ms. It is re-measured on load, when the window is resized (it may have moved to another screen) and
@@ -826,10 +858,7 @@ const FRM={fr:16.7,run:0};const FR=()=>FRM.fr;
 function measureFrame(){const run=++FRM.run,ts=[];const step=t=>{if(run!==FRM.run)return;ts.push(t);if(ts.length<40){requestAnimationFrame(step);return}
   const d=[];for(let i=1;i<ts.length;i++){const x=ts[i]-ts[i-1];if(x>2&&x<200)d.push(x)}if(d.length<8)return;d.sort((a,b)=>a-b);FRM.fr=clamp(d[Math.floor(d.length/4)],16.7,33.4)};requestAnimationFrame(step)}
 measureFrame();document.addEventListener('visibilitychange',()=>{if(!document.hidden)measureFrame()});
-function lqPick(key,N,gpu){const q=LQ[key],n=sublines().length;if(q.n!==n){q.n=n;q.t={}}const B=gpu?0.85*FR():Math.max(6,FR()-LQ.other,0.6*LQ.other);
-  const s=STEPS.find(x=>lqPredict(q,x)<=(x<q.s?0.85*B:B))||16;q.s=s;LQ.last=s;return s}
-function lqRecord(key,st,ms){const q=LQ[key],e=q.t[st],old=e&&performance.now()-e.at<3000?e.ms:null;q.t[st]={ms:old==null?ms:0.7*old+0.3*ms,at:performance.now()}}
-const showRes=(N,st,live)=>{const e=$('resV');if(e)e.textContent=`${Math.ceil(N/st)}²${live&&st>1?' preview':''}`};
+const showRes=(N,Nl,live)=>{const e=$('resV');if(e)e.textContent=`${Nl}²${live&&Nl<N?' preview':''}`};
 let ringKey='',ringWasLive=false;
 function ringInputs(){return JSON.stringify([sublines().map(o=>[o.s,o.p,o.w]),$('d').value,$('fov').value,$('tx').value,$('ty').value,ring.width,RB.active,$('prof').clientWidth,$('prof').clientHeight,document.documentElement.dataset.theme])}
 function renderRingIfNeeded(){const k=ringInputs();if(k===ringKey&&!(ringWasLive&&!ringLive))return;ringKey=k;ringWasLive=ringLive;renderRing()}
@@ -838,59 +867,60 @@ const ringImgs=new Map();function ringImg(n){let im=ringImgs.get(n);if(!im){if(r
   if(!RB.off)RB.off=document.createElement('canvas');if(RB.off.width!==n){RB.off.width=n;RB.off.height=n}return im}
 function renderRing(sync){
   const N=ring.width,M=ringModel(),cs=act(),tilted=!!(M.kx||M.ky),job=ringJob+1;RB.wDone=null;  /* job is claimed only once this call really renders */
-  let st=1;const T0=performance.now();
+  const T0=performance.now();
+  if(!ringLive)LQ.mv.M=null;  /* the next preview starts its motion measurement afresh */
   if(RB.active==='webgpu'||RB.active==='webgl2'){/* GPU */
     const pr=cs.length?prepSL(sublines()):{n:0,G:[],KB:[]};let gain=1;
     if(cs.length){let fX=0,fY=0,fZ=0;for(const o of sublines()){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}gain=1/Math.max(...desat(toLin([fX,fY,fZ])),1e-9)}
-    /* one frame in flight at a time: a newer request waits and then draws the latest state. While dragging, the block size k is
-       chosen by the adaptive preview (14 ms of GPU time); at rest k = 1 (every pixel). Each block is still an exact
-       footprint average, over the whole block. */
+    /* one frame in flight at a time: a newer request waits and then draws the latest state. While moving, the grid size Nl
+       comes from the adaptive preview; at rest Nl = N (every pixel). Each grid point is still an exact footprint average,
+       over its whole block of k = N/Nl device pixels. */
     ringProfile(M);if(RB.busy&&!sync){RB.dirty=true;return}
-    ringJob=job;
-    const k=ringLive?lqPick('gpu',N,true):1;showRes(N,k,ringLive);
+    ringJob=job;if(ringLive)lqMotion(M,N);
+    const Nl=ringLive?lqPick('gpu',N,true,false):N,k=N/Nl;showRes(N,Nl,ringLive);
     const pk=packRing(pr,M),s2=(PIXSD*2*k/N)**2;Ibuf=null;RB.busy=true;const t0=performance.now();
-    let done;try{done=RB.active==='webgpu'?gpuDraw(RB.gpu,N,M,pk,s2,gain,k):glDraw(RB.gl,N,M,pk,s2,gain,k)}catch(e){RB.busy=false;console.warn(RB.active,'failed, falling back',e);if(RB.active==='webgpu')RB.gpu=null;else RB.gl=null;pickBackend('error');return}
+    let done;try{done=RB.active==='webgpu'?gpuDraw(RB.gpu,N,M,pk,s2,gain,Nl):glDraw(RB.gl,N,M,pk,s2,gain,Nl)}catch(e){RB.busy=false;console.warn(RB.active,'failed, falling back',e);if(RB.active==='webgpu')RB.gpu=null;else RB.gl=null;pickBackend('error');return}
     /* a lost device rejects the pending frame: fall back instead of leaving an unhandled rejection and a renderer stuck busy */
     const be=RB.active;
-    RB.done=done.then(()=>{if(ringLive)lqRecord('gpu',k,performance.now()-t0);RB.busy=false;if(RB.dirty){RB.dirty=false;renderRing()}},
+    RB.done=done.then(()=>{if(ringLive)lqRecord('gpu',Nl,performance.now()-t0);RB.busy=false;if(RB.dirty){RB.dirty=false;renderRing()}},
       e=>{RB.busy=false;RB.dirty=false;console.warn(be,'frame failed, falling back:',e&&e.message);if(be==='webgpu')RB.gpu=null;else RB.gl=null;if(RB.active===be)pickBackend(be+' frame failed')});
     return}
   const pathKey=!tilted?'cpuR':RB.active==='workers'?'wk':'cpuT';
   if(RB.active==='workers'&&tilted&&!sync&&RB.workers.busy&&ringLive){RB.workers.dirty=true;ringProfile(M);return}  /* one worker job in flight while moving */
   ringJob=job;if(RB.workers)RB.workers.busy=false;  /* a newer render supersedes any worker job in flight */
-  if(ringLive)st=lqPick(pathKey,N,false);showRes(N,st,ringLive);
-  /* a moving preview is rendered one pixel per block into a small image and scaled up smoothly, so its fixed cost shrinks with it */
-  const small=ringLive&&st>1,W2=small?Math.ceil(N/st):N,img=ringImg(W2),D=img.data;Ibuf=small?null:new Float32Array(N*N);
-  const present=(jA,jB)=>{if(small){RB.off.getContext('2d').putImageData(img,0,0);rctx.imageSmoothingEnabled=true;rctx.imageSmoothingQuality='high';rctx.drawImage(RB.off,0,0,W2,W2,0,0,W2*st,W2*st)}else rctx.putImageData(img,0,0,0,jA,N,jB-jA)};
+  if(ringLive)lqMotion(M,N);
+  const Nl=ringLive?lqPick(pathKey,N,false,pathKey!=='wk'):N,k=N/Nl;showRes(N,Nl,ringLive);
+  /* a moving preview is an Nl×Nl grid of exact block averages, drawn into a small image and scaled up smoothly, so its fixed cost shrinks with it */
+  const small=Nl<N,img=ringImg(Nl),D=img.data;Ibuf=small?null:new Float32Array(N*N);
+  const present=(jA,jB)=>{if(small){RB.off.getContext('2d').putImageData(img,0,0);rctx.imageSmoothingEnabled=true;rctx.imageSmoothingQuality='high';rctx.drawImage(RB.off,0,0,Nl,Nl,0,0,N,N)}else rctx.putImageData(img,0,0,0,jA,N,jB-jA)};
   if(cs.length){const SL=sublines(),pr=prepSL(SL),A=cs.reduce((t,c)=>t+P(c),0);let fX=0,fY=0,fZ=0;for(const o of SL){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}
-    const fl=desat(toLin([fX,fY,fZ])),gain=1/Math.max(...fl,1e-9),h=N/2,px=2/N*st,sd=PIXSD*px;
-    const put=(j0,i0,X,Y,Z,I)=>{let r=MX[0][0]*X+MX[0][1]*Y+MX[0][2]*Z,g=MX[1][0]*X+MX[1][1]*Y+MX[1][2]*Z,b=MX[2][0]*X+MX[2][1]*Y+MX[2][2]*Z;const m=Math.min(r,g,b,0);
-      const r8=enc((r-m)*gain),g8=enc((g-m)*gain),b8=enc((b-m)*gain),In=I/A;
-      if(small){const o=4*((j0/st)*W2+i0/st);D[o]=r8;D[o+1]=g8;D[o+2]=b8;D[o+3]=255;return}
-      for(let jj=j0;jj<Math.min(N,j0+st);jj++)for(let ii=i0;ii<Math.min(N,i0+st);ii++){const o=4*(jj*N+ii);D[o]=r8;D[o+1]=g8;D[o+2]=b8;D[o+3]=255;Ibuf[jj*N+ii]=In}};
-    if(M.kx===0&&M.ky===0){const Nr=Math.ceil(1.42*h/st*(ringLive?4:16))+2,dr=1.42/(Nr-1),RX=new Float64Array(Nr),RY=new Float64Array(Nr),RZ=new Float64Array(Nr),RI=new Float64Array(Nr);
-      for(let k=0;k<Nr;k++){const r=k*dr,dm=2*M.d*Math.cos(Math.atan(r*M.T)),[f1,f2,fr]=M.rad(r),v=pixVal(dm,f1,0,f2,0,fr,sd*sd,pr,true);RX[k]=v[0];RY[k]=v[1];RZ[k]=v[2];RI[k]=v[3]}
-      for(let j=0;j<N;j+=st){const v=-(j+st/2-h)/h;for(let i=0;i<N;i+=st){const u=(i+st/2-h)/h,t=Math.hypot(u,v)/dr,k=Math.min(Nr-2,t|0),f=t-k;
-        put(j,i,RX[k]+(RX[k+1]-RX[k])*f,RY[k]+(RY[k+1]-RY[k])*f,RZ[k]+(RZ[k+1]-RZ[k])*f,RI[k]+(RI[k+1]-RI[k])*f)}}}
+    const fl=desat(toLin([fX,fY,fZ])),gain=1/Math.max(...fl,1e-9),h=N/2,px=2/N*k,sd=PIXSD*px;
+    /* grid point (j, i): one image pixel; at full resolution also the I/I_tot buffer */
+    const put=(j,i,X,Y,Z,I)=>{if(j>=Nl)return;let r=MX[0][0]*X+MX[0][1]*Y+MX[0][2]*Z,g=MX[1][0]*X+MX[1][1]*Y+MX[1][2]*Z,b=MX[2][0]*X+MX[2][1]*Y+MX[2][2]*Z;const m=Math.min(r,g,b,0);
+      const o=4*(j*Nl+i);D[o]=enc((r-m)*gain);D[o+1]=enc((g-m)*gain);D[o+2]=enc((b-m)*gain);D[o+3]=255;if(!small)Ibuf[j*N+i]=I/A};
+    if(M.kx===0&&M.ky===0){const Nr=Math.ceil(1.42*h/k*(ringLive?4:16))+2,dr=1.42/(Nr-1),RX=new Float64Array(Nr),RY=new Float64Array(Nr),RZ=new Float64Array(Nr),RI=new Float64Array(Nr);
+      for(let q=0;q<Nr;q++){const r=q*dr,dm=2*M.d*Math.cos(Math.atan(r*M.T)),[f1,f2,fr]=M.rad(r),v=pixVal(dm,f1,0,f2,0,fr,sd*sd,pr,true);RX[q]=v[0];RY[q]=v[1];RZ[q]=v[2];RI[q]=v[3]}
+      for(let j=0;j<Nl;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h,t=Math.hypot(u,v)/dr,q=Math.min(Nr-2,t|0),f=t-q;
+        put(j,i,RX[q]+(RX[q+1]-RX[q])*f,RY[q]+(RY[q+1]-RY[q])*f,RZ[q]+(RZ[q+1]-RZ[q])*f,RI[q]+(RI[q+1]-RI[q])*f)}}}
     else{const kbm=Math.max(...SL.map(o=>o.kb)),s2=sd*sd;
-      const rows=(j0,j1)=>{for(let j=j0;j<j1;j+=st){const v=-(j+st/2-h)/h;for(let i=0;i<N;i+=st){const u=(i+st/2-h)/h,r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
+      const rows=(j0,j1)=>{for(let j=j0;j<j1;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h,r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
         const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=!ringLive&&kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;  /* the second-order correction only in the at-rest pass */
         const p=pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad);put(j,i,p[0],p[1],p[2],p[3])}}};
-      if(RB.active==='workers'&&!sync){/* split the rows over every worker; each block is painted as it arrives */
-        const W=RB.workers,id=++W.job,blk=Math.max(st,8*st),t0=performance.now(),live=ringLive;let pending=0,next=0,done;RB.wDone=new Promise(r=>done=r);W.busy=true;
-        const msg={N,st,d:M.d,T:M.T,kx:M.kx,ky:M.ky,s2:sd*sd,kbm,pr:{n:pr.n,P:pr.P,KA:pr.KA,KB:pr.KB,X:pr.X,Y:pr.Y,Z:pr.Z,G:pr.G}};
-        const send=w=>{if(next>=N)return;const j0=next,j1=Math.min(N,next+blk);next=j1;pending++;w.postMessage({...msg,id,j0,j1})};
+      if(RB.active==='workers'&&!sync){/* split the grid rows over every worker; each block is painted as it arrives */
+        const W=RB.workers,id=++W.job,blk=8,t0=performance.now(),live=ringLive;let pending=0,next=0,done;RB.wDone=new Promise(r=>done=r);W.busy=true;
+        const msg={N,Nl,d:M.d,T:M.T,kx:M.kx,ky:M.ky,s2:sd*sd,kbm,pr:{n:pr.n,P:pr.P,KA:pr.KA,KB:pr.KB,X:pr.X,Y:pr.Y,Z:pr.Z,G:pr.G}};
+        const send=w=>{if(next>=Nl)return;const j0=next,j1=Math.min(Nl,next+blk);next=j1;pending++;w.postMessage({...msg,id,j0,j1})};
         W.pool.forEach(w=>{w.onmessage=e=>{const r=e.data;if(r.id!==W.job||job!==ringJob)return;pending--;let o=0;
-          for(let j=r.j0;j<r.j1;j+=r.st)for(let i=0;i<N;i+=r.st){put(j,i,r.out[o],r.out[o+1],r.out[o+2],r.out[o+3]);o+=4}
-          present(r.j0,r.j1);send(w);if(!pending){if(live)lqRecord('wk',st,performance.now()-t0);W.busy=false;done();if(W.dirty){W.dirty=false;renderRing()}}};send(w)});
+          for(let j=r.j0;j<r.j1;j++)for(let i=0;i<Nl;i++){put(j,i,r.out[o],r.out[o+1],r.out[o+2],r.out[o+3]);o+=4}
+          present(r.j0,r.j1);send(w);if(!pending){if(live)lqRecord('wk',Nl,performance.now()-t0);W.busy=false;done();if(W.dirty){W.dirty=false;renderRing()}}};send(w)});
         ringProfile(M);return}
-      if(ringLive||sync)rows(0,N);
+      if(ringLive||sync)rows(0,Nl);
       else{/* progressive full-resolution pass */
         let j=0;const slice=()=>{if(job!==ringJob)return;const t0=performance.now(),jj=j;while(j<N&&performance.now()-t0<12){rows(j,j+4);j+=4}
-          present(jj,j);if(j<N)setTimeout(slice,0)};
+          present(jj,Math.min(j,N));if(j<N)setTimeout(slice,0)};
         slice();ringProfile(M);return}}
   }else{D.fill(0);for(let o=3;o<D.length;o+=4)D[o]=255}
-  present(0,N);ringProfile(M);if(ringLive&&cs.length)lqRecord(pathKey,st,performance.now()-T0);LQ.ms=performance.now()-T0}
+  present(0,N);ringProfile(M);if(ringLive&&cs.length)lqRecord(pathKey,Nl,performance.now()-T0);LQ.ms=performance.now()-T0}
 function ringProfile(M){const cs=act();
   /* profile cut: through the centre along the tilt direction n = (αx, αy)/|α| (along x when there is no tilt) */
   const ax=+$('tx').value,ay=+$('ty').value,an=Math.hypot(ax,ay),nx=an?ax/an:1,ny=an?ay/an:0,phi=Math.atan2(ny,nx)*180/Math.PI;
@@ -1202,7 +1232,9 @@ function draw(){raf=0;/* d and δ0 to the nearest nm (3 decimals in µm), with a
   const t0=performance.now();LQ.ms=0;fitRing();renderSpec();renderOut();renderIfg();renderRingIfNeeded();renderOv();renderRail();renderMini();
   if(ringLive){const t=performance.now()-t0;LQ.other=0.7*LQ.other+0.3*Math.max(0,t-LQ.ms);LQ.tot=0.7*LQ.tot+0.3*t}}
 function runEq(){eqT=0;eqs();table();save()}
-function update(live){ringLive=!!live;if(!live){if($('dAuto').checked)fitRange(false);if($('rAuto').checked)fitR()}
+/* MS-11: a live input that stops changing for IDLE ms (the button still held) gets the exact at-rest image; the next change goes live again */
+let idleT=0;const goIdle=()=>{if(ringLive){ringLive=false;if(!raf)raf=requestAnimationFrame(draw)}};
+function update(live){ringLive=!!live;clearTimeout(idleT);if(live)idleT=setTimeout(goIdle,IDLE);if(!live){if($('dAuto').checked)fitRange(false);if($('rAuto').checked)fitR()}
   if(!raf)raf=requestAnimationFrame(draw);
   if(live){if(!eqT)eqT=setTimeout(runEq,350)}else{clearTimeout(eqT);eqT=setTimeout(runEq,40)}  /* let the released frame paint first */
   $('verAt').textContent='Settings changed since the last run. Press Run checks to verify the current state.'}
