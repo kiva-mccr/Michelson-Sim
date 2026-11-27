@@ -549,7 +549,11 @@ function ringModel(){const d=+$('d').value,tm=(+$('fov').value)*Math.PI/180,T=Ma
    e^{-a_parent·δmin²} < e^{-30} for every OPD in the footprint (δmin = |δ̄| − 5τ), i.e. below 1e-13. */
 function prepSL(SL){const n=SL.length,o={n,P:new Float64Array(n),KA:new Float64Array(n),KB:new Float64Array(n),X:new Float64Array(n),Y:new Float64Array(n),Z:new Float64Array(n),G:[]};
   SL.forEach((s,k)=>{o.P[k]=0.5*s.p;o.KA[k]=s.ka;o.KB[k]=s.kb;o.X[k]=s.X[0];o.Y[k]=s.X[1];o.Z[k]=s.X[2];
-    let g=o.G[o.G.length-1];if(!g||g.id!==s.g){g={id:s.g,a:k,b:k+1,pka:s.pka,cX:0,cY:0,cZ:0,cI:0};o.G.push(g)}g.b=k+1;g.cX+=o.P[k]*s.X[0];g.cY+=o.P[k]*s.X[1];g.cZ+=o.P[k]*s.X[2];g.cI+=o.P[k]});return o}
+    let g=o.G[o.G.length-1];if(!g||g.id!==s.g){g={id:s.g,a:k,b:k+1,pka:s.pka,cX:0,cY:0,cZ:0,cI:0};o.G.push(g)}g.b=k+1;g.cX+=o.P[k]*s.X[0];g.cY+=o.P[k]*s.X[1];g.cZ+=o.P[k]*s.X[2];g.cI+=o.P[k]});
+  /* lin: the k_b step of a group whose sub-bands share a and are evenly spaced in k_b (every split Gaussian), for pixVal's fast path */
+  for(const g of o.G){g.lin=0;const n=g.b-g.a;if(n<3)continue;const D=(o.KB[g.b-1]-o.KB[g.a])/(n-1);let ok=D!==0;
+    for(let k=g.a;k<g.b&&ok;k++)ok=o.KA[k]===o.KA[g.a]&&Math.abs(o.KB[k]-(o.KB[g.a]+(k-g.a)*D))<=1e-12*Math.abs(o.KB[k]);if(ok)g.lin=D}
+  return o}
 /* Second-order footprint average. Over a Gaussian footprint Δ ~ N(0, s²I) the OPD is expanded to second order,
    δ = δ̄ + gᵀΔ + ½ΔᵀHΔ, and the sub-band envelope e^{-aδ²} to first order in Δ. Then for e^{-aδ²+ibδ} the average is the
    Gaussian integral  det(I − s²B)^{-1/2} · exp(−aδ̄² + ibδ̄ + ½κ²s² gᵀ(I − s²B)^{-1}g),  κ = −2aδ̄ + ib,  B = κH − 2a ggᵀ.
@@ -571,9 +575,19 @@ function avgQ(kb,dm,gx,gy,h11,h12,h22,s2){const Q=QS,ki=kb;
   return er<-40?0:Math.exp(er)*Math.cos(ei)}
 const PV=[0,0,0,0];
 /* quad=false uses the first-order form (H = 0); it is only chosen when the curvature phase kb·s²·|H| < 3e-4, below which the two agree to that level.
-   All sub-bands of one Gaussian share a, so the terms that depend only on a are computed once per run of equal a. */
+   All sub-bands of one Gaussian share a, so the terms that depend only on a are computed once per run of equal a.
+   First-order fast path for an evenly spaced group (gr.lin = Δk_b): along the group the exponent is quadratic and the phase linear in k,
+   so e^{ex} and cos/sin of the phase are stepped by exact ratios (two multiplies and a rotation per sub-band) and re-evaluated
+   directly every 16 sub-bands. The drift between re-evaluations is a few ulp (< 1e-14 relative); the −40 cut-off is tested exactly. */
 function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2*(gx*gx+gy*gy),dmin=Math.max(0,Math.abs(dm)-5*Math.sqrt(t2));
   for(const gr of pr.G){if(gr.pka*dmin*dmin>30){X+=gr.cX;Y+=gr.cY;Z+=gr.cZ;I+=gr.cI;continue}
+  if(!quad&&gr.lin){const D=gr.lin,ka=pr.KA[gr.a],q=1+2*ka*t2,sq=ka?Math.sqrt(q):1,e0=ka*dm*dm,ph1=D*dm/q,c1=Math.cos(ph1),s1=Math.sin(ph1),g2=Math.exp(-(t2*D*D)/q);
+    let E=0,R=0,C=0,S=0,j=16;
+    for(let k=gr.a;k<gr.b;k++){const kb=pr.KB[k],ex=-(e0+0.5*kb*kb*t2)/q;let f=0;
+      if(ex>-40){if(j>=16){E=Math.exp(ex);const ph=kb*dm/q;C=Math.cos(ph);S=Math.sin(ph);R=Math.exp(-(t2*kb*D+0.5*t2*D*D)/q);j=0}
+        f=E*C/sq;E*=R;R*=g2;const c=C*c1-S*s1;S=S*c1+C*s1;C=c;j++}else j=16;
+      const v=pr.P[k]*(1+f);I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}
+    continue}
   let kaG=NaN,q=0,sq=1,e0=0;
   for(let k=gr.a;k<gr.b;k++){const ka=pr.KA[k],kb=pr.KB[k];let f;
     if(ka!==kaG){kaG=ka;if(quad)avgQpre(ka,dm,gx,gy,h11,h12,h22,s2);else{q=1+2*ka*t2;sq=ka?Math.sqrt(q):1;e0=ka*dm*dm}}

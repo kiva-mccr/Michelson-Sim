@@ -7,7 +7,7 @@ A single-page, dependency-free simulator. You edit a source spectrum. The page t
 - `src/style.css`: styles.
 - `src/js/`, concatenated in this order inside one block scope, so the files share names freely:
   - `physics.js`: constants, CMFs and colour, presets and state, `gamma`, `sublines`.
-  - `plots.js`: spectrum editor, interfered spectrum, shared pixel maths, range plots, interferogram (its trace is cached: moving d only redraws the δ₀ marker).
+  - `plots.js`: spectrum editor, interfered spectrum, shared pixel maths, range plots, interferogram. Moving d redraws only what depends on it: the editor is skipped when its inputs are unchanged (`specKey`), the interfered spectrum keeps its axes, grid and S(σ) (`outC`) and re-evaluates only T(σ;δ₀), and the interferogram trace is cached so only the δ₀ marker moves.
   - `ring.js`: ring model, `pixVal`/`avgQ`, the WebGPU/WebGL2/worker/CPU renderers, profile.
   - `verify.js`: check table, coherence, live equations.
   - `ui.js`: table, auto ranges, presets, drag controls, editable numbers, dialogs, draw loop.
@@ -50,6 +50,8 @@ A single-page, dependency-free simulator. You edit a source spectrum. The page t
 - Pixel averaging:
   - Each pixel is averaged over a Gaussian footprint with sd 0.4 px.
   - The first-order average has a closed form. A second-order correction (`avgQ`) is used when the fringe curvature matters (a 3e-4 test).
+  - In `pixVal` (CPU and workers), the terms that depend only on a sub-band's width are computed once per Gaussian (`avgQpre`), which is bit-identical.
+  - First-order fast path: in an evenly spaced group (`g.lin`, set in `prepSL`), e^{ex} and the fringe cos/sin are stepped by exact ratios and re-evaluated directly every 16 sub-bands. It agrees with direct evaluation to < 1e-15 absolute (`tests/fastpath.js`). The −40 cut-off is still tested exactly per sub-band.
 - Colour: each Gaussian is split into K sub-band Gaussians.
   - K is between 15 and 241, spanning ±2.8w, with each sub-band at most 0.012 µm⁻¹ wide. See `sublines`.
   - Each sub-band's XYZ is integrated over its own shape using the CVRL CIE 2006 2° CMFs (390–780 nm, embedded). Light outside that range adds no colour but still counts in the power.
@@ -80,6 +82,17 @@ python tests/verify.py          # runs the in-page verification table on every a
 python tests/layout.py          # no page scroll / no equation overflow at 1920×1080, 1366×657, 1280×600
 python tests/perf.py            # frame times and adaptive preview resolution while sweeping
 ```
+
+Before and after any refactor or optimization, check that the physics is unchanged (Node, `npm i playwright`):
+
+```
+node tests/snapshot.js index.html before.json     # on the old build
+node tests/snapshot.js index.html after.json      # on the new build
+python3 tests/compare_snapshots.py before.json after.json   # IDENTICAL, or the largest difference per output
+node tests/fastpath.js                            # pixVal's stepped fast path vs direct evaluation
+```
+
+`snapshot.js` records every output for 7 spectra on the CPU, worker and WebGL2 renderers. Two runs of the same build are identical, so any difference is real. Only accept a difference at floating-point noise level, and say so.
 
 - Offline, or with the CDN blocked: `npm i mathjax@3.2.2`, then set `MATHJAX_DIR=…/node_modules/mathjax` and the tests serve MathJax from there.
 - `GPU_ARGS=0` launches Chromium without the WebGPU/Vulkan flags. On hosts without a GPU those flags can make both GPU contexts get lost; the page then falls back to the CPU, and WebGL2 goes untested.
