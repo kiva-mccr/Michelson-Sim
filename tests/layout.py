@@ -19,6 +19,10 @@ async def main():
                 ok = sh <= h and not over
                 bad += not ok
                 print(f"{w}x{h} {pre:4s} scrollHeight={sh} {'OK' if ok else 'FAIL'} {over}")
+            # MS-20: the ring canvas has one grid point per device pixel; a smaller canvas is stretched and shows lobes around the rings
+            cw, want = await pg.evaluate("[document.getElementById('ring').width, Math.max(200, Math.round(document.getElementById('ringWrap').clientWidth*devicePixelRatio))]")
+            bad += cw != want
+            print(f"{w}x{h} ring canvas {cw}² for {want}² device px {'OK' if cw == want else 'FAIL'}")
             await pg.screenshot(path=f"layout-{w}x{h}.png")
             await b.close()
     sys.exit(1 if bad else 0)
