@@ -1,13 +1,13 @@
 """Frame times and the adaptive preview resolution during a mirror sweep, per renderer."""
 import asyncio
 from playwright.async_api import async_playwright
-from _common import open_page, backends
+from _common import open_page, backends, use_renderer
 
 async def main():
     async with async_playwright() as p:
         b, pg, errs = await open_page(p, 1920, 1080)
         for be in await backends(pg):
-            await pg.select_option("#rendSel", be)
+            await use_renderer(pg, be)
             for pre, tilt in [("led", 0), ("led", 120), ("hene", 0)]:
                 await pg.click(f"[data-p={pre}]")
                 await pg.evaluate(f"document.getElementById('tx').value={tilt}")

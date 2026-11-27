@@ -1,6 +1,6 @@
 # _common.py
 
-Shared helper for the Python tests: opens `index.html` in Chromium with the WebGPU/Vulkan/SwiftShader flags and lists the renderers available.
+Shared helper for the Python tests: opens `index.html` in Chromium with the WebGPU/Vulkan/SwiftShader flags lists the renderers available (`backends`, from `<html data-renderers>`) and forces one by reloading with `?renderer=` (`use_renderer`).
 
 ## Rules and pitfalls
 

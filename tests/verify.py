@@ -1,7 +1,7 @@
 """Run the in-page verification table for every preset (with and without tilt) on every available renderer."""
 import asyncio, sys
 from playwright.async_api import async_playwright
-from _common import open_page, backends
+from _common import open_page, backends, use_renderer
 
 PRESETS = ["hene", "na", "led", "two"]
 
@@ -17,7 +17,7 @@ async def main():
     async with async_playwright() as p:
         b, pg, errs = await open_page(p, 1366, 657)
         for be in await backends(pg):
-            await pg.select_option("#rendSel", be)
+            await use_renderer(pg, be)
             for pre in PRESETS:
                 for tilt in (0, 120):
                     await pg.click(f"[data-p={pre}]")

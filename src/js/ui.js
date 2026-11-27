@@ -138,8 +138,13 @@ $('dPlay').addEventListener('click',()=>{if(playing){stopPlay();return}playing=t
 async function ringReadback(){if(Ibuf)return;const A=act().reduce((t,c)=>t+P(c),0)||1;let a=null;
   if(RB.active==='webgpu')a=await gpuRead(RB.gpu);else if(RB.active==='webgl2')a=glRead(RB.gl);if(!a)return;
   Ibuf=new Float32Array(a.length/4);for(let k=0;k<Ibuf.length;k++)Ibuf[k]=a[4*k+3]/A}
-$('rendSel').addEventListener('change',e=>{RB.pref=e.target.value;try{localStorage.setItem('mich-renderer',RB.pref)}catch(_){}pickBackend('chosen')});
 probeBackends();
+/* the ? on the pattern panel: a small popup with the renderer and the live resolution. It stays open while you drag
+   on the pattern, and closes on the ? again, Escape, or a click outside the panel. */
+{const b=$('infoBtn'),p=$('infoPop'),pan=b.closest('.panel'),show=v=>{p.hidden=!v;b.setAttribute('aria-expanded',String(v))};
+  b.addEventListener('click',()=>show(p.hidden));
+  document.addEventListener('pointerdown',e=>{if(!p.hidden&&!pan.contains(e.target))show(false)});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!p.hidden)show(false)})}
 
 /* ---------- type-in values: click any readout's number to enter an exact value ---------- */
 const editing=new Set();
