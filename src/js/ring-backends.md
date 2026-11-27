@@ -8,3 +8,4 @@ The CPU workers (`initWorkers`: Blob workers running the source text of `pixVal`
 - Workers use the same curvature test (`quad`) in previews as at rest (MS-17).
 - The worker code works in grid units (Nl, k = N/Nl). At Nl = N its expressions equal the main thread's bit for bit; keep them that way.
 - Workers skip grid points with u²+v² > `rc2` (sent in the message) and return 0 for them, matching the main thread.
+- Each worker reply carries `ms`, its own compute time for the block; the preview controller uses it (MS-18). It doesn't touch the pixel values.
