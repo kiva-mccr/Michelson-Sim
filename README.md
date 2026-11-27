@@ -7,7 +7,7 @@ While you drag, the ring and the range plots show a lower-resolution preview siz
 `index.html` is built from `src/` with `python3 build.py` (standard library only). Edit the files in `src/`, then rebuild.
 
 - `index.html`: the simulator (generated, single file)
-- `src/`, `build.py`: the sources it is built from
+- `src/`, `build.py`: the sources it is built from, in small files (template and dialogs in `src/html/`, styles, and the script in `src/js/`), each with a note beside it
 - `reference/michelson-table.html`: the sourced formula table (single line → N lines → Gaussian → N Gaussians → arbitrary spectrum)
 - `mockups/controls-mockups.html`: the drag-control mockups (A, B and C)
 - `mockups/roadmap-mockups.html`: the mock-ups for MS-7, MS-8, MS-9 and MS-11
