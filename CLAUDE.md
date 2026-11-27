@@ -9,6 +9,7 @@ A single-page, dependency-free simulator. You edit a source spectrum. The page t
 - **Mock-ups first:** for any visible change, show a mock-up or screenshot and agree on the look before building it in full.
 - **Checklist:** run through `.claude/CHECKLIST.md` before handing a round over.
 - **Notes beside files:** every code file has a short note beside it (`name.md`: its purpose, then "Rules and pitfalls"). Read the note before editing the file. Add the rule or bug to the note when you fix one.
+- **Merging:** Kiva asked (2026-11-27) that Claude merge its own PRs in this project once its checks pass (`build.py --check`, plus the snapshot comparison, `verify.py` and `layout.py` when the page changes), instead of leaving merges to Kiva. After merging, republish the artifact if `index.html` changed.
 - **Style:** indent style and British or American spelling don't matter. Don't copy and paste: the third copy of the same few lines becomes a helper.
 - **Summaries:** say plainly what was verified and what was only simulated or never seen for real.
 

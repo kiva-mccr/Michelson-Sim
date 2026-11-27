@@ -12,5 +12,5 @@ Run through this list before you open or merge a PR.
 8. Tidy what you touched: dead code, stale comments and names, debug lines, scratch files.
 9. Update the note beside every code file you changed (`name.md`), adding any rule or pitfall you learnt.
 10. Tick the step in `ROADMAP.md`. Update the README and CLAUDE.md (including Known gaps) in the same commit.
-11. Once the PR merges, republish `index.html` to the project artifact (same URL).
+11. Merge the PR once the checks pass, then republish `index.html` to the project artifact (same URL).
 12. In the summary, say plainly what was verified and what was only simulated or never seen for real.
