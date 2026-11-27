@@ -20,21 +20,30 @@ function prepSL(SL){const n=SL.length,o={n,P:new Float64Array(n),KA:new Float64A
    δ = δ̄ + gᵀΔ + ½ΔᵀHΔ, and the sub-band envelope e^{-aδ²} to first order in Δ. Then for e^{-aδ²+ibδ} the average is the
    Gaussian integral  det(I − s²B)^{-1/2} · exp(−aδ̄² + ibδ̄ + ½κ²s² gᵀ(I − s²B)^{-1}g),  κ = −2aδ̄ + ib,  B = κH − 2a ggᵀ.
    With H = 0 it reduces exactly to avgTerm above; for lines (a = 0) it is exact for any quadratic OPD. */
-function avgQ(ka,kb,dm,gx,gy,h11,h12,h22,s2){
-  const kr=-2*ka*dm,ki=kb;
-  const b11r=kr*h11-2*ka*gx*gx,b11i=ki*h11,b12r=kr*h12-2*ka*gx*gy,b12i=ki*h12,b22r=kr*h22-2*ka*gy*gy,b22i=ki*h22;
-  const m11r=1-s2*b11r,m11i=-s2*b11i,m12r=-s2*b12r,m12i=-s2*b12i,m22r=1-s2*b22r,m22i=-s2*b22i;
-  const dr=m11r*m22r-m11i*m22i-(m12r*m12r-m12i*m12i),di=m11r*m22i+m11i*m22r-2*m12r*m12i;
-  const nr=m22r*gx*gx-2*m12r*gx*gy+m11r*gy*gy,ni=m22i*gx*gx-2*m12i*gx*gy+m11i*gy*gy;
-  const dd=dr*dr+di*di,qr=(nr*dr+ni*di)/dd,qi=(ni*dr-nr*di)/dd,k2r=kr*kr-ki*ki,k2i=2*kr*ki;
-  const er=-ka*dm*dm+0.5*s2*(k2r*qr-k2i*qi)-0.25*Math.log(dd),ei=kb*dm+0.5*s2*(k2r*qi+k2i*qr)-0.5*Math.atan2(di,dr);
+/* It is split in two so pixVal() can evaluate the parts shared by every sub-band of one Gaussian (same a, same pixel) once:
+   avgQpre() for those, avgQ() for the rest. The expressions are the same as written in full, so the result is bit-identical. */
+const QS={kr:0,k2:0,kk:0,b11r:0,b12r:0,b22r:0,m11r:0,m12r:0,m22r:0,p1:0,p2:0,nr:0,e0:0,hs:0};
+function avgQpre(ka,dm,gx,gy,h11,h12,h22,s2){const Q=QS,kr=-2*ka*dm;Q.kr=kr;Q.kk=kr*kr;Q.k2=2*kr;
+  const b11r=kr*h11-2*ka*gx*gx,b12r=kr*h12-2*ka*gx*gy,b22r=kr*h22-2*ka*gy*gy;Q.b11r=b11r;Q.b12r=b12r;Q.b22r=b22r;
+  const m11r=1-s2*b11r,m12r=-s2*b12r,m22r=1-s2*b22r;Q.m11r=m11r;Q.m12r=m12r;Q.m22r=m22r;Q.p1=m11r*m22r;Q.p2=m12r*m12r;
+  Q.nr=m22r*gx*gx-2*m12r*gx*gy+m11r*gy*gy;Q.e0=-ka*dm*dm;Q.hs=0.5*s2}
+function avgQ(kb,dm,gx,gy,h11,h12,h22,s2){const Q=QS,ki=kb;
+  const b11i=ki*h11,b12i=ki*h12,b22i=ki*h22;
+  const m11r=Q.m11r,m12r=Q.m12r,m22r=Q.m22r,m11i=-s2*b11i,m12i=-s2*b12i,m22i=-s2*b22i;
+  const dr=Q.p1-m11i*m22i-(Q.p2-m12i*m12i),di=m11r*m22i+m11i*m22r-2*m12r*m12i;
+  const nr=Q.nr,ni=m22i*gx*gx-2*m12i*gx*gy+m11i*gy*gy;
+  const dd=dr*dr+di*di,qr=(nr*dr+ni*di)/dd,qi=(ni*dr-nr*di)/dd,k2r=Q.kk-ki*ki,k2i=Q.k2*ki;
+  const er=Q.e0+Q.hs*(k2r*qr-k2i*qi)-0.25*Math.log(dd),ei=kb*dm+Q.hs*(k2r*qi+k2i*qr)-0.5*Math.atan2(di,dr);
   return er<-40?0:Math.exp(er)*Math.cos(ei)}
 const PV=[0,0,0,0];
-/* quad=false uses the first-order form (H = 0); it is only chosen when the curvature phase kb·s²·|H| < 3e-4, below which the two agree to that level */
+/* quad=false uses the first-order form (H = 0); it is only chosen when the curvature phase kb·s²·|H| < 3e-4, below which the two agree to that level.
+   All sub-bands of one Gaussian share a, so the terms that depend only on a are computed once per run of equal a. */
 function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2*(gx*gx+gy*gy),dmin=Math.max(0,Math.abs(dm)-5*Math.sqrt(t2));
   for(const gr of pr.G){if(gr.pka*dmin*dmin>30){X+=gr.cX;Y+=gr.cY;Z+=gr.cZ;I+=gr.cI;continue}
+  let kaG=NaN,q=0,sq=1,e0=0;
   for(let k=gr.a;k<gr.b;k++){const ka=pr.KA[k],kb=pr.KB[k];let f;
-    if(quad)f=avgQ(ka,kb,dm,gx,gy,h11,h12,h22,s2);else{const q=1+2*ka*t2,ex=-(ka*dm*dm+0.5*kb*kb*t2)/q;f=ex>-40?Math.exp(ex)*Math.cos(kb*dm/q)/(ka?Math.sqrt(q):1):0}
+    if(ka!==kaG){kaG=ka;if(quad)avgQpre(ka,dm,gx,gy,h11,h12,h22,s2);else{q=1+2*ka*t2;sq=ka?Math.sqrt(q):1;e0=ka*dm*dm}}
+    if(quad)f=avgQ(kb,dm,gx,gy,h11,h12,h22,s2);else{const ex=-(e0+0.5*kb*kb*t2)/q;f=ex>-40?Math.exp(ex)*Math.cos(kb*dm/q)/sq:0}
     const v=pr.P[k]*(1+f);I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}}
   PV[0]=X;PV[1]=Y;PV[2]=Z;PV[3]=I;return PV}
 
@@ -200,7 +209,9 @@ function glRead(L){const gl=L.gl,N=L.N,a=new Float32Array(N*N*4);gl.bindFramebuf
 
 /* ---- CPU workers: the same pixVal()/avgQ() source, run on every core ---- */
 function initWorkers(){if(!window.Worker||!window.Blob)throw new Error('no workers');const n=clamp((navigator.hardwareConcurrency||4)-1,2,8);
-  const src=`const avgQ=${avgQ.toString()};
+  const src=`const QS=${JSON.stringify(QS)};
+${avgQpre.toString()}
+${avgQ.toString()}
 ${pixVal.toString()}
 const PV=[0,0,0,0];
 onmessage=e=>{const m=e.data,{N,st,j0,j1,d,T,kx,ky,s2,kbm,pr}=m,h=N/2,out=new Float32Array(((j1-j0)/st|0)*Math.ceil(N/st)*4+8);let o=0;
