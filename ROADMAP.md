@@ -11,6 +11,7 @@ Claude builds only the steps that Kiva has approved. To find a step, search for 
 - [x] MS-4: Step sub-band exponentials and phases in the CPU ring loop. Add the snapshot tests (`tests/snapshot.js`, `tests/compare_snapshots.py`, `tests/fastpath.js`).
 - [x] MS-5: Keep the project artifact updated on every change.
 - [x] MS-6: Follow Kiva's general preferences: this roadmap, `.claude/CHECKLIST.md`, a note beside each code file, a Known gaps list and the merge rule in CLAUDE.md.
+- [x] MS-10: Scale the live preview to the device: the frame budget follows the measured display refresh, and the range plots step up from 2 to 8 sub-columns using only spare frame time once the ring preview is at full resolution. At-rest outputs unchanged (Kiva, 2026-11-27).
 
 ## Next
 

@@ -183,13 +183,13 @@ function draw(){raf=0;/* d and δ0 to the nearest nm (3 decimals in µm), with a
   const nm3=v=>{const t=Math.abs(v).toFixed(3);return (v<0&&+t?'−':'\u2007')+t+' µm'};setTxt('dV',nm3(+$('d').value));setTxt('dV0',nm3(D0()));setTxt('dRV',`${F(DMAX(),3)} µm`);
   setTxt('rV',`±${F(RANGE(),4)} µm`);{const[a,b]=outWin(),dg=b-a<5?2:b-a<50?1:0;$('oV').textContent=`${a.toFixed(dg)}–${b.toFixed(dg)} nm`}setTxt('fV',`${F(+$('fov').value,4)}°`);setTxt('txV',`${F(+$('tx').value,4)} µrad`);setTxt('tyV',`${F(+$('ty').value,4)} µrad`);
   const t0=performance.now();LQ.ms=0;fitRing();renderSpec();renderOut();renderIfg();renderRingIfNeeded();renderOv();renderRail();renderMini();
-  if(ringLive)LQ.other=0.7*LQ.other+0.3*Math.max(0,performance.now()-t0-LQ.ms)}
+  if(ringLive){const t=performance.now()-t0;LQ.other=0.7*LQ.other+0.3*Math.max(0,t-LQ.ms);LQ.tot=0.7*LQ.tot+0.3*t}}
 function runEq(){eqT=0;eqs();table();save()}
 function update(live){ringLive=!!live;if(!live){if($('dAuto').checked)fitRange(false);if($('rAuto').checked)fitR()}
   if(!raf)raf=requestAnimationFrame(draw);
   if(live){if(!eqT)eqT=setTimeout(runEq,350)}else{clearTimeout(eqT);eqT=setTimeout(runEq,40)}  /* let the released frame paint first */
   $('verAt').textContent='Settings changed since the last run. Press Run checks to verify the current state.'}
-const ro=new ResizeObserver(()=>{if(!raf)raf=requestAnimationFrame(draw)});
+const ro=new ResizeObserver(()=>{if(!raf)raf=requestAnimationFrame(draw)});window.addEventListener('resize',()=>measureFrame());
 let lastK=EQK();window.addEventListener('resize',()=>{if(EQK()!==lastK){lastK=EQK();eqs()}});
 ['specBox','profBox','ringBox','railBox'].forEach(k=>ro.observe($(k)));document.querySelectorAll('.plot').forEach(p=>ro.observe(p));
 const mo=new MutationObserver(()=>update(false));mo.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});

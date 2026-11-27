@@ -2,6 +2,8 @@
 
 Open `index.html` in a browser. It needs no server (MathJax comes from a CDN).
 
+While you drag, the ring and the range plots show a lower-resolution preview sized to what your device can draw at its display's refresh rate. At rest every pixel is computed exactly, so the results never depend on how fast the device is.
+
 `index.html` is built from `src/` with `python3 build.py` (standard library only). Edit the files in `src/`, then rebuild.
 
 - `index.html`: the simulator (generated, single file)

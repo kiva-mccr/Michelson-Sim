@@ -81,6 +81,8 @@ A single-page, dependency-free simulator. You edit a source spectrum. The page t
 - **Adaptive preview resolution while moving** (`LQ`, `lqPick`, `lqRecord`):
   - Each path keeps measured frame times per block size. The finest size that fits the frame budget is chosen, with a 15% margin before going finer.
   - Measurements expire after 3 s and reset when the spectrum changes.
+  - The budget follows the device: the display's refresh interval is measured from idle `requestAnimationFrame` steps (`measureFrame`, `FR()`, 25th percentile, clamped to 16.7–33.4 ms) and re-measured on resize and when the page becomes visible. CPU paths get what is left of that frame after the plots; GPU paths get 85% of it.
+  - The profile and interferogram range plots adapt too (`DPQ`, `dpK`, `dpRecord`): 8 sub-columns per pixel at rest; while moving, they stay at 2 until the ring preview is at full resolution (the ring has priority), then use only spare frame time: the most of 2, 3, 4, 6, 8 whose extra cost (measured cost per sub-column) fits the budget minus the last frame's main-thread time (`LQ.tot`), capped at a fifth of the budget. So they never push the ring back to a coarser preview.
   - At rest, the image is always rendered at every pixel. On the CPU this is time-sliced into 12 ms slices so the page never blocks.
 - Only one GPU or worker frame is in flight at a time (busy/dirty).
 - The ring re-renders only when its inputs change (`ringInputs`, `renderRingIfNeeded`).
@@ -115,7 +117,7 @@ Headless Chrome can't display WebGPU canvases, so screenshots there show WebGPU 
 
 **Keep the project artifact up to date (owner's request):** whenever the sim changes, republish `index.html` as a new version of https://claude.ai/artifact/BtQ1cN1oU3jo5R4PFTovLf (same URL, never a new artifact).
 
-An earlier copy of this page is published as a claude.ai artifact (slug `03326018-be11-42b4-a9b7-bd0f496c0628`), where the owner leaves feedback as comments. `reference/michelson-table.html` is the original sourced formula table (also an artifact). `mockups/controls-mockups.html` holds the three control mockups that led to the current drag design.
+The owner can leave feedback as comments on that artifact. (The earlier artifact, slug `03326018-…`, was deleted at the owner's request.) `reference/michelson-table.html` is the original sourced formula table (also an artifact). `mockups/controls-mockups.html` holds the three control mockups that led to the current drag design.
 
 ## Known gaps (never seen for real)
 
@@ -123,7 +125,7 @@ These were only checked in headless Chromium on a cloud machine without a GPU. K
 
 - The WebGPU ring has only been checked through its readback numbers. Headless Chrome shows WebGPU canvases as black, so nobody has looked at its image in a test.
 - WebGL2 was tested through SwiftShader (software rendering), not on a real GPU.
-- Frame times and the adaptive preview resolution (`tests/perf.py`) were measured on the cloud machine, not on Kiva's hardware.
+- Frame times and the adaptive preview resolution (`tests/perf.py`) were measured on the cloud machine, not on Kiva's hardware. That includes the device scaling (MS-10): the refresh-rate measurement only ever saw a 60 Hz headless display, and 30 Hz was simulated by forcing `FR()`.
 - The layout checks ran in headless Chromium only. Firefox and Safari have never been tested.
 
 ## Roadmap
