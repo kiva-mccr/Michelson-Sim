@@ -22,7 +22,7 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - `physics.js`: constants, CMFs and colour, presets and state, `gamma`, `sublines`.
   - `plots-spectrum.js`: axes, the spectrum editor and the interfered spectrum. Moving d redraws only what depends on it: the editor is skipped when its inputs are unchanged (`specKey`), and the interfered spectrum keeps its axes, grid and S(σ) (`outC`) and re-evaluates only T(σ;δ₀).
   - `plots-range.js`: shared pixel maths, the anti-aliased range plots and the interferogram (trace cached, so only the δ₀ marker moves).
-  - `ring-model.js`: ring model, `prepSL`, `pixVal`/`avgQ`.
+  - `ring-model.js`: ring model (`opdModel`), `prepSL`, `pixVal`/`avgQ`, `gridPix` (one grid point; the workers run this same source).
   - `ring-shaders.js`: renderer state `RB`, `packRing`, the GLSL and WGSL sources.
   - `ring-gpu.js`: the WebGPU and WebGL2 renderers.
   - `ring-backends.js`: CPU workers and backend selection.
@@ -75,6 +75,7 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - Each pixel is averaged over a Gaussian footprint with sd 0.5 px (`PIXSD`; MS-17, it was 0.4). A fringe at the pixel pitch keeps e^{−2π²·0.25} = 0.7% of its contrast; at 0.4 px it kept 4.2%, which showed as moiré (ghost ring centres). A preview grid point uses the same footprint scaled to its block, sd 0.5·k device px.
   - The first-order average has a closed form. A second-order correction (`avgQ`) is used when the fringe curvature matters (a 3e-4 test), at rest and in previews, on every renderer (MS-17: CPU and worker previews used to skip it, and coarse previews got the ring centre wrong).
   - Untilted, at rest, on the CPU (MS-15): the pattern and the pixel grid share the square's 8 symmetries, so only one octant of pixels is evaluated (exactly as every other pixel) and copied to its mirror pixels. The result is identical to evaluating every pixel. A moving untilted CPU preview still uses a radial grid (4 samples per grid pixel, linear interpolation). The GPU renderers evaluate every pixel.
+  - The workers evaluate grid points with the page's own `gridPix`/`opdModel`/`pixVal` source, so the main thread, the workers and the speed test share one implementation.
   - In `pixVal` (CPU and workers), the terms that depend only on a sub-band's width are computed once per Gaussian (`avgQpre`), which is bit-identical.
   - First-order fast path: in an evenly spaced group (`g.lin`, set in `prepSL`), e^{ex} and the fringe cos/sin are stepped by exact ratios and re-evaluated directly every 16 sub-bands. It agrees with direct evaluation to < 1e-15 absolute (`tests/fastpath.js`). The −40 cut-off is exact: ex is monotonic along a group, so testing its two ends decides it for every sub-band, otherwise it is tested per sub-band (MS-16, bit-identical).
 - Colour: each Gaussian is split into K sub-band Gaussians.
@@ -135,6 +136,7 @@ node tests/sweepres.js                            # the sweep drives the adaptiv
 
 `snapshot.js` records every output for 7 spectra on the CPU, worker and WebGL2 renderers. Two runs of the same build are identical, so any difference is real. Only accept a difference at floating-point noise level, and say so. Since MS-13, `ring` and `Ib` differ from pre-MS-13 builds in the hidden corners (r > rcut) only. Since MS-17 (footprint sd 0.4 → 0.5 px), `ring`, `Ib`, `ifgC` (the interferogram colours) and the check table differ from pre-MS-17 builds on purpose; everything else (γ, sub-bands, coherence, plot SVGs, `profC`, equations, readouts) must stay identical.
 
+- The Node tests share `tests/_common.js` (the hook point, a temporary page per process, MathJax routing, launch flags), so any two of them can run at the same time.
 - Offline, or with the CDN blocked: `npm i mathjax@3.2.2`, then set `MATHJAX_DIR=…/node_modules/mathjax` and the tests serve MathJax from there.
 - `GPU_ARGS=0` launches Chromium without the WebGPU/Vulkan flags. On hosts without a GPU those flags can make both GPU contexts get lost; the page then falls back to the CPU. With `GPU_ARGS=0`, WebGL2 still runs on SwiftShader, and `tests/gpukernel.js` checks the WebGPU kernel on its own.
 - Use a Playwright version that matches the installed Chromium.
@@ -145,7 +147,7 @@ Headless Chrome can't display WebGPU canvases, so screenshots there show WebGPU 
 
 **Keep the project artifact up to date (owner's request):** whenever the sim changes, republish `index.html` as a new version of https://claude.ai/artifact/BtQ1cN1oU3jo5R4PFTovLf (same URL, never a new artifact).
 
-The owner can leave feedback as comments on that artifact. (The earlier artifact, slug `03326018-…`, was deleted at the owner's request.) `reference/michelson-table.html` is the original sourced formula table (also an artifact). `mockups/controls-mockups.html` holds the three control mockups that led to the current drag design; `mockups/sweep-duration-mockups.html` the three MS-14 options (A was built).
+The owner can leave feedback as comments on that artifact. (The earlier artifact, slug `03326018-…`, was deleted at the owner's request.) `reference/michelson-table.html` is the original sourced formula table (also an artifact). `mockups/controls-mockups.html` holds the three control mockups that led to the current drag design; `mockups/roadmap-mockups.html` the mock-ups for MS-7, MS-8, MS-9 and MS-11; `mockups/sweep-duration-mockups.html` the three MS-14 options (A was built).
 
 ## Known gaps (never seen for real)
 

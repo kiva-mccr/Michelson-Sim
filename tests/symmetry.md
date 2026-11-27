@@ -4,6 +4,5 @@ Checks MS-15: with zero tilt, the at-rest CPU ring evaluates one octant of pixel
 
 ## Rules and pitfalls
 
-- It hooks in by finding the end of `ui-loop.js` (the last JS file); see `src/js/ui-loop.md`.
-- The direct evaluation here must use the same expressions as `pix` in `ring-render.js`; if those change, change both.
-- It writes its hooked page to a temporary file named by its process id, so it can run beside `snapshot.js`.
+- It hooks in through `hookPage` in `_common.js` (temporary file per process); see `src/js/ui-loop.md`.
+- The direct evaluation calls the page's `gridPix` at every pixel, the same evaluation the octant uses, so the test checks the mirroring, not the formula.

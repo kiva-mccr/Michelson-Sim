@@ -15,19 +15,19 @@ function benchNote(){const r=RB.benchRes;if(RB.pref!=='auto')return'Renderer for
   if(!r)return RB.rank||availBackends().length<2?'':'A quick speed test runs once on this device and switches to the fastest renderer.';
   return`Chosen by a speed test on this device (the same ${BENCH_N}² image on each): `+r.rank.map(k=>`${beName(k)}: ${isFinite(r.ms[k])?F(r.ms[k],2)+' ms':'failed'}`).join('; ')+'.'}
 /* the fixed workload */
-function benchWork(){const SL=splitBands(presets.led),pr=prepSL(SL),M=ringModelOf(3,10,40,25),N=BENCH_N,rc=rcut(N,1);let kbm=0;for(const o of SL)kbm=Math.max(kbm,o.kb);
-  return{pr,M,N,kbm,s2:(PIXSD*2/N)**2,rc2:rc*rc,pk:packRing(pr,M)}}
+function benchWork(){const SL=splitBands(presets.led),pr=prepSL(SL),M=ringModelOf(3,10,40,25),N=BENCH_N,rc=rcut(N,1);
+  return{pr,M,N,s2:(PIXSD*2/N)**2,rc2:rc*rc,pk:packRing(pr,M)}}
 /* one run of one renderer, in ms */
 const benchRun={
   webgpu:W=>gpuDraw(RB.gpu,W.N,W.M,W.pk,W.s2,1,W.N,true),
   webgl2:W=>glDraw(RB.gl,W.N,W.M,W.pk,W.s2,1,W.N,true),
   workers:W=>new Promise(res=>{const P=RB.workers,id=++P.job,N=W.N,blk=8;let next=0,pending=0;
-    const msg={N,Nl:N,rc2:W.rc2,d:W.M.d,T:W.M.T,kx:W.M.kx,ky:W.M.ky,s2:W.s2,kbm:W.kbm,pr:W.pr};
+    const msg=wkMsg(N,N,W.rc2,W.M,W.s2,W.pr);
     const send=w=>{if(next>=N)return;const j0=next,j1=Math.min(N,next+blk);next=j1;pending++;w.postMessage({...msg,id,j0,j1})};
     P.pool.forEach(w=>{w.onmessage=e=>{if(e.data.id!==id)return;pending--;send(w);if(!pending)res()};send(w)})}),
   /* the main thread in 8-row slices, so the page stays responsive; only the computing time counts */
   cpu:async W=>{const N=W.N,h=N/2;let ms=0;
-    for(let j0=0;j0<N;j0+=8){const t0=performance.now();for(let j=j0;j<j0+8;j++){const v=-((j+0.5)-h)/h;for(let i=0;i<N;i++){const u=((i+0.5)-h)/h;if(u*u+v*v<=W.rc2)gridPix(W.M,W.pr,W.kbm,W.s2,u,v)}}
+    for(let j0=0;j0<N;j0+=8){const t0=performance.now();for(let j=j0;j<j0+8;j++){const v=-((j+0.5)-h)/h;for(let i=0;i<N;i++){const u=((i+0.5)-h)/h;if(u*u+v*v<=W.rc2)gridPix(W.M,W.pr,W.s2,u,v)}}
       ms+=performance.now()-t0;await new Promise(r=>setTimeout(r,0))}return ms}};
 async function benchTime(be,W){const t0=performance.now();let to;
   const r=await Promise.race([benchRun[be](W),new Promise((_,rej)=>to=setTimeout(()=>rej(new Error('timed out')),3000))]);clearTimeout(to);

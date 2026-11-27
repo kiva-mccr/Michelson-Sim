@@ -8,22 +8,19 @@
    directly every GSTEP sub-bands, as pixVal's CPU fast path does (MS-16).
    The verification table reads the active backend's pixels back and checks them against brute-force integration. */
 const RB={pref:'auto',active:'cpu',gpu:null,gl:null,workers:null,busy:false,dirty:false,done:null};
-/* always the automatic choice; tests force one with ?renderer=webgpu|webgl2|workers|cpu (no control on the page).
-   The old Renderer menu saved its choice here: clear it so nobody stays stuck on it. */
+/* always the automatic choice; tests force one with ?renderer=webgpu|webgl2|workers|cpu (no control on the page) */
 try{RB.pref=new URLSearchParams(location.search).get('renderer')||'auto'}catch(e){}
-try{localStorage.removeItem('mich-renderer')}catch(e){}
 const TAU=2*Math.PI,GSTEP=8;  /* GPU fast path: sub-bands between direct re-evaluations */
 /* pack sub-bands and groups for the GPU: per sub-band (KA, KB, phase0, 0), (P·X, P·Y, P·Z, P);
    per group (a, b, pka, cI), (cX, cY, cZ, Δk_b), (Δk_b·2d mod 2π, 0, 0, 0). Δk_b = g.lin (0 when the group is not evenly spaced). */
 function packRing(pr,M){const n=pr.n,sb=new Float32Array(Math.max(8,n*8)),G=pr.G,gr=new Float32Array(Math.max(12,G.length*12));
   for(let k=0;k<n;k++){const o=8*k,p=pr.P[k];sb[o]=pr.KA[k];sb[o+1]=pr.KB[k];sb[o+2]=(pr.KB[k]*2*M.d)%TAU;sb[o+4]=p*pr.X[k];sb[o+5]=p*pr.Y[k];sb[o+6]=p*pr.Z[k];sb[o+7]=p}
   G.forEach((g,i)=>{const o=12*i;gr[o]=g.a;gr[o+1]=g.b;gr[o+2]=g.pka;gr[o+3]=g.cI;gr[o+4]=g.cX;gr[o+5]=g.cY;gr[o+6]=g.cZ;gr[o+7]=g.lin;gr[o+8]=(g.lin*2*M.d)%TAU});
-  let kbm=0;for(let k=0;k<n;k++)kbm=Math.max(kbm,pr.KB[k]);return{sb,gr,n,ng:G.length,kbm}}
+  return{sb,gr,n,ng:G.length,kbm:pr.kbm}}
 
 /* shared pixel maths in GLSL (the WGSL version below repeats it line for line) */
 const PIX_GLSL=`
 const int GSTEP=${GSTEP};
-float gam(float v){v=clamp(v,0.,1.);return v<=0.0031308?12.92*v:1.055*pow(v,1./2.4)-0.055;}
 /* GPU sin/cos are only accurate to ~5e-4 (absolute), so fringe phases use this: reduce to [0, π], then a 16th-order Taylor series (error < 1e-9) */
 float cosA(float x){float y=abs(x-6.283185307*floor(x/6.283185307+0.5));float sg=1.;if(y>1.5707963){y=3.14159265-y;sg=-1.;}
   float z=y*y;return sg*(1.+z*(-0.5+z*(1./24.+z*(-1./720.+z*(1./40320.+z*(-1./3628800.+z*(1./479001600.+z*(-1./87178291200.))))))));}
@@ -61,6 +58,7 @@ vec4 pix(float u,float v){
       acc+=fetchS(2*k+1)*(1.+f);}}
   return acc;}`;
 const TONE_GLSL=`
+float gam(float v){v=clamp(v,0.,1.);return v<=0.0031308?12.92*v:1.055*pow(v,1./2.4)-0.055;}
 vec3 tone(vec4 x){vec3 c=vec3(dot(vec3(3.2406,-1.5372,-0.4986),x.xyz),dot(vec3(-0.9689,1.8758,0.0415),x.xyz),dot(vec3(0.0557,-0.2040,1.0570),x.xyz));
   float m=min(min(c.r,c.g),min(c.b,0.));c=(c-m)*uGain;return vec3(gam(c.r),gam(c.g),gam(c.b));}`;
 /* WGSL is different enough that it is written out separately (same expressions, line for line) */
@@ -129,8 +127,7 @@ uniform sampler2D uSB,uGR,uOut;uniform int uNG,uN,uNl;uniform float uD,uT,uKx,uK
 vec4 fetchS(int t){return texelFetch(uSB,ivec2(t&1023,t>>10),0);}vec4 fetchG(int t){return texelFetch(uGR,ivec2(t&1023,t>>10),0);}`;
 const GLSL_PIX=GLSL_HEAD+PIX_GLSL+`
 void main(){float h=float(uN)*0.5,k=float(uN)/float(uNl);vec2 p=(floor(gl_FragCoord.xy)+0.5)*k;float u=(p.x-h)/h,v=(p.y-h)/h,rc=1.+6.*k/float(uN);if(u*u+v*v>rc*rc){o=vec4(0.);return;}o=pix(u,v);}`;
-const GLSL_TONE=GLSL_HEAD+`
-float gam(float v){v=clamp(v,0.,1.);return v<=0.0031308?12.92*v:1.055*pow(v,1./2.4)-0.055;}`+TONE_GLSL+`
+const GLSL_TONE=GLSL_HEAD+TONE_GLSL+`
 void main(){if(uNl==uN){o=vec4(tone(texelFetch(uOut,ivec2(gl_FragCoord.xy),0)),1.);return;}
   /* a preview grid: bilinear between the 4 nearest grid points, in XYZ and I (linear light), then toned */
   float k=float(uN)/float(uNl),m=float(uNl-1);vec2 f=clamp(gl_FragCoord.xy/k-0.5,0.,m);ivec2 a=ivec2(f),b=min(a+1,uNl-1);vec2 t=f-vec2(a);

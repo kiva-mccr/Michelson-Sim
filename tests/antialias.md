@@ -10,5 +10,5 @@ Checks MS-17: the ring is anti-aliased correctly at rest and in moving previews 
 - It fails on pre-MS-17 builds: moiré 5.1% at rest and 7.4% in a half-size preview with the old 0.4 px footprint; with the curvature correction skipped in CPU previews, the ring centre of a coarse preview is off by far more than 1e-3.
 - WebGL2 preview grids sit in the bottom-left Nl×Nl of the N×N texture, rows bottom-up: grid row j (top-down) is GL row Nl−1−j, which `glRead` puts at row N−1−(Nl−1−j).
 - Check points must stay inside the circle (the corners beyond `rcut` are 0, MS-13).
-- It hooks in by finding the end of `ui-loop.js` (the last JS file) and writes its hooked page to a temporary file named by its process id, so it can run beside `snapshot.js`.
+- It hooks in at the end of `ui-loop.js` through `hookPage` in `_common.js` (a temporary file per process, so it can run beside `snapshot.js`).
 - On hosts without a GPU, run it with `GPU_ARGS=0` so WebGL2 survives (see `_common.py`); renderers whose context is lost are reported as skipped.

@@ -4,16 +4,12 @@
 // Records, for 7 spectra on the CPU, worker and WebGL2 renderers: gamma at 1,200 OPDs, the sub-bands, coherence, the settle OPD,
 // the SVG of every plot, the interferogram and profile canvas pixels, the ring canvas pixels and I/I_tot buffer, the live equation
 // TeX, the readouts and the check table. Two runs of the same page give identical files. Needs Node and `npm i playwright`.
-const {chromium}=require('playwright');const fs=require('fs'),os=require('os'),path=require('path');
-const src=process.argv[2]||path.join(__dirname,'..','index.html'),outp=process.argv[3]||'snapshot.json';
-let html=fs.readFileSync(src,'utf8');
+const {chromium}=require('playwright');const fs=require('fs');const {hookPage}=require('./_common');
+const outp=process.argv[3]||'snapshot.json';
 const HOOK=`window.__T={gamma:(d)=>gamma(d),sub:()=>sublines().map(o=>[o.s,o.p,o.w,o.X[0],o.X[1],o.X[2]]),coh:()=>coherence(),settle:()=>settleOPD(),
   renderRing:(s)=>renderRing(s),readback:()=>ringReadback(),RB,get Ibuf(){return Ibuf},verify:()=>verify(),
   pick:(k)=>{RB.pref=k;pickBackend('test')}};\n`;
-const tail='\nupdate(false);\n}\n</script>';
-if(!html.includes(tail))throw new Error('hook point not found');
-html=html.replace(tail,'\n'+HOOK+tail);
-const hooked=path.join(os.tmpdir(),'mich-snapshot-page.html');fs.writeFileSync(hooked,html);const URL_='file://'+hooked;
+const PAGE=hookPage('snapshot',HOOK),URL_=PAGE.url;
 const scen=[
  {n:'default',c:[{s:1000/632.8,a:0.6,f:0,on:true},{s:1000/540,a:0.8,f:0.06,on:true}],d:20,tx:0,ty:0,fov:10},
  {n:'hene',c:[{s:1000/632.8,a:0.85,f:0,on:true}],d:3.7,tx:0,ty:0,fov:10},
@@ -56,5 +52,5 @@ const scen=[
   r.errs=errs;res[sc.n+'/'+rend]=r;await ctx.close();
   process.stderr.write(`${sc.n}/${rend}: active=${r.active} errs=${errs.length}\n`);
  }}
- await br.close();fs.writeFileSync(outp,JSON.stringify(res));
+ await br.close();PAGE.done();fs.writeFileSync(outp,JSON.stringify(res));
 })();

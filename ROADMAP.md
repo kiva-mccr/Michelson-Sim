@@ -31,6 +31,7 @@ Kiva added these on 2026-11-27. Add a step here only once Kiva has approved it.
 - [x] MS-14: Sweep duration controls (Kiva chose option A of `mockups/sweep-duration-mockups.html`, 2026-11-27). The rail header shows "one pass 8 s" and the mirror speed (2·range / pass time), both editable and scrollable; the pass time stays fixed when Auto-fit changes the range and is saved with the state. New check row: Sweep.
 
 - [x] MS-20: Fix the lobed brightness around the rings (Kiva, 2026-11-27). The CPU ring was capped at 480² and the GPUs at 1024², so the browser stretched the canvas; fringes close to the canvas grid's limit then rose and fell in brightness around each ring (4-fold lobes). Not the MS-17 footprint, and not a computation error (every renderer matched a brute-force integral to 6e-5). Every renderer now draws one grid point per device pixel. Snapshots identical at the test size; difference images in `lobing-fix/`.
+- [x] MS-21: General cleanup after MS-7 to MS-20 (Kiva, 2026-11-27). The workers now run the page's own `gridPix`/`opdModel` source instead of a hand-kept copy; repeated code became helpers (`Itot`, `ringGain`, `sliced`, `wkMsg`, `settle` for every wheel, `kbm` from `prepSL`, `tests/_common.js` for the Node tests); dead code, the old Renderer menu's storage cleanup and stale comments removed. Snapshots identical.
 
 ## Decisions
 

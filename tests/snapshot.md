@@ -5,5 +5,5 @@ Records every output (gamma, sub-bands, coherence, plot SVGs, canvas pixels, the
 ## Rules and pitfalls
 
 - Two runs of the same build give identical files, so any difference is real. Run it on the old and the new build, then compare with `compare_snapshots.py`.
-- It hooks in by finding the end of `ui-loop.js` (the last JS file); see `src/js/ui-loop.md`.
-- Don't run two copies at once: both write the hooked page to the same temporary file (`mich-snapshot-page.html`), so one run can record the other build and the comparison wrongly says IDENTICAL.
+- It hooks in by finding the end of `ui-loop.js` (the last JS file) through `hookPage` in `_common.js`; see `src/js/ui-loop.md`.
+- The hooked page goes to a temporary file named by the process id, so two runs (old and new build) can run side by side. Before the cleanup they shared one file name, and one run could record the other's build.
