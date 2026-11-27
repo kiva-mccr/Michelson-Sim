@@ -1,0 +1,122 @@
+<title>Sweep duration mock-ups</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@600;700&family=Red+Hat+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE work: three design options for one control, shown in the simulator's own look
+   IDEA the Michelson panel itself, cut down to its rail, so each option is judged where it will live
+   PICTURE three live panels side by side, each sweeping its mirror at the time it sets
+   COLOUR the simulator's tokens: oxford blue bar, pale panels, magenta accent
+   TYPE Red Hat Display + Red Hat Text, as in the simulator
+   LAYOUT three columns on a laptop, stacked below 900px */
+:root{color-scheme:light dark;--bg:light-dark(#eef1f7,#050b1e);--panel:light-dark(#fff,#0e1836);--ink:light-dark(#141a2b,#e6e9f2);--mute:light-dark(#566079,#9aa3bb);--band:#0b1f4b;--line:light-dark(#d9deea,#22305a);--acc:#e0115f;--fr:light-dark(#0b1f4b,#9fb4ec);--soft:light-dark(#f4f6fb,#0a1430)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 "Red Hat Text",system-ui,sans-serif;margin:0;overflow-x:clip}
+h1,h2,h3{font-family:"Red Hat Display",system-ui,sans-serif;margin:0;line-height:1.15}
+.top{background:var(--band);color:#f3f5fb;padding:18px max(5vw,16px,env(safe-area-inset-right,0px)) 18px max(5vw,16px,env(safe-area-inset-left,0px))}
+.top h1{font-size:30px;letter-spacing:-.02em}
+.top p{margin:6px 0 0;color:#c4cce4;max-width:70ch}
+main{padding:20px max(5vw,16px,env(safe-area-inset-right,0px)) 32px max(5vw,16px,env(safe-area-inset-left,0px));max-width:1400px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media(max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.opt{display:flex;flex-direction:column;gap:10px}
+.opt h3{font-size:19px}
+.opt h3 small{font:600 13px "Red Hat Text";color:var(--acc);margin-left:6px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px 8px}
+.chead{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.chead h2{font-size:16px}
+.hbtns{display:flex;gap:6px;align-items:center}
+button{font:500 12px "Red Hat Text",sans-serif;min-height:24px;padding:0 8px;border-radius:6px;border:1px solid var(--line);background:var(--soft);color:var(--ink);cursor:pointer;white-space:nowrap}
+button:hover{border-color:var(--fr)}
+button:focus-visible,.edit:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.chk{display:inline-flex;gap:5px;align-items:center;font-size:12px;color:var(--mute);white-space:nowrap}
+.chk input{accent-color:var(--acc);margin:0}
+.railhd{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:13px;color:var(--mute);margin-top:8px}
+.chip{white-space:nowrap}.chip b{color:var(--ink);font-weight:600}
+.edit{cursor:text;border-bottom:1px dashed currentColor;padding:0 2px;border-radius:2px}.edit:hover{background:var(--soft)}
+.edit input{font:600 13px "Red Hat Text";width:5em;color:var(--ink);background:var(--panel);border:1px solid var(--acc);border-radius:3px}
+.derived{font-size:12.5px;color:var(--mute)}
+.rail{height:38px;margin-top:4px}.rail svg{width:100%;height:100%;display:block}
+.demo{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--mute)}
+.note{font-size:14.5px;margin:0}
+.note li{margin:3px 0}
+.pros{margin:0;padding-left:18px}
+.rec{border:2px solid var(--acc)}
+.ask{margin-top:20px;font-size:16px;max-width:75ch}
+</style>
+
+<header class="top">
+  <h1>MS-14: how long one sweep takes</h1>
+  <p>Three ways to let you set the sweep time, each drawn inside a cut-down Michelson panel. Press Sweep to watch it run, click the dashed numbers to type, and use "Switch range" to see what each option does when Auto-fit changes the range.</p>
+</header>
+
+<main>
+  <div class="grid" id="grid"></div>
+  <p class="ask">Today one pass (−range to +range) always takes 8 s. I recommend <b>A</b>: it keeps today's behaviour when the range changes, and the panel shows the mirror speed it implies. All three would also accept the scroll wheel on the number (each notch ×1.25 or ÷1.25), like the rail.</p>
+</main>
+
+<script>
+{
+const OPTS=[
+ {k:'A',name:'Pass time in the range row',rec:true,mode:'time',where:'row',
+  pros:['The time per pass is what you set; it stays the same when Auto-fit changes the range (today it is fixed at 8 s).','Sits beside "range ±", the number it goes with. The header keeps its three buttons.','The mirror speed it implies is shown, so the physics stays visible.']},
+ {k:'B',name:'Mirror speed instead of time',mode:'speed',where:'row',
+  pros:['You set the mirror speed v; the pass time follows from the range (2·range / v).','Physically direct: fringes cross the detector at 2vσ per second.','But Auto-fit ranges run from µm to mm across the presets, so one speed makes some sweeps take minutes and others flash by.']},
+ {k:'C',name:'Time on the Sweep button',mode:'time',where:'head',
+  pros:['The time sits next to the button it controls: ▶ Sweep 8 s.','Same behaviour as A when the range changes.','The header gets tight at 1280×600 (about 330 px wide), and the speed readout has no room there.']}
+];
+const fmt=(v,dp)=>{const s=v>=100?v.toFixed(0):v>=10?v.toFixed(dp?1:0):v.toFixed(dp?2:1);return s};
+const g=document.getElementById('grid');
+g.innerHTML=OPTS.map(o=>`
+<section class="opt" id="opt${o.k}">
+  <h3>${o.k}. ${o.name}${o.rec?'<small>recommended</small>':''}</h3>
+  <div class="panel ${o.rec?'rec':''}">
+    <div class="chead"><h2>Michelson</h2><span class="hbtns">
+      <button class="play" aria-pressed="false">▶ Sweep</button>${o.where==='head'?'<span class="chip" style="font-size:13px;color:var(--mute)"><b class="edit v" tabindex="0" role="button"></b></span>':''}
+      <button>Fit</button><label class="chk"><input type="checkbox" checked> Auto</label></span></div>
+    <div class="railhd">
+      <span class="chip">Mirror <i>d</i> <b class="dv"></b></span>
+      <span class="chip">range ± <b class="rv"></b></span>
+      ${o.where==='row'?`<span class="chip">${o.mode==='time'?'one pass':'speed'} <b class="edit v" tabindex="0" role="button"></b></span>`:''}
+    </div>
+    <div class="rail"><svg></svg></div>
+    <div class="derived"></div>
+  </div>
+  <div class="demo"><button class="sw">Switch range</button><span class="rn"></span></div>
+  <ul class="pros note">${o.pros.map(p=>`<li>${p}</li>`).join('')}</ul>
+</section>`).join('');
+
+OPTS.forEach(o=>{
+  const el=document.getElementById('opt'+o.k),$=s=>el.querySelector(s);
+  const st={T:8,v:5,m:20,d:20,dir:-1,play:false,last:0};
+  const pass=()=>o.mode==='time'?st.T:2*st.m/st.v;
+  const speed=()=>o.mode==='time'?2*st.m/st.T:st.v;
+  const unit=x=>x>=1000?fmt(x/1000,1)+' mm':fmt(x,1)+' µm';
+  const svg=$('.rail svg');
+  const draw=()=>{
+    $('.dv').textContent=unit(Math.abs(st.d)).replace(/^/,st.d<0?'−':'');
+    $('.rv').textContent=unit(st.m);
+    const v=$('.v');if(!v.querySelector('input'))v.textContent=o.mode==='time'?fmt(st.T,1)+' s':unit(st.v)+'/s';
+    const sp=speed(),p=pass();
+    $('.derived').textContent=o.mode==='time'?`mirror speed ${unit(sp)}/s · fringe rate at 540 nm ${fmt(2*sp/0.54,1)} /s`:`one pass takes ${fmt(p,1)} s`;
+    $('.rn').textContent=`range now ± ${unit(st.m)}`;
+    const W=svg.clientWidth||300,x=8+(W-16)*(st.d+st.m)/(2*st.m),x0=8+(W-16)/2;
+    svg.innerHTML=`<line x1="8" x2="${W-8}" y1="18" y2="18" stroke="var(--line)" stroke-width="6" stroke-linecap="round"/><line x1="${x0}" x2="${x}" y1="18" y2="18" stroke="var(--acc)" stroke-width="3"/><rect x="${x-5}" y="8" width="10" height="20" rx="2" fill="var(--acc)"/><text x="8" y="36" font-size="10" fill="var(--mute)">−${unit(st.m)}</text><text x="${W-8}" y="36" font-size="10" fill="var(--mute)" text-anchor="end">${unit(st.m)}</text>`;
+  };
+  const tick=t=>{if(!st.play)return;const dt=st.last?Math.min(.1,(t-st.last)/1000):0;st.last=t;
+    st.d+=st.dir*dt*2*st.m/pass();if(st.d>=st.m){st.d=st.m;st.dir=-1}if(st.d<=-st.m){st.d=-st.m;st.dir=1}draw();requestAnimationFrame(tick)};
+  $('.play').addEventListener('click',e=>{st.play=!st.play;st.last=0;e.target.textContent=st.play?'❚❚ Pause':'▶ Sweep';e.target.setAttribute('aria-pressed',st.play);if(st.play)requestAnimationFrame(tick)});
+  $('.sw').addEventListener('click',()=>{const k=st.m===20?20:1/20;st.m*=k;st.d*=k;draw()});
+  const v=$('.v');
+  const set=x=>{if(!(x>0))return;if(o.mode==='time')st.T=Math.min(600,Math.max(.5,x));else st.v=x};
+  const open=()=>{if(v.querySelector('input'))return;const i=document.createElement('input');i.type='number';i.step='any';i.value=o.mode==='time'?st.T:st.v;v.textContent='';v.appendChild(i);i.focus();i.select();
+    const fin=ok=>{if(!i.isConnected)return;if(ok)set(parseFloat(i.value));i.remove();draw()};
+    i.addEventListener('keydown',e=>{if(e.key==='Enter')fin(true);if(e.key==='Escape')fin(false)});i.addEventListener('blur',()=>fin(true))};
+  v.addEventListener('click',open);v.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}});
+  v.title='Click to type · scroll to change';
+  v.addEventListener('wheel',e=>{e.preventDefault();const f=e.deltaY<0?1.25:1/1.25;set((o.mode==='time'?st.T:st.v)*(o.mode==='time'?1/f:f));draw()},{passive:false});
+  const ro=new ResizeObserver(draw);ro.observe(svg);draw();
+});
+}
+</script>

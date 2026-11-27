@@ -2,7 +2,7 @@
 
 Open `index.html` in a browser. It needs no server (MathJax comes from a CDN).
 
-While you drag, the ring shows a lower-resolution preview sized to what your device can draw. Each preview pixel is still an exact average over its own, larger footprint, so the preview is softer but never aliased. The profile and interferogram plots are drawn exactly the same way moving or at rest, so they don't flicker. The slower the picture is changing, the sharper the preview, because a frame can then take longer without the motion looking less smooth; when you stop moving, even with the button held, the exact image appears. At rest every pixel is computed exactly, so the results never depend on how fast the device is. The ? in the corner of the pattern panel shows which renderer is drawing it (WebGPU, WebGL2 or the CPU, chosen automatically) and at what resolution.
+While you drag, the ring shows a lower-resolution preview sized to what your device can draw. Each preview pixel is still an exact average over its own, larger footprint, so the preview is softer but never aliased. The profile and interferogram plots are drawn exactly the same way moving or at rest, so they don't flicker. The slower the picture is changing, the sharper the preview, because a frame can then take longer without the motion looking less smooth; when you stop moving, even with the button held, the exact image appears. Sweep moves the mirror back and forth on its own; the rail header shows how long one pass takes and the mirror speed, and you can type or scroll either. At rest every pixel is computed exactly, so the results never depend on how fast the device is. The ? in the corner of the pattern panel shows which renderer is drawing it (WebGPU, WebGL2 or the CPU, chosen automatically) and at what resolution.
 
 `index.html` is built from `src/` with `python3 build.py` (standard library only). Edit the files in `src/`, then rebuild.
 
@@ -11,6 +11,7 @@ While you drag, the ring shows a lower-resolution preview sized to what your dev
 - `reference/michelson-table.html`: the sourced formula table (single line → N lines → Gaussian → N Gaussians → arbitrary spectrum)
 - `mockups/controls-mockups.html`: the drag-control mockups (A, B and C)
 - `mockups/roadmap-mockups.html`: the mock-ups for MS-7, MS-8, MS-9 and MS-11
+- `mockups/sweep-duration-mockups.html`: the three sweep-time options for MS-14 (A was built)
 - `tests/`: Playwright checks for correctness, layout and performance, plus `snapshot.js` / `compare_snapshots.py` (Node) to confirm that a change leaves every output identical, `gpukernel.js` (Node) to check the GPU pixel kernels against the exact float64 formula, `antialias.js` (Node) to check moving previews against brute-force footprint integrals and the ring for moiré, and `plotstable.js` (Node) to check that the plots are identical moving and at rest
 - `ROADMAP.md`: the steps (by ID), done and next, and the settled and shelved decisions
 - `.claude/CHECKLIST.md`: what to check before handing a change over

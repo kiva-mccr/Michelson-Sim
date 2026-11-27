@@ -30,7 +30,7 @@ let comps=[{s:1000/632.8,a:0.6,f:0,on:true},{s:1000/540,a:0.8,f:0.06,on:true}],s
 try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');
   if(v&&Array.isArray(v.c)){comps=v.c;$('d').value=v.d;if(v.fov)$('fov').value=v.fov;if(v.tx!=null){$('tx').value=v.tx;$('ty').value=v.ty}if(v.ra===false)$('rAuto').checked=false;if(v.env===false)$('envOn').checked=false}}catch(e){}
 comps.forEach(c=>{if(c.on===undefined)c.on=true});
-const save=()=>{try{localStorage.setItem('mich-sim-v2',JSON.stringify({c:comps,d:$('d').value,fov:$('fov').value,tx:$('tx').value,ty:$('ty').value,ra:$('rAuto').checked,rm:Rman,env:$('envOn').checked}))}catch(e){}};
+const save=()=>{try{localStorage.setItem('mich-sim-v2',JSON.stringify({c:comps,d:$('d').value,fov:$('fov').value,tx:$('tx').value,ty:$('ty').value,ra:$('rAuto').checked,rm:Rman,env:$('envOn').checked,swt:SWT}))}catch(e){}};
 /* Reading computed styles or box sizes after a DOM write forces the browser to recompute style or layout, and the draw loop
    alternates reads and writes. So theme colours and plot box sizes are read once and cached: colours until the theme changes
    (CSSC, cleared in ui-loop.js), sizes until a ResizeObserver or window resize reports a change (SZC). Same values, read once. */
@@ -47,7 +47,9 @@ const act=()=>comps.filter(c=>c.on);
 const D0=()=>2*(+$('d').value);
 let Rauto=50,Rman=91;  /* interferogram half-range (µm): automatic, or manual once the user zooms */
 const RANGE=()=>$('rAuto').checked?Rauto:Rman;
-try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');if(v&&v.rm)Rman=v.rm}catch(e){}
+let SWT=8;  /* sweep: seconds for one pass from −range to +range (MS-14), 0.5–600 s */
+const SWTset=t=>{if(t>0)SWT=clamp(t,0.5,600)};
+try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');if(v&&v.rm)Rman=v.rm;if(v&&v.swt)SWTset(+v.swt)}catch(e){}
 const col=c=>markHex(1000/c.s);
 function gamma(d,cs=act()){let re=0,im=0,A=0;for(const c of cs){const w=wOf(c),pc=P(c),e=w?pc*Math.exp(-((Math.PI*w*d)**2)):pc,p=2*Math.PI*c.s*d;re+=e*Math.cos(p);im+=e*Math.sin(p);A+=pc}  /* a line (w = 0) has e^0 = 1 exactly */
   return A?[re/A,im/A]:[0,0]}

@@ -10,3 +10,4 @@ Last in the build order. Editable numbers (`editable`, `setD`, `widen`), ring si
 - `draw()` keeps `LQ.other` (plot time outside the ring) as a running average while moving; the CPU preview budget uses it.
 - The CPU ring is capped at 480² pixels. The GPUs render at device resolution, up to 1024².
 - `fitRing` reads sizes through `box()` and writes the ring size only when it changed; `setTxt` writes text only when it changed. Both avoid forced layouts every frame (MS-13).
+- The sweep's pass time (`sTV`) and mirror speed (`sVV`, = 2·range / pass time) are both `editable()`; typing a speed sets the pass time. Scrolling on either scales the pass time by 1.25 per notch, the same way round as the rail (scroll down makes the number bigger).

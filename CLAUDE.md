@@ -56,6 +56,7 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - The mirror rail sets d; scroll on it to rescale the range.
   - The white dot on the ring sets the tilt. Only the dot can be dragged. It snaps to 0, 0 near the centre, and at 0, 0 it appears on hover. The snap glides over 300 ms (MS-9): the tilt value itself moves, so each frame shows the true pattern. Reset tilt and double-click glide too; with reduced motion it jumps.
   - Dragging the ring's rim, or scrolling on the ring, sets the field of view.
+  - The sweep's pass time (−range to +range, default 8 s) and the mirror speed it implies sit in the rail header (MS-14). Both can be typed into or scrolled; the pass time stays the same when the range changes.
   - The Michelson schematic stays as a visual of what is happening. M₂ slides with d; the fixed mirror M₁ shows the tilt (MS-7): αx turns it either way in the drawing's plane, and αy leans it, drawn as a shaded strip of its face (+αy) or back (−αy).
 - **Equations, notes, method and sources open as centred modal popups.**
   - Exception: the Components list is a non-modal popup at the bottom left.
@@ -139,7 +140,7 @@ Headless Chrome can't display WebGPU canvases, so screenshots there show WebGPU 
 
 **Keep the project artifact up to date (owner's request):** whenever the sim changes, republish `index.html` as a new version of https://claude.ai/artifact/BtQ1cN1oU3jo5R4PFTovLf (same URL, never a new artifact).
 
-The owner can leave feedback as comments on that artifact. (The earlier artifact, slug `03326018-…`, was deleted at the owner's request.) `reference/michelson-table.html` is the original sourced formula table (also an artifact). `mockups/controls-mockups.html` holds the three control mockups that led to the current drag design.
+The owner can leave feedback as comments on that artifact. (The earlier artifact, slug `03326018-…`, was deleted at the owner's request.) `reference/michelson-table.html` is the original sourced formula table (also an artifact). `mockups/controls-mockups.html` holds the three control mockups that led to the current drag design; `mockups/sweep-duration-mockups.html` the three MS-14 options (A was built).
 
 ## Known gaps (never seen for real)
 
@@ -148,6 +149,7 @@ These were only checked in headless Chromium on a cloud machine without a GPU. K
 - The WebGPU ring has only been checked through its readback numbers (since MS-16, on this host, through `tests/gpukernel.js`'s compute-only run on SwiftShader, because the full page loses its GPU contexts here).
 - The MS-16 GPU speed-up (about 2× per sub-band) was measured on SwiftShader only. On a real GPU, where exp and cos are cheaper relative to memory reads, the gain may be smaller. Headless Chrome shows WebGPU canvases as black, so nobody has looked at its image in a test.
 - WebGL2 was tested through SwiftShader (software rendering), not on a real GPU.
+- The sweep time (MS-14) was checked by the Sweep row and by timing scripted sweeps in headless Chromium (about 40 µm/s measured for a set 40 µm/s); how a very short or very long pass looks on a real screen has not been seen.
 - Frame times and the adaptive preview resolution (`tests/perf.py`) were measured on the cloud machine, not on Kiva's hardware. That includes the device scaling (MS-10): the refresh-rate measurement only ever saw a 60 Hz headless display, and 30 Hz was simulated by forcing `FR()`. The motion-driven budget (MS-11) was checked only with scripted rail drags at fixed speeds in headless Chromium (SwiftShader WebGL2, workers, CPU); how smooth slow drags look on a real screen has not been seen.
 - The layout checks ran in headless Chromium only. Firefox and Safari have never been tested.
 - MS-17 (plot flicker, moiré) was reproduced and checked in headless Chromium on CPU, workers and SwiftShader WebGL2, by pixel comparisons and brute-force integrals. Kiva saw both problems on a real machine; whether the fix looks right there has not been seen. The WebGPU preview path was checked only through `tests/gpukernel.js` here, since the full page loses its WebGPU context on this host.

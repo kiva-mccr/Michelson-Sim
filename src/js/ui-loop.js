@@ -12,6 +12,10 @@ const widen=(id,v,sym)=>{const e=$(id);e.step='any';if(sym){const m=Math.ceil(Ma
 editable('dV',()=>+$('d').value,v=>setD(v));
 editable('dV0',()=>D0(),v=>setD(v/2));
 editable('dRV',()=>DMAX(),v=>{if(!(Math.abs(v)>0))return;$('dAuto').checked=false;setRange(Math.abs(v))});
+editable('sTV',()=>SWT,v=>SWTset(Math.abs(v)));
+editable('sVV',()=>sweepV(),v=>{if(Math.abs(v)>0)SWTset(2*DMAX()/Math.abs(v))});
+/* scroll on the sweep time or speed: each notch scales the time by 1.25 (speed up = time down) */
+[['sTV',1],['sVV',-1]].forEach(([id,s])=>$(id).addEventListener('wheel',e=>{e.preventDefault();SWTset(SWT*Math.pow(1.25,s*Math.sign(e.deltaY)));update(false)},{passive:false}));
 editable('rV',()=>RANGE(),v=>{Rman=clamp(Math.abs(v),0.1,2*autoR());$('rAuto').checked=false});
 editable('fV',()=>+$('fov').value,v=>widen('fov',clamp(v,0.01,85),false));
 editable('txV',()=>+$('tx').value,v=>{tGlide=null;widen('tx',v,true)});
@@ -39,7 +43,7 @@ document.addEventListener('click',e=>{const a=e.target.closest('a[href^="#s"]');
 let raf=0,eqT=0;
 const setTxt=(id,t)=>{const e=$(id);if(!editing.has(id)&&e.textContent!==t)e.textContent=t};  /* an unchanged text is not rewritten, so it doesn't dirty the layout */
 function draw(){raf=0;/* d and δ0 to the nearest nm (3 decimals in µm), with a fixed-width minus slot so the row never reflows */
-  const nm3=v=>{const t=Math.abs(v).toFixed(3);return (v<0&&+t?'−':'\u2007')+t+' µm'};setTxt('dV',nm3(+$('d').value));setTxt('dV0',nm3(D0()));setTxt('dRV',`${F(DMAX(),3)} µm`);
+  const nm3=v=>{const t=Math.abs(v).toFixed(3);return (v<0&&+t?'−':'\u2007')+t+' µm'};setTxt('dV',nm3(+$('d').value));setTxt('dV0',nm3(D0()));setTxt('dRV',`${F(DMAX(),3)} µm`);setTxt('sTV',`${F(SWT,3)} s`);setTxt('sVV',`${F(sweepV(),3)} µm/s`);
   setTxt('rV',`±${F(RANGE(),4)} µm`);{const[a,b]=outWin(),dg=b-a<5?2:b-a<50?1:0;setTxt('oV',`${a.toFixed(dg)}–${b.toFixed(dg)} nm`)}setTxt('fV',`${F(+$('fov').value,4)}°`);setTxt('txV',`${F(+$('tx').value,4)} µrad`);setTxt('tyV',`${F(+$('ty').value,4)} µrad`);
   const t0=performance.now();LQ.ms=0;fitRing();renderSpec();renderOut();renderIfg();renderRingIfNeeded();renderOv();renderRail();renderMini();
   if(ringLive){const t=performance.now()-t0;LQ.other=0.7*LQ.other+0.3*Math.max(0,t-LQ.ms)}}

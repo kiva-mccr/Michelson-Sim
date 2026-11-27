@@ -78,6 +78,7 @@ tr.off td{opacity:.45}tr.off td:first-child{opacity:1}
 #ringOv:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
 #profBox{flex:0 0 24%;min-height:110px;margin-top:4px}
 .chips,.railhd{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;flex:none;margin-top:4px}
+.railhd .brk{flex-basis:100%;height:0}  /* range, pass time and speed always share the second row (MS-14) */
 .chip{display:inline-flex;gap:6px;align-items:baseline;font-size:12.5px;color:var(--mute);white-space:nowrap}
 .chip b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 #railBox{flex:none;height:36px;margin-top:2px}
@@ -183,7 +184,7 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
           <text x="232" y="156" font-size="8" fill="currentColor" text-anchor="end" opacity=".55">gap = d · not to scale</text>
         </svg>
       </div>
-      <div class="railhd" title="Drag M₂ or the rail to move the mirror"><span class="chip">Mirror $d$ <b id="dV"></b></span><span class="chip">$\delta_0=2d$ <b id="dV0"></b></span><span class="chip">range ± <b id="dRV"></b></span></div>
+      <div class="railhd" title="Drag M₂ or the rail to move the mirror"><span class="chip">Mirror $d$ <b id="dV"></b></span><span class="chip">$\delta_0=2d$ <b id="dV0"></b></span><span class="brk"></span><span class="chip">range ± <b id="dRV"></b></span><span class="chip" title="Sweep: time for one pass from −range to +range · scroll to change">one pass <b id="sTV"></b></span><span class="chip" title="Sweep: mirror speed, 2·range / pass time · scroll to change">speed <b id="sVV"></b></span></div>
       <div id="railBox" title="Drag along the rail to move the mirror (µm) · scroll on it to rescale the range"><svg id="rail" role="slider" aria-label="Mirror separation rail" tabindex="0"></svg></div>
       <div hidden><input type="range" id="d" min="-5000" max="5000" step="0.1" value="20"><input type="range" id="tx" min="-500" max="500" step="1" value="0"><input type="range" id="ty" min="-500" max="500" step="1" value="0"><input type="range" id="fov" min="1" max="25" step="0.5" value="10"></div>
     </div>
@@ -344,7 +345,7 @@ let comps=[{s:1000/632.8,a:0.6,f:0,on:true},{s:1000/540,a:0.8,f:0.06,on:true}],s
 try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');
   if(v&&Array.isArray(v.c)){comps=v.c;$('d').value=v.d;if(v.fov)$('fov').value=v.fov;if(v.tx!=null){$('tx').value=v.tx;$('ty').value=v.ty}if(v.ra===false)$('rAuto').checked=false;if(v.env===false)$('envOn').checked=false}}catch(e){}
 comps.forEach(c=>{if(c.on===undefined)c.on=true});
-const save=()=>{try{localStorage.setItem('mich-sim-v2',JSON.stringify({c:comps,d:$('d').value,fov:$('fov').value,tx:$('tx').value,ty:$('ty').value,ra:$('rAuto').checked,rm:Rman,env:$('envOn').checked}))}catch(e){}};
+const save=()=>{try{localStorage.setItem('mich-sim-v2',JSON.stringify({c:comps,d:$('d').value,fov:$('fov').value,tx:$('tx').value,ty:$('ty').value,ra:$('rAuto').checked,rm:Rman,env:$('envOn').checked,swt:SWT}))}catch(e){}};
 /* Reading computed styles or box sizes after a DOM write forces the browser to recompute style or layout, and the draw loop
    alternates reads and writes. So theme colours and plot box sizes are read once and cached: colours until the theme changes
    (CSSC, cleared in ui-loop.js), sizes until a ResizeObserver or window resize reports a change (SZC). Same values, read once. */
@@ -361,7 +362,9 @@ const act=()=>comps.filter(c=>c.on);
 const D0=()=>2*(+$('d').value);
 let Rauto=50,Rman=91;  /* interferogram half-range (µm): automatic, or manual once the user zooms */
 const RANGE=()=>$('rAuto').checked?Rauto:Rman;
-try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');if(v&&v.rm)Rman=v.rm}catch(e){}
+let SWT=8;  /* sweep: seconds for one pass from −range to +range (MS-14), 0.5–600 s */
+const SWTset=t=>{if(t>0)SWT=clamp(t,0.5,600)};
+try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');if(v&&v.rm)Rman=v.rm;if(v&&v.swt)SWTset(+v.swt)}catch(e){}
 const col=c=>markHex(1000/c.s);
 function gamma(d,cs=act()){let re=0,im=0,A=0;for(const c of cs){const w=wOf(c),pc=P(c),e=w?pc*Math.exp(-((Math.PI*w*d)**2)):pc,p=2*Math.PI*c.s*d;re+=e*Math.cos(p);im+=e*Math.sin(p);A+=pc}  /* a line (w = 0) has e^0 = 1 exactly */
   return A?[re/A,im/A]:[0,0]}
@@ -1036,6 +1039,10 @@ async function verify(){
   /* 7 auto range follows its stated definition */
   const gs=cs.filter(c=>c.f);if(gs.length){const sOPD=settleOPD(),b=gs.reduce((t,c)=>t+P(c)*Math.exp(-((Math.PI*wOf(c)*sOPD)**2)),0)/A;
     if(sOPD>3/(cs.reduce((t,c)=>t+c.s*P(c),0)/A)+1e-9&&b<0.02+1e-9&&gs.reduce((t,c)=>t+P(c),0)/A>0.02)row('Auto range','Σ I_g e^{−(πw_gδ_s)²}/I_tot − 0.02 at the settle point',Math.abs(b-0.02),1e-6)}
+  /* 8 sweep (MS-14): step the mirror from −range with uneven frame times until it turns at +range; the pass, less the clipped
+     last step cut at the turn, must take the set time, and the speed readout must equal the distance over that time */
+  {const m=DMAX();let v=-m,dir=1,t=0,s=12345,dt=0;while(dir>0){s=s*16807%2147483647;dt=0.005+0.035*s/2147483647;const v0=v;[v,dir]=sweepStep(v,dir,dt,m,SWT);t+=dir>0?dt:(m-v0)/(2*m/SWT)}
+    row('Sweep','one pass from −range to +range with uneven frames vs the set time, and the speed readout vs 2·range / that time (relative)',Math.max(Math.abs(t-SWT)/SWT,Math.abs(sweepV()-2*m/t)/sweepV()),1e-9)}
   $('ver').innerHTML=out.join('');$('verAt').textContent=`Last run: ${cs.length} component${cs.length>1?'s':''}, d = ${F(+$('d').value,4)} µm, tilt (${$('tx').value}, ${$('ty').value}) µrad, θmax = ${$('fov').value}°.`}
 
 /* ---------- coherence ---------- */
@@ -1232,11 +1239,13 @@ const mset=e=>{const pt=msvg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;cons
 $('m2').addEventListener('pointerdown',e=>{stopPlay();mdrag=true;msvg.setPointerCapture(e.pointerId);e.preventDefault()});
 msvg.addEventListener('pointermove',e=>{if(mdrag)mset(e)});
 const mend=()=>{if(mdrag){mdrag=false;update(false)}};msvg.addEventListener('pointerup',mend);msvg.addEventListener('pointercancel',mend);
-/* sweep: one full pass from -max to +max takes 8 s, then it turns around */
+/* sweep: one full pass from −range to +range takes SWT seconds (8 s by default, MS-14), then it turns around.
+   sweepStep moves d by the mirror speed 2·range/SWT for dt seconds; the verification table checks it. */
 let playing=false,pdir=1,plast=0;
+const sweepV=()=>2*DMAX()/SWT;
+function sweepStep(v,dir,dt,m,T){v+=dir*dt*2*m/T;if(v>=m){v=m;dir=-1}if(v<=-m){v=-m;dir=1}return[v,dir]}
 function stopPlay(){if(!playing)return;playing=false;$('dPlay').setAttribute('aria-pressed','false');$('dPlay').textContent='▶ Sweep';update(false)}
-function tick(t){if(!playing)return;const dt=plast?Math.min(0.1,(t-plast)/1000):0;plast=t;const m=DMAX();let v=+$('d').value+pdir*dt*2*m/8;
-  if(v>=m){v=m;pdir=-1}if(v<=-m){v=-m;pdir=1}$('d').value=v;update(true);requestAnimationFrame(tick)}
+function tick(t){if(!playing)return;const dt=plast?Math.min(0.1,(t-plast)/1000):0;plast=t;const r=sweepStep(+$('d').value,pdir,dt,DMAX(),SWT);pdir=r[1];$('d').value=r[0];update(true);requestAnimationFrame(tick)}
 $('dPlay').addEventListener('click',()=>{if(playing){stopPlay();return}playing=true;plast=0;$('dPlay').setAttribute('aria-pressed','true');$('dPlay').textContent='❚❚ Pause';requestAnimationFrame(tick)});
 
 /* read the active renderer's pixels back as I/I_tot, for the verification table */
@@ -1265,6 +1274,10 @@ const widen=(id,v,sym)=>{const e=$(id);e.step='any';if(sym){const m=Math.ceil(Ma
 editable('dV',()=>+$('d').value,v=>setD(v));
 editable('dV0',()=>D0(),v=>setD(v/2));
 editable('dRV',()=>DMAX(),v=>{if(!(Math.abs(v)>0))return;$('dAuto').checked=false;setRange(Math.abs(v))});
+editable('sTV',()=>SWT,v=>SWTset(Math.abs(v)));
+editable('sVV',()=>sweepV(),v=>{if(Math.abs(v)>0)SWTset(2*DMAX()/Math.abs(v))});
+/* scroll on the sweep time or speed: each notch scales the time by 1.25 (speed up = time down) */
+[['sTV',1],['sVV',-1]].forEach(([id,s])=>$(id).addEventListener('wheel',e=>{e.preventDefault();SWTset(SWT*Math.pow(1.25,s*Math.sign(e.deltaY)));update(false)},{passive:false}));
 editable('rV',()=>RANGE(),v=>{Rman=clamp(Math.abs(v),0.1,2*autoR());$('rAuto').checked=false});
 editable('fV',()=>+$('fov').value,v=>widen('fov',clamp(v,0.01,85),false));
 editable('txV',()=>+$('tx').value,v=>{tGlide=null;widen('tx',v,true)});
@@ -1292,7 +1305,7 @@ document.addEventListener('click',e=>{const a=e.target.closest('a[href^="#s"]');
 let raf=0,eqT=0;
 const setTxt=(id,t)=>{const e=$(id);if(!editing.has(id)&&e.textContent!==t)e.textContent=t};  /* an unchanged text is not rewritten, so it doesn't dirty the layout */
 function draw(){raf=0;/* d and δ0 to the nearest nm (3 decimals in µm), with a fixed-width minus slot so the row never reflows */
-  const nm3=v=>{const t=Math.abs(v).toFixed(3);return (v<0&&+t?'−':'\u2007')+t+' µm'};setTxt('dV',nm3(+$('d').value));setTxt('dV0',nm3(D0()));setTxt('dRV',`${F(DMAX(),3)} µm`);
+  const nm3=v=>{const t=Math.abs(v).toFixed(3);return (v<0&&+t?'−':'\u2007')+t+' µm'};setTxt('dV',nm3(+$('d').value));setTxt('dV0',nm3(D0()));setTxt('dRV',`${F(DMAX(),3)} µm`);setTxt('sTV',`${F(SWT,3)} s`);setTxt('sVV',`${F(sweepV(),3)} µm/s`);
   setTxt('rV',`±${F(RANGE(),4)} µm`);{const[a,b]=outWin(),dg=b-a<5?2:b-a<50?1:0;setTxt('oV',`${a.toFixed(dg)}–${b.toFixed(dg)} nm`)}setTxt('fV',`${F(+$('fov').value,4)}°`);setTxt('txV',`${F(+$('tx').value,4)} µrad`);setTxt('tyV',`${F(+$('ty').value,4)} µrad`);
   const t0=performance.now();LQ.ms=0;fitRing();renderSpec();renderOut();renderIfg();renderRingIfNeeded();renderOv();renderRail();renderMini();
   if(ringLive){const t=performance.now()-t0;LQ.other=0.7*LQ.other+0.3*Math.max(0,t-LQ.ms)}}
