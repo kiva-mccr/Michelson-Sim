@@ -10,4 +10,5 @@ The ring image. `ringModel` (tanθ = r·tanθmax, δ = 2d cosθ + 2(αx·x + αy
 - `avgQ` (the second-order correction) applies only when the fringe curvature matters (the 3e-4 test).
 - Only one GPU or worker frame is in flight at a time (busy/dirty). At rest, every pixel is rendered. On the CPU the work is cut into 12 ms slices.
 - The preview budget is `FR()`, the measured display refresh interval (`measureFrame`: 25th percentile of idle rAF steps, clamped to 16.7–33.4 ms, so 120 Hz screens still get 60 Hz-quality previews). Re-measured on resize and on becoming visible. Only the live preview may depend on the device; at rest every pixel is rendered, so snapshots stay identical.
+- There is no renderer control on the page (MS-8). `?renderer=` forces one for the tests, and `pickBackend` writes the available and active renderers to `<html data-renderers data-renderer>` and the renderer's name to the ? popup on the pattern panel (`rendV`; `resV` is the resolution). The old menu's `mich-renderer` localStorage key is cleared on load.
 - The "Ring pixels" check reads back the active renderer (`ringReadback`), so every renderer must support readback.

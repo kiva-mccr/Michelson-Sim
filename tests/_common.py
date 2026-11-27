@@ -1,4 +1,4 @@
-"""Shared helpers: open index.html in Chromium with GPU flags.
+"""Shared helpers: open index.html in Chromium with GPU flags, list the renderers and force one.
 
 Set MATHJAX_DIR to a local copy of the mathjax@3.2.2 npm package to run without the CDN
 (e.g. `npm i mathjax@3.2.2`, then MATHJAX_DIR=node_modules/mathjax).
@@ -25,4 +25,13 @@ async def open_page(p, w=1920, h=1080):
     return b, pg, errs
 
 async def backends(pg):
-    return await pg.evaluate("[...document.querySelectorAll('#rendSel option')].filter(o=>o.value!=='auto'&&!o.disabled).map(o=>o.value)")
+    """The renderers this browser offers, in the automatic order."""
+    await pg.wait_for_function("document.documentElement.dataset.renderers")
+    return (await pg.evaluate("document.documentElement.dataset.renderers")).split(",")
+
+async def use_renderer(pg, be):
+    """Reload the page with one renderer forced. The page has no renderer control; ?renderer= exists for the tests."""
+    await pg.goto(f"{URL}?renderer={be}")
+    await pg.wait_for_function("window.MathJax && MathJax.startup && MathJax.startup.promise")
+    await pg.wait_for_function(f"document.documentElement.dataset.renderer === '{be}'")
+    await pg.wait_for_timeout(1000)

@@ -69,7 +69,10 @@ function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2
    Where Δ is large the fringes are far finer than a pixel and the footprint average has already damped them to ~0.
    The verification table reads the active backend's pixels back and checks them against brute-force integration. */
 const RB={pref:'auto',active:'cpu',gpu:null,gl:null,workers:null,busy:false,dirty:false,done:null};
-try{RB.pref=localStorage.getItem('mich-renderer')||'auto'}catch(e){}
+/* always the automatic choice; tests force one with ?renderer=webgpu|webgl2|workers|cpu (no control on the page).
+   The old Renderer menu saved its choice here: clear it so nobody stays stuck on it. */
+try{RB.pref=new URLSearchParams(location.search).get('renderer')||'auto'}catch(e){}
+try{localStorage.removeItem('mich-renderer')}catch(e){}
 const TAU=2*Math.PI;
 /* pack sub-bands and groups for the GPU: per sub-band (P, KA, KB, phase0), (X, Y, Z, 0); per group (a, b, pka, cI), (cX, cY, cZ, 0) */
 function packRing(pr,M){const n=pr.n,sb=new Float32Array(Math.max(8,n*8)),G=pr.G,gr=new Float32Array(Math.max(8,G.length*8));
@@ -247,8 +250,10 @@ async function probeBackends(){const ok=[];
 function pickBackend(why){RB.busy=false;RB.dirty=false;const avail=BACKENDS.map(b=>b[0]).filter(k=>(k==='webgpu'&&RB.gpu)||(k==='webgl2'&&RB.gl)||(k==='workers'&&RB.workers)||k==='cpu');
   RB.active=RB.pref!=='auto'&&avail.includes(RB.pref)?RB.pref:avail[0];
   $('ring').hidden=!['cpu','workers'].includes(RB.active);$('ringGL').hidden=RB.active!=='webgl2';$('ringGPU').hidden=RB.active!=='webgpu';
-  const sel=$('rendSel');sel.innerHTML=`<option value="auto">Auto (${BACKENDS.find(b=>b[0]===avail[0])[1]})</option>`+BACKENDS.map(([k,t])=>`<option value="${k}" ${avail.includes(k)?'':'disabled'}>${t}${avail.includes(k)?'':' (not available)'}</option>`).join('');sel.value=RB.pref;
-  sel.title=`Rendering the pattern with ${BACKENDS.find(b=>b[0]===RB.active)[1]}`+(RB.gpuErr&&!RB.gpu?` · WebGPU unavailable: ${RB.gpuErr}`:'')+(RB.glErr&&!RB.gl?` · WebGL2 unavailable: ${RB.glErr}`:'');
+  /* the available and active renderers, for the tests; the ? popup on the pattern panel names the active one */
+  document.documentElement.dataset.renderers=avail.join(',');document.documentElement.dataset.renderer=RB.active;
+  $('rendV').textContent=BACKENDS.find(b=>b[0]===RB.active)[1];
+  $('rendNote').textContent='Every renderer evaluates the same exact per-pixel formula, and the "Ring pixels" check reads back whichever one is active.'+(RB.gpuErr&&!RB.gpu?` WebGPU unavailable: ${RB.gpuErr}.`:'')+(RB.glErr&&!RB.gl?` WebGL2 unavailable: ${RB.glErr}.`:'');
   if(why)console.info('renderer:',RB.active,why);update(false)}
 
 /* Timing: the tilted (non-radial) image costs one exact pixel average per block. While moving, the block size comes from the

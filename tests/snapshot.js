@@ -31,8 +31,8 @@ const scen=[
   await ctx.route(/^https?:\/\//,r=>r.abort());
   await ctx.addInitScript(([st,rend])=>{localStorage.setItem('mich-sim-v2',JSON.stringify(st));localStorage.setItem('mich-renderer',rend)},[{c:sc.c,d:sc.d,r:420,fov:sc.fov,tx:sc.tx,ty:sc.ty,ra:true,rm:50,env:true},rend]);
   const pg=await ctx.newPage();const errs=[];pg.on('pageerror',e=>errs.push(e.message));
-  await pg.goto(URL_,{waitUntil:'load'});
-  await pg.waitForFunction(()=>window.__T&&document.querySelectorAll('#rendSel option').length>1);
+  await pg.goto(URL_+'?renderer='+rend,{waitUntil:'load'});  // builds before MS-8 read localStorage instead
+  await pg.waitForFunction(()=>window.__T&&(document.documentElement.dataset.renderers||document.querySelectorAll('#rendSel option').length>1));  // builds before MS-8 had the menu
   await pg.waitForTimeout(400);
   const r=await pg.evaluate(async(rend)=>{const T=window.__T,RB=T.RB;
     const active=RB.active;

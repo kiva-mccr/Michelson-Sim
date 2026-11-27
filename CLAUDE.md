@@ -70,7 +70,7 @@ A single-page, dependency-free simulator. You edit a source spectrum. The page t
 
 ## Renderers (ring image)
 
-`RB` selects the renderer, in order: WebGPU (compute and render, WGSL), then WebGL2 (two passes into an RGBA32F target, GLSL), then CPU workers (Blob workers running `pixVal`/`avgQ` source), then the CPU main thread. A Renderer menu lets the user force one.
+`RB` selects the renderer, in order: WebGPU (compute and render, WGSL), then WebGL2 (two passes into an RGBA32F target, GLSL), then CPU workers (Blob workers running `pixVal`/`avgQ` source), then the CPU main thread. The page has no renderer control (MS-8): it always takes the first that works. A round ? in the corner of the pattern panel opens a small popup with the renderer in use and the live resolution. The tests force one with the `?renderer=webgpu|webgl2|workers|cpu` address parameter (`use_renderer` in `tests/_common.py`); the page lists what it found in `<html data-renderers data-renderer>`.
 
 - **GPU precision:**
   - `k_b·2d mod 2π` is computed in float64 on the CPU (`packRing`). The GPU only adds `k_b·Δ`, where `Δ = −4d·sin²(θ/2) + kx·u + ky·v`.

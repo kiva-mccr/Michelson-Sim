@@ -74,7 +74,6 @@ tr.off td{opacity:.45}tr.off td:first-child{opacity:1}
 #ringBox{flex:1 1 auto;min-height:0;display:grid;place-items:center}
 #ringWrap{position:relative}
 #ring,.ringc{display:block;width:100%;height:100%;border-radius:50%;background:#000}.ringc{position:absolute;inset:0}#ring[hidden],.ringc[hidden]{display:none}
-#rendSel{font:500 12px "Red Hat Text",sans-serif;border:1px solid var(--line);border-radius:5px;background:var(--soft);color:var(--ink);padding:1px 4px}
 #ringOv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:default;border-radius:50%}
 #ringOv:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
 #profBox{flex:0 0 24%;min-height:110px;margin-top:4px}
@@ -97,6 +96,10 @@ ul.bl{margin:6px 0;padding-left:1.2em}ul.bl li{margin:3px 0}
 .zrow{display:flex;gap:4px 14px;flex-wrap:wrap;align-items:center;flex:none;margin-top:4px}.zrow b{color:var(--ink);font-weight:500}
 /* header buttons and the components popup (non-modal, so the editor stays usable) */
 .hbtns{display:inline-flex;align-items:baseline;gap:10px}
+/* the ? button on the pattern panel and its popup (renderer and resolution); it stays open while you drag */
+.qm{width:24px;min-height:24px;height:24px;padding:0;border-radius:50%;font-weight:700}.qm[aria-expanded=true]{background:var(--acc);border-color:var(--acc);color:#fff}
+.infopop{position:absolute;right:10px;top:38px;z-index:5;width:min(290px,90%);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;box-shadow:0 8px 24px rgba(5,11,30,.22);font-size:13px}
+.infopop>div{display:flex;justify-content:space-between;gap:12px;padding:2px 0}.infopop span{color:var(--mute);white-space:nowrap}.infopop b{font-weight:500;text-align:right;font-variant-numeric:tabular-nums}.infopop .note{margin:4px 0 0;font-size:12px;line-height:1.45}
 button.mini{min-height:24px;padding:0 8px;font-size:12px}
 dialog.pop{position:fixed;left:12px;bottom:12px;top:auto;margin:0;width:min(520px,94vw);max-height:70vh;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:0;box-shadow:0 12px 32px rgba(5,11,30,.28);z-index:20}
 /* dialogs */
@@ -187,10 +190,11 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
 
   <section class="col mid" aria-label="Interference pattern">
     <div class="panel">
-      <div class="chead"><h2>Interference pattern $I(x,y)$</h2><button class="mini eqbtn" data-dlg="eqdlg2" aria-haspopup="dialog">Equations and notes</button></div>
+      <div class="chead"><h2>Interference pattern $I(x,y)$</h2><span class="hbtns" style="align-items:center"><button class="mini eqbtn" data-dlg="eqdlg2" aria-haspopup="dialog">Equations and notes</button><button id="infoBtn" class="qm" aria-expanded="false" aria-controls="infoPop" title="Renderer and resolution">?</button></span></div>
+      <div id="infoPop" class="infopop" role="dialog" aria-label="Renderer and resolution" hidden><div><span>Renderer</span><b id="rendV"></b></div><div><span>Resolution</span><b id="resV"></b></div><div><span>While moving</span><b>preview sized to your device</b></div><p class="note" id="rendNote">Every renderer evaluates the same exact per-pixel formula, and the "Ring pixels" check reads back whichever one is active.</p></div>
       <p class="hint">Drag the white dot to tilt (at 0, 0 it appears when you hover the pattern) · drag the rim or scroll for field of view · double-click resets tilt</p>
       <div id="ringBox"><div id="ringWrap"><canvas id="ring" width="400" height="400" aria-label="Interference pattern"></canvas><canvas id="ringGL" class="ringc" width="400" height="400" hidden></canvas><canvas id="ringGPU" class="ringc" width="400" height="400" hidden></canvas><svg id="ringOv" role="slider" aria-label="Drag to tilt, drag the rim or scroll to change the field of view" tabindex="0"></svg></div></div>
-      <div class="chips"><span class="chip">Tilt $\alpha_x$ <b id="txV"></b></span><span class="chip">$\alpha_y$ <b id="tyV"></b></span><button id="tReset" class="mini" title="Reset tilt to 0, 0">Reset tilt</button><span class="chip">Field of view $\theta_{\max}$ <b id="fV"></b></span><label class="chip" style="margin-left:auto">Renderer <select id="rendSel" aria-label="Renderer"><option>Auto</option></select> <b id="resV" title="Pixels rendered across the pattern; while moving, the resolution adapts to your device's speed"></b></label></div>
+      <div class="chips"><span class="chip">Tilt $\alpha_x$ <b id="txV"></b></span><span class="chip">$\alpha_y$ <b id="tyV"></b></span><button id="tReset" class="mini" title="Reset tilt to 0, 0">Reset tilt</button><span class="chip">Field of view $\theta_{\max}$ <b id="fV"></b></span></div>
       <div class="fig" id="profBox"><canvas id="profC"></canvas><svg id="prof"></svg></div>
     </div>
   </section>
@@ -232,7 +236,7 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
 <li>Colours are what an eye would see, from the CVRL CIE 2006 colour-matching functions.<sup><a href="#s13">[13]</a></sup></li>
 <li>Light outside 390–780 nm adds no colour, but it still counts in the brightness profile. Its markers in the source spectrum are drawn grey so they stay visible.</li>
 <li>Each pixel is the exact average of the pattern over its footprint, so rings finer than a pixel blend smoothly instead of forming false moiré.</li>
-<li>The pattern is drawn by the fastest renderer your device supports, chosen in this order: WebGPU, WebGL2, the CPU on all cores (Web Workers), then the CPU on one core. You can pick one with the Renderer menu under the pattern. All four evaluate the same per-pixel formula. On the GPU, the large part of each fringe phase, $k_b\cdot 2d \bmod 2\pi$, is computed in 64-bit on the CPU, and the cosine is taken with an accurate series, because GPU arithmetic is 32-bit. The "Ring pixels" check reads the active renderer's pixels back and compares them with brute-force integration.</li>
+<li>The pattern is drawn by the fastest renderer your device supports, chosen in this order: WebGPU, WebGL2, the CPU on all cores (Web Workers), then the CPU on one core. The ? in the corner of this panel shows which one is in use and the resolution it is drawing at. All four evaluate the same per-pixel formula. On the GPU, the large part of each fringe phase, $k_b\cdot 2d \bmod 2\pi$, is computed in 64-bit on the CPU, and the cosine is taken with an accurate series, because GPU arithmetic is 32-bit. The "Ring pixels" check reads the active renderer's pixels back and compares them with brute-force integration.</li>
 <li>The profile below is a cut through the centre along the dashed line: the tilt direction $(\alpha_x,\alpha_y)$, or $x$ with no tilt.</li>
 <li>The profile and the interferogram are anti-aliased range plots: each pixel is shaded by how much of it the true signal covers, using 8 sub-columns per pixel. Fringes near the pixel pitch blend into an even tone instead of forming moiré, and where they are finer than a pixel the fill spans the full swing $\tfrac12(1\pm|\gamma|)$.</li>
 </ul></div>
@@ -611,7 +615,10 @@ function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2
    Where Δ is large the fringes are far finer than a pixel and the footprint average has already damped them to ~0.
    The verification table reads the active backend's pixels back and checks them against brute-force integration. */
 const RB={pref:'auto',active:'cpu',gpu:null,gl:null,workers:null,busy:false,dirty:false,done:null};
-try{RB.pref=localStorage.getItem('mich-renderer')||'auto'}catch(e){}
+/* always the automatic choice; tests force one with ?renderer=webgpu|webgl2|workers|cpu (no control on the page).
+   The old Renderer menu saved its choice here: clear it so nobody stays stuck on it. */
+try{RB.pref=new URLSearchParams(location.search).get('renderer')||'auto'}catch(e){}
+try{localStorage.removeItem('mich-renderer')}catch(e){}
 const TAU=2*Math.PI;
 /* pack sub-bands and groups for the GPU: per sub-band (P, KA, KB, phase0), (X, Y, Z, 0); per group (a, b, pka, cI), (cX, cY, cZ, 0) */
 function packRing(pr,M){const n=pr.n,sb=new Float32Array(Math.max(8,n*8)),G=pr.G,gr=new Float32Array(Math.max(8,G.length*8));
@@ -789,8 +796,10 @@ async function probeBackends(){const ok=[];
 function pickBackend(why){RB.busy=false;RB.dirty=false;const avail=BACKENDS.map(b=>b[0]).filter(k=>(k==='webgpu'&&RB.gpu)||(k==='webgl2'&&RB.gl)||(k==='workers'&&RB.workers)||k==='cpu');
   RB.active=RB.pref!=='auto'&&avail.includes(RB.pref)?RB.pref:avail[0];
   $('ring').hidden=!['cpu','workers'].includes(RB.active);$('ringGL').hidden=RB.active!=='webgl2';$('ringGPU').hidden=RB.active!=='webgpu';
-  const sel=$('rendSel');sel.innerHTML=`<option value="auto">Auto (${BACKENDS.find(b=>b[0]===avail[0])[1]})</option>`+BACKENDS.map(([k,t])=>`<option value="${k}" ${avail.includes(k)?'':'disabled'}>${t}${avail.includes(k)?'':' (not available)'}</option>`).join('');sel.value=RB.pref;
-  sel.title=`Rendering the pattern with ${BACKENDS.find(b=>b[0]===RB.active)[1]}`+(RB.gpuErr&&!RB.gpu?` · WebGPU unavailable: ${RB.gpuErr}`:'')+(RB.glErr&&!RB.gl?` · WebGL2 unavailable: ${RB.glErr}`:'');
+  /* the available and active renderers, for the tests; the ? popup on the pattern panel names the active one */
+  document.documentElement.dataset.renderers=avail.join(',');document.documentElement.dataset.renderer=RB.active;
+  $('rendV').textContent=BACKENDS.find(b=>b[0]===RB.active)[1];
+  $('rendNote').textContent='Every renderer evaluates the same exact per-pixel formula, and the "Ring pixels" check reads back whichever one is active.'+(RB.gpuErr&&!RB.gpu?` WebGPU unavailable: ${RB.gpuErr}.`:'')+(RB.glErr&&!RB.gl?` WebGL2 unavailable: ${RB.glErr}.`:'');
   if(why)console.info('renderer:',RB.active,why);update(false)}
 
 /* Timing: the tilted (non-radial) image costs one exact pixel average per block. While moving, the block size comes from the
@@ -1115,8 +1124,13 @@ $('dPlay').addEventListener('click',()=>{if(playing){stopPlay();return}playing=t
 async function ringReadback(){if(Ibuf)return;const A=act().reduce((t,c)=>t+P(c),0)||1;let a=null;
   if(RB.active==='webgpu')a=await gpuRead(RB.gpu);else if(RB.active==='webgl2')a=glRead(RB.gl);if(!a)return;
   Ibuf=new Float32Array(a.length/4);for(let k=0;k<Ibuf.length;k++)Ibuf[k]=a[4*k+3]/A}
-$('rendSel').addEventListener('change',e=>{RB.pref=e.target.value;try{localStorage.setItem('mich-renderer',RB.pref)}catch(_){}pickBackend('chosen')});
 probeBackends();
+/* the ? on the pattern panel: a small popup with the renderer and the live resolution. It stays open while you drag
+   on the pattern, and closes on the ? again, Escape, or a click outside the panel. */
+{const b=$('infoBtn'),p=$('infoPop'),pan=b.closest('.panel'),show=v=>{p.hidden=!v;b.setAttribute('aria-expanded',String(v))};
+  b.addEventListener('click',()=>show(p.hidden));
+  document.addEventListener('pointerdown',e=>{if(!p.hidden&&!pan.contains(e.target))show(false)});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!p.hidden)show(false)})}
 
 /* ---------- type-in values: click any readout's number to enter an exact value ---------- */
 const editing=new Set();
