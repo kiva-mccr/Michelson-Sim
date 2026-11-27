@@ -261,7 +261,7 @@ let ringJob=0;
    The finest size predicted to fit the budget is chosen; going finer needs a 15% margin, so the choice doesn't flicker.
    Budget: CPU — what is left of a 60 Hz frame after the plots, but at least 6 ms (or 60% of the plots' time on slow devices);
    GPU — 14 ms of GPU time, which runs alongside the page. */
-const LQ={other:4,ms:0,last:1,cpuR:{p:1,t:{},s:2},cpuT:{p:2,t:{},s:4},wk:{p:2,t:{},s:2},gpu:{p:2,t:{},s:1}},STEPS=[1,2,3,4,5,6,8,10,12,16];
+const LQ={other:4,ms:0,tot:16.7,last:1,cpuR:{p:1,t:{},s:2},cpuT:{p:2,t:{},s:4},wk:{p:2,t:{},s:2},gpu:{p:2,t:{},s:1}},STEPS=[1,2,3,4,5,6,8,10,12,16];
 /* measurements expire after 3 s and are cleared when the spectrum changes (cost scales with its number of sub-bands) */
 const lqFresh=(q,s)=>{const e=q.t[s];return e&&performance.now()-e.at<3000?e.ms:null};
 function lqPredict(q,s){const own=lqFresh(q,s);if(own!=null)return own;let best=null;for(const k in q.t){const kk=+k;if(lqFresh(q,kk)==null)continue;if(best===null||Math.abs(Math.log(kk/s))<Math.abs(Math.log(best/s)))best=kk}

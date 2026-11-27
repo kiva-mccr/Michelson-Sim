@@ -111,10 +111,13 @@ function spanOf(t0,t1,dAt,cs,smax){const fr=Math.abs(dAt(t1)-dAt(t0))*smax;let l
   else{const k=Math.max(2,Math.ceil(16*fr)+1);for(let q=0;q<=k;q++){const v=0.5*(1+gamma(dAt(t0+(t1-t0)*q/k),cs)[0]);lo=Math.min(lo,v);hi=Math.max(hi,v)}}return[lo,hi]}
 /* buffers are reused between calls, one set per target canvas; only the rows a column (or its filter neighbours) touched are visited */
 /* Sub-columns per pixel: 8 at rest. While moving, the ring has priority: the plots stay at 2 until the ring preview is at full
-   resolution, then take the most of 2, 3, 4, 6, 8 that keeps the profile (redrawn every frame) within a fifth of the frame budget,
-   from its measured cost per sub-column; going up needs a 15% margin so it doesn't flicker. */
+   resolution, then use only the time the frame has to spare. From the profile's measured cost per sub-column c and the last
+   frame's main-thread time (LQ.tot), they take the most of 2, 3, 4, 6, 8 whose extra cost fits what is left of the frame budget
+   (stepping down when the frame runs over), capped at a fifth of the budget; going up needs a 15% margin so it doesn't flicker.
+   Since they only take spare time, they never push the ring back to a coarser preview. */
 const DPQ={k:2,c:0},DPK=[2,3,4,6,8],dpK=()=>ringLive?DPQ.k:8;
-function dpRecord(K,ms){const c=ms/K;DPQ.c=DPQ.c?0.7*DPQ.c+0.3*c:c;const B=0.2*FR();DPQ.k=LQ.last>1?2:[...DPK].reverse().find(k=>DPQ.c*k<=(k>DPQ.k?0.85*B:B))||2}
+function dpRecord(K,ms){const c=ms/K;DPQ.c=DPQ.c?0.7*DPQ.c+0.3*c:c;if(LQ.last>1){DPQ.k=2;return}const F=FR(),slack=F-LQ.tot;
+  DPQ.k=[...DPK].reverse().find(k=>DPQ.c*k<=0.2*F&&DPQ.c*(k-K)<=(k>K?0.85*slack:slack))||2}
 function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=dpK(),
   B=ctx.__dp&&ctx.__dp.Wd===Wd&&ctx.__dp.Hd===Hd?ctx.__dp:(ctx.__dp={Wd,Hd,img:ctx.createImageData(Wd,Hd),C:new Float32Array(Wd*Hd),r0:new Int32Array(Wd),r1:new Int32Array(Wd),off:document.createElement('canvas')});
   const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],smax=Math.max(...cs.map(c=>c.s)),MINH=1.25*(window.devicePixelRatio||1);
