@@ -15,7 +15,7 @@ function gpath(x,y,W,pl,pr,f,l0=LMIN,l1=LMAX){let p='';const n=Math.max(200,Math
 /* ---------- editor ---------- */
 const spec=$('spec');let G={},specKey='';
 function renderSpec(){
-  const W=spec.clientWidth,H=spec.clientHeight;if(!W)return;
+  const [W,H]=box(spec);if(!W)return;
   /* the editor depends only on the components, the selection, drag state, size and theme colours, not on d: skip identical redraws */
   const key=JSON.stringify([comps,sel,!!drag,W,H,css('--fr'),css('--ink'),css('--mute')]);if(key===specKey)return;specKey=key;
   const pl=40,pr=12,pt=20,pb=36,ym=calcYM(),A=axes(W,H,pl,pr,pt,pb,'Spectral density (rel.)',LMIN,LMAX,ym),{x,y}=A;G={x,y,W,H,pl,pr,pt,pb,ym};
@@ -71,21 +71,26 @@ function setOutMan(a,b){const span=clamp(b-a,0.05,LMAX-LMIN);let m=(a+b)/2;a=m-s
 /* the axes, the sample grid and S(σ) do not depend on d, so they are cached; moving the mirror only re-evaluates T(σ;δ₀) */
 let outC={key:''};
 function renderOut(){
-  const svg=$('out'),W=svg.clientWidth,H=svg.clientHeight;if(!W)return;
+  const svg=$('out'),[W,H]=box(svg);if(!W)return;
   const pl=40,pr=10,pt=8,pb=36,[l0,l1]=outWin(),fr=css('--fr'),fill=css('--fill'),ts=trueShape();OG={W,pl,pr,l0,l1};
-  const key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),l0,l1,W,H,YM,fr,css('--mute')]);
+  const key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),l0,l1,W,H,YM,fr,fill,css('--mute')]);
   if(key!==outC.key){const A=axes(W,H,pl,pr,pt,pb,'S_out (rel.)',l0,l1,YM),{x,y}=A,n=Math.max(200,Math.round((W-pl-pr)*2)),S=new Float64Array(n+1),TS=ts?new Float64Array(n+1):null,XS=[];
     /* the same grid and strings as gpath() */
     for(let i=0;i<=n;i++){const s=1000/(l0+(l1-l0)*i/n);S[i]=s;XS.push((i?'L':'M')+x(s).toFixed(1)+' ');if(ts)TS[i]=ts(s)}
     let tp='';if(ts)for(let i=0;i<=n;i++)tp+=XS[i]+y(TS[i]).toFixed(1);
     outC={key,A,S,TS,XS,n,tp}}
   const {A,S,TS,XS,n,tp}=outC,{x,y}=A;
-  let h=A.h;const d0=D0(),T=s=>0.5*(1+Math.cos(2*Math.PI*s*d0));
+  const d0=D0(),T=s=>0.5*(1+Math.cos(2*Math.PI*s*d0));
   let pT='',pP='';for(let i=0;i<=n;i++){const t=T(S[i]);pT+=XS[i]+y(t).toFixed(1);if(TS)pP+=XS[i]+y(TS[i]*t).toFixed(1)}
-  h+=`<path d="${pT}" fill="none" stroke="${A.mute}" stroke-opacity=".55" stroke-width="1"/>`;
+  const pPd=`${pP}L${x(1000/l1)} ${y(0)}L${x(1000/l0)} ${y(0)}Z`,lines=act().filter(c=>!c.f&&1000/c.s>=l0&&1000/c.s<=l1);
+  /* while only d moves, the axes and S(σ) stay in the DOM and only the d-dependent attributes are updated (the same markup as a rebuild) */
+  const ch=svg.children,ns=outC.ns;
+  if(outC.dom===svg&&ch.length===ns+1+(ts?2:0)+3*lines.length){ch[ns].setAttribute('d',pT);if(ts)ch[ns+2].setAttribute('d',pPd);
+    lines.forEach((c,j)=>{const v=y(c.a*T(c.s)),o=ns+1+(ts?2:0)+3*j;ch[o+1].setAttribute('y2',v);ch[o+2].setAttribute('cy',v)});return}
+  let h=`<path d="${pT}" fill="none" stroke="${A.mute}" stroke-opacity=".55" stroke-width="1"/>`;
   if(ts){h+=`<path d="${tp}" fill="none" stroke="${fr}" stroke-dasharray="4 3"/>`;
-    h+=`<path d="${pP}L${x(1000/l1)} ${y(0)}L${x(1000/l0)} ${y(0)}Z" fill="${fill}" fill-opacity=".85" stroke="${fr}" stroke-width="1.5"/>`}
-  for(const c of act())if(!c.f){const lc=1000/c.s;if(lc<l0||lc>l1)continue;const v=c.a*T(c.s);
+    h+=`<path d="${pPd}" fill="${fill}" fill-opacity=".85" stroke="${fr}" stroke-width="1.5"/>`}
+  for(const c of lines){const v=c.a*T(c.s);
     h+=`<line x1="${x(c.s)}" x2="${x(c.s)}" y1="${y(0)}" y2="${y(c.a)}" stroke="${fr}" stroke-dasharray="3 3"/><line x1="${x(c.s)}" x2="${x(c.s)}" y1="${y(0)}" y2="${y(v)}" stroke="${col(c)}" stroke-width="3"/><circle cx="${x(c.s)}" cy="${y(v)}" r="3.5" fill="${col(c)}"/>`}
-  svg.innerHTML=h}
+  svg.innerHTML=A.h;outC.ns=svg.children.length;outC.dom=svg;svg.insertAdjacentHTML('beforeend',h)}
 

@@ -98,6 +98,8 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - The budget follows the device: the display's refresh interval is measured from idle `requestAnimationFrame` steps (`measureFrame`, `FR()`, 25th percentile, clamped to 16.7–33.4 ms) and re-measured on resize and when the page becomes visible. CPU paths get what is left of that frame after the plots; GPU paths get 85% of it.
   - The profile and interferogram range plots adapt too (`DPQ`, `dpK`, `dpRecord`): 8 sub-columns per pixel at rest; while moving, they stay at 2 until the ring preview is at full resolution (the ring has priority), then use only spare frame time: the most of 2, 3, 4, 6, 8 whose extra cost (measured cost per sub-column) fits the budget minus the last frame's main-thread time (`LQ.tot`), capped at a fifth of the budget. So they never push the ring back to a coarser preview.
   - At rest, the image is always rendered at every pixel (Nl = N, the same code path and bit-identical outputs as before MS-11). On the CPU this is time-sliced into 12 ms slices so the page never blocks.
+- **Hidden corners are skipped** (MS-13): the canvas is square but shown as a circle, so grid points with r > 1 + 3 grid cells (`rcut`) are stored as 0 instead of evaluated, on every renderer. Visible pixels are bit-identical; only the corner values in the snapshots change. Check points must stay inside the circle.
+- Layout reads are cached (`box()`, `css()`, cleared on resize and theme change), and the interfered spectrum updates its existing SVG instead of rebuilding it (MS-13).
 - Only one GPU or worker frame is in flight at a time (busy/dirty).
 - The ring re-renders only when its inputs change (`ringInputs`, `renderRingIfNeeded`).
 
@@ -119,7 +121,7 @@ python3 tests/compare_snapshots.py before.json after.json   # IDENTICAL, or the 
 node tests/fastpath.js                            # pixVal's stepped fast path vs direct evaluation
 ```
 
-`snapshot.js` records every output for 7 spectra on the CPU, worker and WebGL2 renderers. Two runs of the same build are identical, so any difference is real. Only accept a difference at floating-point noise level, and say so.
+`snapshot.js` records every output for 7 spectra on the CPU, worker and WebGL2 renderers. Two runs of the same build are identical, so any difference is real. Only accept a difference at floating-point noise level, and say so. Since MS-13, `ring` and `Ib` differ from pre-MS-13 builds in the hidden corners (r > rcut) only.
 
 - Offline, or with the CDN blocked: `npm i mathjax@3.2.2`, then set `MATHJAX_DIR=…/node_modules/mathjax` and the tests serve MathJax from there.
 - `GPU_ARGS=0` launches Chromium without the WebGPU/Vulkan flags. On hosts without a GPU those flags can make both GPU contexts get lost; the page then falls back to the CPU, and WebGL2 goes untested.

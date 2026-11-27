@@ -4,6 +4,9 @@
    OPD: delta(u,v) = 2 d cos(theta) + 2 (alpha_x x + alpha_y y). Every pixel is the exact footprint average above.
    With zero tilt the pattern is radial, so it is evaluated on a radial grid at 16 samples per pixel (4 while moving) and linearly interpolated. */
 const ring=$('ring'),rctx=ring.getContext('2d');let ringLive=false,Ibuf=null;
+/* The canvas is square but shown as a circle (CSS border-radius), so grid points with r > rcut are never seen and are not evaluated:
+   they are stored as 0 (black). The margin is RCUT grid cells, wider than the CSS edge anti-aliasing and the preview upscaling filters. */
+const RCUT=3,rcut=(N,k)=>1+RCUT*2*k/N;
 function ringModel(){const d=+$('d').value,tm=(+$('fov').value)*Math.PI/180,T=Math.tan(tm),aE=AMM*T/Math.tan(10*Math.PI/180),kx=2e-3*(+$('tx').value)*aE,ky=2e-3*(+$('ty').value)*aE;
   return{d,T,kx,ky,
     th:r=>Math.atan(r*T),
@@ -37,8 +40,8 @@ function avgQ(kb,dm,gx,gy,h11,h12,h22,s2){const Q=QS,ki=kb;
   const dr=Q.p1-m11i*m22i-(Q.p2-m12i*m12i),di=m11r*m22i+m11i*m22r-2*m12r*m12i;
   const nr=Q.nr,ni=m22i*gx*gx-2*m12i*gx*gy+m11i*gy*gy;
   const dd=dr*dr+di*di,qr=(nr*dr+ni*di)/dd,qi=(ni*dr-nr*di)/dd,k2r=Q.kk-ki*ki,k2i=Q.k2*ki;
-  const er=Q.e0+Q.hs*(k2r*qr-k2i*qi)-0.25*Math.log(dd),ei=kb*dm+Q.hs*(k2r*qi+k2i*qr)-0.5*Math.atan2(di,dr);
-  return er<-40?0:Math.exp(er)*Math.cos(ei)}
+  const er=Q.e0+Q.hs*(k2r*qr-k2i*qi)-0.25*Math.log(dd);if(er<-40)return 0;  /* cut off before the phase is needed */
+  return Math.exp(er)*Math.cos(kb*dm+Q.hs*(k2r*qi+k2i*qr)-0.5*Math.atan2(di,dr))}
 const PV=[0,0,0,0];
 /* quad=false uses the first-order form (H = 0); it is only chosen when the curvature phase kb·s²·|H| < 3e-4, below which the two agree to that level.
    All sub-bands of one Gaussian share a, so the terms that depend only on a are computed once per run of equal a.

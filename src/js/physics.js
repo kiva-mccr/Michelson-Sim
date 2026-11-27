@@ -31,7 +31,12 @@ try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');
   if(v&&Array.isArray(v.c)){comps=v.c;$('d').value=v.d;if(v.fov)$('fov').value=v.fov;if(v.tx!=null){$('tx').value=v.tx;$('ty').value=v.ty}if(v.ra===false)$('rAuto').checked=false;if(v.env===false)$('envOn').checked=false}}catch(e){}
 comps.forEach(c=>{if(c.on===undefined)c.on=true});
 const save=()=>{try{localStorage.setItem('mich-sim-v2',JSON.stringify({c:comps,d:$('d').value,fov:$('fov').value,tx:$('tx').value,ty:$('ty').value,ra:$('rAuto').checked,rm:Rman,env:$('envOn').checked}))}catch(e){}};
-const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+/* Reading computed styles or box sizes after a DOM write forces the browser to recompute style or layout, and the draw loop
+   alternates reads and writes. So theme colours and plot box sizes are read once and cached: colours until the theme changes
+   (CSSC, cleared in ui-loop.js), sizes until a ResizeObserver or window resize reports a change (SZC). Same values, read once. */
+const CSSC=new Map(),SZC=new Map();
+const css=n=>{let v=CSSC.get(n);if(v===undefined){v=getComputedStyle(document.documentElement).getPropertyValue(n).trim();CSSC.set(n,v)}return v};
+const box=el=>{let v=SZC.get(el);if(!v){v=[el.clientWidth,el.clientHeight];if(v[0])SZC.set(el,v)}return v};
 const F=(x,n=3)=>{if(!isFinite(x))return'\\infty';if(x===0)return'0';return String(Number(x.toPrecision(n)))};
 const wOf=c=>c.f/KW;
 /* Heights are what you see: a Gaussian's height a_n is its peak spectral density, so its power is the area under its curve,
@@ -46,6 +51,14 @@ try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');if(v&&v.rm)R
 const col=c=>markHex(1000/c.s);
 function gamma(d,cs=act()){let re=0,im=0,A=0;for(const c of cs){const w=wOf(c),pc=P(c),e=w?pc*Math.exp(-((Math.PI*w*d)**2)):pc,p=2*Math.PI*c.s*d;re+=e*Math.cos(p);im+=e*Math.sin(p);A+=pc}  /* a line (w = 0) has e^0 = 1 exactly */
   return A?[re/A,im/A]:[0,0]}
+/* gamma for many OPDs of one spectrum (the range plots): the per-component constants are taken out of the loop and no array is
+   allocated. Each term is the same expression as in gamma(), in the same order (Math.PI*w*d = (Math.PI*w)*d and
+   2*Math.PI*c.s*d = (2*Math.PI*c.s)*d), so re() and mag() equal gamma()[0] and |gamma()| bit for bit. re() skips the sines. */
+function gammaOf(cs){const n=cs.length,W=new Float64Array(n),PC=new Float64Array(n),PW=new Float64Array(n),TS=new Float64Array(n);let A=0;
+  cs.forEach((c,i)=>{W[i]=wOf(c);PC[i]=P(c);PW[i]=Math.PI*W[i];TS[i]=2*Math.PI*c.s;A+=PC[i]});
+  const e=(i,d)=>W[i]?PC[i]*Math.exp(-((PW[i]*d)**2)):PC[i];
+  return{re(d){if(!A)return 0;let re=0;for(let i=0;i<n;i++)re+=e(i,d)*Math.cos(TS[i]*d);return re/A},
+    mag(d){if(!A)return 0;let re=0,im=0;for(let i=0;i<n;i++){const ei=e(i,d),p=TS[i]*d;re+=ei*Math.cos(p);im+=ei*Math.sin(p)}return Math.hypot(re/A,im/A)}}}
 const shape=(c,s)=>c.f?c.a*Math.exp(-4*LN2*(s-c.s)**2/(c.f*c.f)):0;
 const dens=(c,s)=>c.f?c.a*Math.exp(-(((s-c.s)/wOf(c))**2)):0;
 /* combined continuous spectrum: the sum of the Gaussian outlines exactly as drawn (no rescaling) */

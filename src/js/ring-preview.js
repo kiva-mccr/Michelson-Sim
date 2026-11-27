@@ -20,7 +20,7 @@ let ringJob=0;
 const LQ={other:4,ms:0,tot:16.7,last:1,cpuR:{p:1},cpuT:{p:2},wk:{p:2},gpu:{p:2},mv:{v:Infinity,at:0,M:null,sk:''}},KMAX=16,IDLE=150;
 const lqPts=(()=>{const o=[];for(const r of [0.3,0.6,0.85,1])for(let a=0;a<8;a++)o.push([r*Math.cos(a*Math.PI/4+r),r*Math.sin(a*Math.PI/4+r)]);return o})();
 /* fringe speed between the previous preview frame and this one */
-function lqMotion(M,N){const mv=LQ.mv,now=performance.now(),sk=JSON.stringify(sublines().map(o=>[o.s,o.p,o.w]));
+function lqMotion(M,N){const mv=LQ.mv,now=performance.now(),sk=(sublines(),slKey);
   if(!mv.M||sk!==mv.sk||now-mv.at>250)mv.v=Infinity;
   else{const smax=Math.max(...sublines().map(o=>o.s),1e-9),gmin=2/(smax*N),dt=Math.max(now-mv.at,1);let disp=0;
     for(const[u,v]of lqPts){const g=M.grad(u,v),gp=Math.max(Math.hypot(g[0],g[1])*2/N,gmin);disp=Math.max(disp,Math.abs(M.opd(u,v)-mv.M.opd(u,v))/gp)}
@@ -44,4 +44,4 @@ const FRM={fr:16.7,run:0};const FR=()=>FRM.fr;
 function measureFrame(){const run=++FRM.run,ts=[];const step=t=>{if(run!==FRM.run)return;ts.push(t);if(ts.length<40){requestAnimationFrame(step);return}
   const d=[];for(let i=1;i<ts.length;i++){const x=ts[i]-ts[i-1];if(x>2&&x<200)d.push(x)}if(d.length<8)return;d.sort((a,b)=>a-b);FRM.fr=clamp(d[Math.floor(d.length/4)],16.7,33.4)};requestAnimationFrame(step)}
 measureFrame();document.addEventListener('visibilitychange',()=>{if(!document.hidden)measureFrame()});
-const showRes=(N,Nl,live)=>{const e=$('resV');if(e)e.textContent=`${Nl}²${live&&Nl<N?' preview':''}`};
+const showRes=(N,Nl,live)=>{const e=$('resV'),t=`${Nl}²${live&&Nl<N?' preview':''}`;if(e&&e.textContent!==t)e.textContent=t};
