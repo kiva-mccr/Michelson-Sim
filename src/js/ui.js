@@ -53,7 +53,7 @@ document.querySelectorAll('[data-p]').forEach(b=>b.addEventListener('click',()=>
 $('clear').addEventListener('click',()=>{comps=[];sel=-1;update(false)});
 ['d','fov','tx','ty'].forEach(k=>{$(k).addEventListener('input',()=>{if(k==='d')stopPlay();update(true)});$(k).addEventListener('change',()=>update(false))});
 $('verBtn').addEventListener('click',()=>{$('verAt').textContent='Running…';setTimeout(verify,30)});
-$('tReset').addEventListener('click',()=>{$('tx').value=0;$('ty').value=0;update(false)});
+$('tReset').addEventListener('click',()=>glideTilt(0,0));
 
 /* ---------- direct manipulation: drag on the pattern for tilt / field of view, mirror rail for d ---------- */
 const ov=$('ringOv'),TMAXU=500;let rdrag=null;
@@ -79,8 +79,23 @@ function renderOv(){const s=ov.clientWidth;if(!s)return;const c=s/2,[ex,ey]=dotP
    (L>1.5?`<line x1="${c}" y1="${c}" x2="${ex}" y2="${ey}" stroke="#fff" stroke-opacity=".85" stroke-width="2.5" stroke-linecap="round"/>`:'')+
    (showDot?`<circle cx="${ex}" cy="${ey}" r="${big?7:5.5}" fill="#fff" fill-opacity="${zero&&!drag?.75:.95}" stroke="#000" stroke-opacity=".35"/>`:'')+
    `<circle cx="${hx}" cy="${hy}" r="6" fill="${css('--acc')}" stroke="#fff" stroke-width="1.5"/>`}
+/* MS-9: snapping glides. Entering the snap circle (or Reset tilt, or a double-click) moves the tilt itself to 0, 0 over
+   GLIDE ms (ease-out cubic), and leaving the circle glides back out to the cursor. The tilt value glides, not just the dot,
+   so every frame of the glide is the true pattern for that tilt (as a live preview; the exact image follows when it lands).
+   A target that moves during a glide (the cursor) is followed. With reduced motion, it jumps. */
+const GLIDE=150;let tGlide=null,inSnap=false;
+const noMotion=()=>window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+function glideTilt(x,y){if(noMotion()){setTilt(x,y);update(!!rdrag);return}
+  if(tGlide){tGlide.x1=x;tGlide.y1=y;return}
+  tGlide={x0:+$('tx').value,y0:+$('ty').value,x1:x,y1:y,t0:performance.now()};
+  const step=t=>{const g=tGlide;if(!g)return;const p=clamp((t-g.t0)/GLIDE,0,1),e=1-(1-p)**3;
+    if(p<1){setTilt(g.x0+(g.x1-g.x0)*e,g.y0+(g.y1-g.y0)*e);update(true);requestAnimationFrame(step)}
+    else{tGlide=null;setTilt(g.x1,g.y1);update(!!rdrag)}};
+  requestAnimationFrame(step)}
 function tiltFromDot(c,x,y,fine){/* x,y: dot position relative to the centre, in px */
-  if(!fine&&Math.hypot(x,y)<SNAP){setTilt(0,0);return}const f=TMAXU/(c*DOTK);setTilt(x*f,-y*f)}
+  const f=TMAXU/(c*DOTK),now=!fine&&Math.hypot(x,y)<SNAP,edge=now!==inSnap;inSnap=now;
+  if(now){if(edge)glideTilt(0,0);return}
+  if(edge||tGlide)glideTilt(x*f,-y*f);else setTilt(x*f,-y*f)}
 ov.addEventListener('pointermove',e=>{const g=ovGeom(e);ovHover=[g.x+g.R,g.y+g.R];
   if(!rdrag){const[dx,dy]=dotPos(g.R),onDot=Math.hypot(ovHover[0]-dx,ovHover[1]-dy)<14;ov.style.cursor=onDot?'grab':onRim(g)?'nwse-resize':'default';renderOv();return}
   if(rdrag.m==='rim')setFov(rdrag.f0*Math.max(g.rr,4)/Math.max(rdrag.r0,4));
@@ -89,13 +104,13 @@ ov.addEventListener('pointerleave',()=>{ovHover=null;if(!rdrag)renderOv()});
 ov.addEventListener('pointerdown',e=>{const g=ovGeom(e);if(g.rr>g.R+4)return;
   const[dx,dy]=dotPos(g.R),onDot=Math.hypot(g.x+g.R-dx,g.y+g.R-dy)<14;
   const m=onDot?'dot':onRim(g)?'rim':null;if(!m)return;
-  e.preventDefault();ov.setPointerCapture(e.pointerId);rdrag={m,r0:g.rr,f0:+$('fov').value,cx:e.clientX,cy:e.clientY,px0:dx-g.R,py0:dy-g.R};if(onDot)ov.style.cursor='grabbing';renderOv()});
+  e.preventDefault();ov.setPointerCapture(e.pointerId);if(m==='dot')inSnap=!+$('tx').value&&!+$('ty').value;rdrag={m,r0:g.rr,f0:+$('fov').value,cx:e.clientX,cy:e.clientY,px0:dx-g.R,py0:dy-g.R};if(onDot)ov.style.cursor='grabbing';renderOv()});
 const rend=()=>{if(rdrag){const wasDot=rdrag.m==='dot';rdrag=null;ov.style.cursor=wasDot?'grab':'default';renderOv();update(false)}};ov.addEventListener('pointerup',rend);ov.addEventListener('pointercancel',rend);
-ov.addEventListener('dblclick',()=>{$('tx').value=0;$('ty').value=0;update(false)});
+ov.addEventListener('dblclick',()=>glideTilt(0,0));
 /* scrolling on the pattern zooms: scroll up narrows the field of view (zoom in), scroll down widens it */
 let wT=0;ov.addEventListener('wheel',e=>{e.preventDefault();setFov(+$('fov').value*Math.pow(1.0015,e.deltaY));update(true);clearTimeout(wT);wT=setTimeout(()=>update(false),200)},{passive:false});
 ov.addEventListener('keydown',e=>{const st=e.shiftKey?1:10,k={ArrowLeft:[-st,0],ArrowRight:[st,0],ArrowUp:[0,st],ArrowDown:[0,-st]}[e.key];
-  if(k){e.preventDefault();setTilt(+$('tx').value+k[0],+$('ty').value+k[1]);update(false)}
+  if(k){e.preventDefault();tGlide=null;setTilt(+$('tx').value+k[0],+$('ty').value+k[1]);update(false)}
   if(e.key==='+'||e.key==='-'){e.preventDefault();setFov(+$('fov').value*(e.key==='+'?1.1:1/1.1));update(false)}});
 /* mirror rail: a ruler spanning the current range ±m; drag (or click) the carriage, scroll to rescale the range */
 const rail=$('rail'),RPAD=16;let raildrag=false;
@@ -170,8 +185,8 @@ editable('dV0',()=>D0(),v=>setD(v/2));
 editable('dRV',()=>DMAX(),v=>{if(!(Math.abs(v)>0))return;$('dAuto').checked=false;setRange(Math.abs(v))});
 editable('rV',()=>RANGE(),v=>{Rman=clamp(Math.abs(v),0.1,2*autoR());$('rAuto').checked=false});
 editable('fV',()=>+$('fov').value,v=>widen('fov',clamp(v,0.01,85),false));
-editable('txV',()=>+$('tx').value,v=>widen('tx',v,true));
-editable('tyV',()=>+$('ty').value,v=>widen('ty',v,true));
+editable('txV',()=>+$('tx').value,v=>{tGlide=null;widen('tx',v,true)});
+editable('tyV',()=>+$('ty').value,v=>{tGlide=null;widen('ty',v,true)});
 
 /* ---------- ring sizing: the canvas fills the largest square that fits its panel ---------- */
 function fitRing(){const b=$('ringBox'),s=Math.max(120,Math.floor(Math.min(b.clientWidth,b.clientHeight||b.clientWidth)));
