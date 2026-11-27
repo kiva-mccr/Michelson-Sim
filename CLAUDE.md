@@ -26,6 +26,7 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - `ring-shaders.js`: renderer state `RB`, `packRing`, the GLSL and WGSL sources.
   - `ring-gpu.js`: the WebGPU and WebGL2 renderers.
   - `ring-backends.js`: CPU workers and backend selection.
+  - `ring-bench.js`: the startup speed test that ranks the renderers (MS-18).
   - `ring-preview.js`: adaptive preview resolution and the frame-rate measurement.
   - `ring-render.js`: `renderRing` and the profile.
   - `verify.js`: check table, coherence, live equations.
@@ -83,7 +84,7 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
 
 ## Renderers (ring image)
 
-`RB` selects the renderer, in order: WebGPU (compute and render, WGSL), then WebGL2 (two passes into an RGBA32F target, GLSL), then CPU workers (Blob workers running `pixVal`/`avgQ` source), then the CPU main thread. The page has no renderer control (MS-8): it always takes the first that works. A round ? in the corner of the pattern panel opens a small popup with the renderer in use and the live resolution. The tests force one with the `?renderer=webgpu|webgl2|workers|cpu` address parameter (`use_renderer` in `tests/_common.py`); the page lists what it found in `<html data-renderers data-renderer>`.
+`RB` selects the renderer among WebGPU (compute and render, WGSL), WebGL2 (two passes into an RGBA32F target, GLSL), CPU workers (Blob workers running `pixVal`/`avgQ` source) and the CPU main thread. The page has no renderer control (MS-8). It starts on the first that works in that order; then a startup speed test (MS-18, `ring-bench.js`) has every available renderer compute the same fixed image (LED preset, 160² grid, warm-up plus median of 3, GPUs compute-only so the visible canvas is untouched) and switches to the fastest, ahead of the default order only when at least 10% faster. The ranking (`RB.rank`) is cached in localStorage per device (user agent, cores, GPU names, available renderers) for 30 days, so later visits start on the fastest; a failing renderer falls back to the next in the ranking. The test runs only at rest, after the first image is finished, and stops if anything moves. On this cloud host (no GPU), SwiftShader WebGL2 took 44 ms, workers 24 ms and one CPU core 48 ms, so it now picks the workers where it used to pick WebGL2. A round ? in the corner of the pattern panel opens a small popup with the renderer in use and the live resolution. The tests force one with the `?renderer=webgpu|webgl2|workers|cpu` address parameter (`use_renderer` in `tests/_common.py`), which also skips the speed test; the page lists what it found in `<html data-renderers data-renderer>` and the test's times in `data-bench`.
 
 - **GPU precision:**
   - `k_b·2d mod 2π` is computed in float64 on the CPU (`packRing`). The GPU only adds `k_b·Δ`, where `Δ = −4d·sin²(θ/2) + kx·u + ky·v`.
@@ -99,7 +100,7 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - The sweep is a live input like a drag: each step calls `update(true)`, so the same fringe-speed budget sets its preview resolution, and stopping it renders the exact image (`tests/sweepres.js`).
   - When the inputs stop changing for 150 ms (`IDLE`) with the button still held, the exact at-rest image is rendered (`goIdle` in `ui-loop.js`).
   - Measurements expire after 3 s and reset when the number of sub-bands changes.
-  - The budget follows the device: the display's refresh interval is measured from idle `requestAnimationFrame` steps (`measureFrame`, `FR()`, 25th percentile, clamped to 16.7–33.4 ms) and re-measured on resize and when the page becomes visible. The main-thread CPU paths get what is left of that frame after the plots; the GPU and worker paths get 85% of it, since they run in parallel with the plots. The workers' cost is their own compute time (the slowest worker's), not the wall time from posting (MS-18).
+  - The budget follows the device: the display's refresh interval is measured from idle `requestAnimationFrame` steps (`measureFrame`, `FR()`, 25th percentile, clamped to 16.7–33.4 ms) and re-measured on resize and when the page becomes visible. The main-thread CPU paths get what is left of that frame after the plots; the GPU and worker paths get 85% of it, since they run in parallel with the plots. The workers' cost is their own compute time (the slowest worker's), not the wall time from posting (MS-19).
   - The profile and interferogram range plots do **not** adapt: always 8 sub-columns per pixel (`DPK`), moving or at rest (MS-17). MS-10 had them switch between 2 and 8 with the spare frame time, and dense fringes look very different at 2 and 8, so the plots flickered while dragging. `tests/plotstable.js` requires their pixels to be identical moving and at rest.
   - At rest, the image is always rendered at every pixel (Nl = N, the same code path and bit-identical outputs as before MS-11). On the CPU this is time-sliced into 12 ms slices so the page never blocks.
 - **Hidden corners are skipped** (MS-13): the canvas is square but shown as a circle, so grid points with r > 1 + 3 grid cells (`rcut`) are stored as 0 instead of evaluated, on every renderer. Visible pixels are bit-identical; only the corner values in the snapshots change. Check points must stay inside the circle.
@@ -114,6 +115,7 @@ pip install -r tests/requirements.txt && python -m playwright install chromium
 python tests/verify.py          # runs the in-page verification table on every available renderer and preset
 python tests/layout.py          # no page scroll / no equation overflow at 1920×1080, 1366×657, 1280×600
 python tests/perf.py            # frame times and adaptive preview resolution while sweeping
+python tests/autopick.py        # startup speed test: picks the fastest renderer, caches it, checks pass on it (MS-18)
 ```
 
 Before and after any refactor or optimization, check that the physics is unchanged (Node, `npm i playwright`):
@@ -151,9 +153,10 @@ These were only checked in headless Chromium on a cloud machine without a GPU. K
 - The WebGPU ring has only been checked through its readback numbers (since MS-16, on this host, through `tests/gpukernel.js`'s compute-only run on SwiftShader, because the full page loses its GPU contexts here).
 - The MS-16 GPU speed-up (about 2× per sub-band) was measured on SwiftShader only. On a real GPU, where exp and cos are cheaper relative to memory reads, the gain may be smaller. Headless Chrome shows WebGPU canvases as black, so nobody has looked at its image in a test.
 - WebGL2 was tested through SwiftShader (software rendering), not on a real GPU.
-- The sharper worker previews (MS-18) were measured on a 4-core cloud machine (3 workers) in headless Chromium only; on Kiva's machine the worker count and the main thread's share of the cores differ.
+- The sharper worker previews (MS-19) were measured on a 4-core cloud machine (3 workers) in headless Chromium only; on Kiva's machine the worker count and the main thread's share of the cores differ.
 - The sweep time (MS-14) was checked by the Sweep row and by timing scripted sweeps in headless Chromium (about 40 µm/s measured for a set 40 µm/s); how a very short or very long pass looks on a real screen has not been seen.
 - Frame times and the adaptive preview resolution (`tests/perf.py`) were measured on the cloud machine, not on Kiva's hardware. That includes the device scaling (MS-10): the refresh-rate measurement only ever saw a 60 Hz headless display, and 30 Hz was simulated by forcing `FR()`. The motion-driven budget (MS-11) was checked only with scripted rail drags at fixed speeds in headless Chromium (SwiftShader WebGL2, workers, CPU); how smooth slow drags look on a real screen has not been seen.
+- The startup speed test (MS-18) has only run here, comparing SwiftShader WebGL2 with the CPU workers and the main thread. It has never timed WebGPU (the full page loses its WebGPU context on this host) or a real GPU, so whether it picks the GPU on Kiva's machine, and the times it shows in the ? popup there, have not been seen.
 - The layout checks ran in headless Chromium only. Firefox and Safari have never been tested.
 - MS-17 (plot flicker, moiré) was reproduced and checked in headless Chromium on CPU, workers and SwiftShader WebGL2, by pixel comparisons and brute-force integrals. Kiva saw both problems on a real machine; whether the fix looks right there has not been seen. The WebGPU preview path was checked only through `tests/gpukernel.js` here, since the full page loses its WebGPU context on this host.
 

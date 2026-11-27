@@ -1,6 +1,6 @@
 # sweepres.js
 
-Checks that the mirror sweep drives the same adaptive preview resolution as a drag (MS-11, asked by Kiva after MS-14). On CPU, workers and WebGL2, for a tilted and an untilted spectrum, it sweeps with a 1 s pass and with a 600 s pass and samples the ring every 100 ms. Each sample must be a live preview with a measured fringe speed. The slow sweep's median preview grid must be at least as fine as the fast one's, and after stopping the image must be the full exact one. Needs Node and `npm i playwright`.
+Checks that the mirror sweep drives the same adaptive preview resolution as a drag (MS-11, asked by Kiva after MS-14). On CPU, workers and WebGL2, for a tilted and an untilted spectrum, it sweeps with a 1 s pass and with a 600 s pass and samples the ring every 100 ms. Each sample must be a live preview with a measured fringe speed. The slow sweep's median preview grid must be at least as fine as the fast one's (within 5%: an untilted CPU preview is already near full resolution at any speed, so the two differ only by noise), and after stopping the image must be the full exact one. Needs Node and `npm i playwright`.
 
 ## Rules and pitfalls
 

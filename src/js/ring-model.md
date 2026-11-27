@@ -1,6 +1,6 @@
 # ring-model.js
 
-The ring's physics: `ringModel` (tanθ = r·tanθmax, δ = 2d cosθ + 2(αx·x + αy·y), L = 28.4 mm), the sub-band groups (`prepSL`) and the exact pixel-footprint average (`pixVal`, with the second-order correction `avgQ`/`avgQpre`). Also the ring canvas, `ringLive` and `Ibuf`.
+The ring's physics: `ringModel` (the current settings; `ringModelOf(d, fov, tx, ty)` for any, used by the speed test; tanθ = r·tanθmax, δ = 2d cosθ + 2(αx·x + αy·y), L = 28.4 mm), the sub-band groups (`prepSL`) and the exact pixel-footprint average (`pixVal`, with the second-order correction `avgQ`/`avgQpre`). Also the ring canvas, `ringLive` and `Ibuf`.
 
 ## Rules and pitfalls
 

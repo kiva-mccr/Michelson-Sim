@@ -1,6 +1,6 @@
 # physics.js
 
-First in the build order. Constants, the embedded CVRL CIE 2006 2° colour matching functions and XYZ → sRGB, the presets and the state (`comps`, saved to localStorage under `mich-sim-v2`), the spectrum shape (`shape`, `dens`, `P`), `gamma` (the normalised interferogram from Wiener–Khinchin) and `sublines` (the colour sub-bands).
+First in the build order. Constants, the embedded CVRL CIE 2006 2° colour matching functions and XYZ → sRGB, the presets and the state (`comps`, saved to localStorage under `mich-sim-v2`), the spectrum shape (`shape`, `dens`, `P`), `gamma` (the normalised interferogram from Wiener–Khinchin) and `sublines` (the colour sub-bands of the current spectrum, cached; `splitBands(cs)` splits any component list, used by the speed test).
 
 ## Rules and pitfalls
 

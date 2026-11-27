@@ -1,6 +1,7 @@
 let ringKey='',ringWasLive=false;
 function ringInputs(){sublines();return JSON.stringify([slKey,$('d').value,$('fov').value,$('tx').value,$('ty').value,ring.width,RB.active,...box($('prof')),document.documentElement.dataset.theme])}
-function renderRingIfNeeded(){const k=ringInputs();if(k===ringKey&&!(ringWasLive&&!ringLive))return;ringKey=k;ringWasLive=ringLive;renderRing()}
+function renderRingIfNeeded(){if(RB.benching)return;  /* the speed test is running: keep the last image (ringKey is reset when it ends) */
+  const k=ringInputs();if(k===ringKey&&!(ringWasLive&&!ringLive))return;ringKey=k;ringWasLive=ringLive;renderRing()}
 /* reusable image buffers (one per size) and the small off-screen canvas for previews */
 const ringImgs=new Map();function ringImg(n){let im=ringImgs.get(n);if(!im){if(ringImgs.size>6)ringImgs.clear();im=rctx.createImageData(n,n);ringImgs.set(n,im)}
   if(!RB.off)RB.off=document.createElement('canvas');if(RB.off.width!==n){RB.off.width=n;RB.off.height=n}return im}
@@ -45,9 +46,7 @@ function renderRing(sync){
         put(j,i,RX[q]+(RX[q+1]-RX[q])*f,RY[q]+(RY[q+1]-RY[q])*f,RZ[q]+(RZ[q+1]-RZ[q])*f,RI[q]+(RI[q+1]-RI[q])*f)}}}
     else{const kbm=Math.max(...SL.map(o=>o.kb)),s2=sd*sd;
       /* grid point (j, i): the exact footprint average, or 0 beyond rcut (MS-13) */
-      const pix=(j,i)=>{const v=-((j+0.5)*k-h)/h,u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2)return put(j,i,0,0,0,0);const r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
-        const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;  /* the same curvature test in previews: their footprint is k times wider, so curvature matters more there */
-        const p=pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad);put(j,i,p[0],p[1],p[2],p[3])};
+      const pix=(j,i)=>{const v=-((j+0.5)*k-h)/h,u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2)return put(j,i,0,0,0,0);const p=gridPix(M,pr,kbm,s2,u,v);put(j,i,p[0],p[1],p[2],p[3])};
       const rows=(j0,j1)=>{for(let j=j0;j<j1;j++)for(let i=0;i<Nl;i++)pix(j,i)};
       if(!tilted){/* at rest and untilted (MS-15): the pattern and the pixel grid share the square's 8 symmetries (u → −u, v → −v, u ↔ v),
           so only the octant 0 ≤ i ≤ j < N/2 is evaluated, exactly as above, and each value is copied to its 8 mirror pixels. */
@@ -74,11 +73,15 @@ function renderRing(sync){
         ringProfile(M);return}
       else if(ringLive||sync)rows(0,Nl);
       else{/* progressive full-resolution pass */
-        let j=0;const slice=()=>{if(job!==ringJob)return;const t0=performance.now(),jj=j;while(j<N&&performance.now()-t0<12){rows(j,j+4);j+=4}
-          present(jj,Math.min(j,N));if(j<N)setTimeout(slice,0)};
+        let j=0,done;RB.wDone=new Promise(r=>done=r);const slice=()=>{if(job!==ringJob)return done();const t0=performance.now(),jj=j;while(j<N&&performance.now()-t0<12){rows(j,j+4);j+=4}
+          present(jj,Math.min(j,N));if(j<N)setTimeout(slice,0);else done()};
         slice();ringProfile(M);return}}
   }else{D.fill(0);for(let o=3;o<D.length;o+=4)D[o]=255}
   present(0,N);ringProfile(M);if(ringLive&&cs.length)lqRecord(pathKey,Nl,performance.now()-T0);LQ.ms=performance.now()-T0}
+/* one grid point's exact footprint average at (u, v): the OPD's gradient and Hessian there, then pixVal (also used by the speed test) */
+function gridPix(M,pr,kbm,s2,u,v){const r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
+  const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;  /* the same curvature test in previews: their footprint is k times wider, so curvature matters more there */
+  return pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad)}
 function ringProfile(M){const cs=act();
   /* profile cut: through the centre along the tilt direction n = (αx, αy)/|α| (along x when there is no tilt) */
   const ax=+$('tx').value,ay=+$('ty').value,an=Math.hypot(ax,ay),nx=an?ax/an:1,ny=an?ay/an:0,phi=Math.atan2(ny,nx)*180/Math.PI;

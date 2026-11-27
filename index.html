@@ -238,7 +238,7 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
 <li>Colours are what an eye would see, from the CVRL CIE 2006 colour-matching functions.<sup><a href="#s13">[13]</a></sup></li>
 <li>Light outside 390–780 nm adds no colour, but it still counts in the brightness profile. Its markers in the source spectrum are drawn grey so they stay visible.</li>
 <li>Each pixel is the exact average of the pattern over its footprint, so rings finer than a pixel blend smoothly instead of forming false moiré.</li>
-<li>The pattern is drawn by the fastest renderer your device supports, chosen in this order: WebGPU, WebGL2, the CPU on all cores (Web Workers), then the CPU on one core. The ? in the corner of this panel shows which one is in use and the resolution it is drawing at. All four evaluate the same per-pixel formula. On the GPU, the large part of each fringe phase, $k_b\cdot 2d \bmod 2\pi$, is computed in 64-bit on the CPU, and the cosine is taken with an accurate series, because GPU arithmetic is 32-bit. The "Ring pixels" check reads the active renderer's pixels back and compares them with brute-force integration.</li>
+<li>The pattern is drawn by the fastest renderer on your device. The page starts with the first one available in the order WebGPU, WebGL2, the CPU on all cores (Web Workers), the CPU on one core. Once the first image is done, a short speed test has each of them compute the same image, then switches to the fastest and remembers it for this device. The ? in the corner of this panel shows which one is in use, the test's times, and the resolution it is drawing at. All four evaluate the same per-pixel formula. On the GPU, the large part of each fringe phase, $k_b\cdot 2d \bmod 2\pi$, is computed in 64-bit on the CPU, and the cosine is taken with an accurate series, because GPU arithmetic is 32-bit. The "Ring pixels" check reads the active renderer's pixels back and compares them with brute-force integration.</li>
 <li>The profile below is a cut through the centre along the dashed line: the tilt direction $(\alpha_x,\alpha_y)$, or $x$ with no tilt.</li>
 <li>The profile and the interferogram are anti-aliased range plots: each pixel is shaded by how much of it the true signal covers, using 8 sub-columns per pixel. Fringes near the pixel pitch blend into an even tone instead of forming moiré, and where they are finer than a pixel the fill spans the full swing $\tfrac12(1\pm|\gamma|)$.</li>
 </ul></div>
@@ -387,12 +387,14 @@ let YM=1;function calcYM(){if(drag)return YM;const ts=trueShape();let m=Math.max
    Giving each sub-band its own coherence envelope keeps the sum equal to the analytic Gaussian (error < 1e-4) at every OPD;
    bare delta-function sub-lines would falsely "revive" interference at delta ~ 1/spacing. */
 const SPAN=2.8;let slKey='',slVal=null;
-function sublines(){const key=JSON.stringify(act().map(c=>[c.s,c.a,c.f]));if(key===slKey)return slVal;slKey=key;const out=[];let gi=0;for(const c of act()){gi++;if(!c.f){out.push({s:c.s,p:P(c),w:0,g:gi,pka:0});continue}
+function sublines(){const key=JSON.stringify(act().map(c=>[c.s,c.a,c.f]));if(key===slKey)return slVal;slKey=key;return slVal=splitBands(act())}
+/* the sub-bands of any component list (the startup speed test uses a fixed one) */
+function splitBands(cs){const out=[];let gi=0;for(const c of cs){gi++;if(!c.f){out.push({s:c.s,p:P(c),w:0,g:gi,pka:0});continue}
   /* sub-band count: at least 15, and fine enough that each sub-band is ≤ 0.012 µm⁻¹ wide (≈ 3.5 nm at 550 nm), max 241; spans ±2.8w */
   const w=wOf(c),K=clamp(Math.ceil(2*SPAN*w/0.012)+1,15,241),dx=2*SPAN/(K-1),wc=Math.sqrt(1-dx*dx),pka=(Math.PI*w)**2;let ws=[],t=0;
   for(let k=0;k<K;k++){const x=-SPAN+dx*k,g=Math.exp(-((x/wc)**2));ws.push([c.s+x*w,g]);t+=g}
   for(const[s,g]of ws)out.push({s,p:P(c)*g/t,w:dx*w,g:gi,pka})}
-  for(const o of out){o.X=bandXYZ(o.s,o.w);o.ka=(Math.PI*o.w)**2;o.kb=2*Math.PI*o.s}slVal=out;return out}
+  for(const o of out){o.X=bandXYZ(o.s,o.w);o.ka=(Math.PI*o.w)**2;o.kb=2*Math.PI*o.s}return out}
 /* XYZ of one sub-band: its own Gaussian shape integrated against the CVRL functions (Simpson, 41 points over ±3.5 w_s) */
 function bandXYZ(s,ws){if(!ws)return visXYZ(1000/s);const n=40,a=s-3.5*ws,h=7*ws/n,X=[0,0,0];let tw=0;
   for(let i=0;i<=n;i++){const sg=a+i*h,wt=(i===0||i===n?1:(i%2?4:2))*Math.exp(-(((sg-s)/ws)**2)),x=visXYZ(1000/sg);X[0]+=wt*x[0];X[1]+=wt*x[1];X[2]+=wt*x[2];tw+=wt}return X.map(v=>v/tw)}
@@ -575,7 +577,9 @@ const ring=$('ring'),rctx=ring.getContext('2d');let ringLive=false,Ibuf=null,Pbu
 /* The canvas is square but shown as a circle (CSS border-radius), so grid points with r > rcut are never seen and are not evaluated:
    they are stored as 0 (black). The margin is RCUT grid cells, wider than the CSS edge anti-aliasing and the preview upscaling filters. */
 const RCUT=3,rcut=(N,k)=>1+RCUT*2*k/N;
-function ringModel(){const d=+$('d').value,tm=(+$('fov').value)*Math.PI/180,T=Math.tan(tm),aE=AMM*T/Math.tan(10*Math.PI/180),kx=2e-3*(+$('tx').value)*aE,ky=2e-3*(+$('ty').value)*aE;
+const ringModel=()=>ringModelOf(+$('d').value,+$('fov').value,+$('tx').value,+$('ty').value);
+/* the model for any d (µm), field of view (degrees) and tilt (µrad); the startup speed test uses a fixed one */
+function ringModelOf(d,fov,tx,ty){const tm=fov*Math.PI/180,T=Math.tan(tm),aE=AMM*T/Math.tan(10*Math.PI/180),kx=2e-3*tx*aE,ky=2e-3*ty*aE;
   return{d,T,kx,ky,
     th:r=>Math.atan(r*T),
     opd(u,v){const r=Math.hypot(u,v);return 2*d*Math.cos(Math.atan(r*T))+kx*u+ky*v},
@@ -782,7 +786,7 @@ const GLSL_VS=`#version 300 es
 void main(){vec2 p=vec2(gl_VertexID==1?3.:-1.,gl_VertexID==2?3.:-1.);gl_Position=vec4(p,0.,1.);}`;
 
 /* ---- WebGPU ---- */
-async function initWebGPU(cv){if(!navigator.gpu)throw new Error('no navigator.gpu');const ad=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});if(!ad)throw new Error('no adapter');
+async function initWebGPU(cv){if(!navigator.gpu)throw new Error('no navigator.gpu');const ad=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});if(!ad)throw new Error('no adapter');{const i=ad.info||{};RB.gpuName=[i.vendor,i.architecture,i.device,i.description].join('/')}
   const dev=await ad.requestDevice(),ctx=cv.getContext('webgpu'),fmt=navigator.gpu.getPreferredCanvasFormat();ctx.configure({device:dev,format:fmt,alphaMode:'opaque'});
   const mk=async code=>{const m=dev.createShaderModule({code}),info=await m.getCompilationInfo();if(info.messages.some(x=>x.type==='error'))throw new Error(info.messages.map(x=>x.message).join('; '));return m};
   const mod=await mk(WGSL),modR=await mk(WGSL_R);
@@ -795,14 +799,14 @@ async function initWebGPU(cv){if(!navigator.gpu)throw new Error('no navigator.gp
   dev.addEventListener('uncapturederror',e=>{console.warn('WebGPU error:',e.error.message);if(!RB.gpuBad){RB.gpuBad=true;RB.gpu=null;pickBackend('webgpu error')}});
   return G}
 const growBuf=(G,key,bytes,usage)=>{if(!G[key]||G.sizes[key]<bytes){G[key]&&G[key].destroy();G[key]=G.dev.createBuffer({size:bytes,usage});G.sizes[key]=bytes}return G[key]};
-function gpuDraw(G,N,M,pk,s2,gain,Nl){const dev=G.dev,SU=GPUBufferUsage,k=N/Nl;
+function gpuDraw(G,N,M,pk,s2,gain,Nl,bench){const dev=G.dev,SU=GPUBufferUsage,k=N/Nl;
   dev.queue.writeBuffer(G.ubuf,0,new Float32Array([N,pk.ng,k,Nl, 2*M.d,M.d,M.T,M.kx, M.ky,s2,pk.kbm,gain]));
   dev.queue.writeBuffer(growBuf(G,'sb',pk.sb.byteLength,SU.STORAGE|SU.COPY_DST),0,pk.sb);dev.queue.writeBuffer(growBuf(G,'gr',pk.gr.byteLength,SU.STORAGE|SU.COPY_DST),0,pk.gr);
   const out=growBuf(G,'out',N*N*16,SU.STORAGE|SU.COPY_SRC);
   const ents=[{binding:0,resource:{buffer:G.ubuf}},{binding:1,resource:{buffer:G.sb}},{binding:2,resource:{buffer:G.gr}},{binding:3,resource:{buffer:out}}];
   const bg=dev.createBindGroup({layout:G.bgl,entries:ents}),bgR=dev.createBindGroup({layout:G.bglR,entries:[ents[0],ents[3]]});
   const enc=dev.createCommandEncoder();{const p=enc.beginComputePass();p.setPipeline(G.cp);p.setBindGroup(0,bg);p.dispatchWorkgroups(Math.ceil(Nl/8),Math.ceil(Nl/8));p.end()}
-  {const p=enc.beginRenderPass({colorAttachments:[{view:G.ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});p.setPipeline(G.rp);p.setBindGroup(0,bgR);p.draw(3);p.end()}
+  if(!bench){const p=enc.beginRenderPass({colorAttachments:[{view:G.ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});p.setPipeline(G.rp);p.setBindGroup(0,bgR);p.draw(3);p.end()}
   dev.queue.submit([enc.finish()]);G.lastN=Nl;return dev.queue.onSubmittedWorkDone()}
 async function gpuRead(G){const N=G.lastN,bytes=N*N*16,rb=G.dev.createBuffer({size:bytes,usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST});
   const enc=G.dev.createCommandEncoder();enc.copyBufferToBuffer(G.out,0,rb,0,bytes);G.dev.queue.submit([enc.finish()]);await rb.mapAsync(GPUMapMode.READ);
@@ -810,7 +814,7 @@ async function gpuRead(G){const N=G.lastN,bytes=N*N*16,rb=G.dev.createBuffer({si
 
 /* ---- WebGL2 ---- */
 function initWebGL2(cv){const gl=cv.getContext('webgl2',{antialias:false,depth:false,preserveDrawingBuffer:true});if(!gl)throw new Error('no webgl2');
-  if(!gl.getExtension('EXT_color_buffer_float'))throw new Error('no float render targets');
+  if(!gl.getExtension('EXT_color_buffer_float'))throw new Error('no float render targets');RB.glName=String(gl.getParameter(gl.RENDERER));
   const sh=(t,src)=>{const s=gl.createShader(t);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s};
   const prog=fs=>{const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,GLSL_VS));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));return p};
   const L={gl,pPix:prog(GLSL_PIX),pTone:prog(GLSL_TONE),tSB:gl.createTexture(),tGR:gl.createTexture(),tOut:gl.createTexture(),fb:gl.createFramebuffer(),vao:gl.createVertexArray(),N:0};
@@ -818,14 +822,14 @@ function initWebGL2(cv){const gl=cv.getContext('webgl2',{antialias:false,depth:f
   cv.addEventListener('webglcontextlost',e=>{e.preventDefault();RB.gl=null;pickBackend('webgl lost')});return L}
 function glData(gl,tex,arr){const texels=arr.length/4,w=Math.min(1024,texels),h=Math.ceil(texels/1024),buf=new Float32Array(w*h*4);buf.set(arr);
   gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,w,h,0,gl.RGBA,gl.FLOAT,buf)}
-function glDraw(L,N,M,pk,s2,gain,Nl){const gl=L.gl;
+function glDraw(L,N,M,pk,s2,gain,Nl,bench){const gl=L.gl;
   if(L.N!==N){gl.bindTexture(gl.TEXTURE_2D,L.tOut);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,N,N,0,gl.RGBA,gl.FLOAT,null);gl.bindFramebuffer(gl.FRAMEBUFFER,L.fb);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,L.tOut,0);L.N=N}
   glData(gl,L.tSB,pk.sb);glData(gl,L.tGR,pk.gr);gl.bindVertexArray(L.vao);
   const set=(p)=>{gl.useProgram(p);const U=n=>gl.getUniformLocation(p,n);gl.uniform1i(U('uSB'),0);gl.uniform1i(U('uGR'),1);gl.uniform1i(U('uOut'),2);gl.uniform1i(U('uNG'),pk.ng);gl.uniform1i(U('uN'),N);gl.uniform1i(U('uNl'),Nl);
     gl.uniform1f(U('uD'),M.d);gl.uniform1f(U('uT'),M.T);gl.uniform1f(U('uKx'),M.kx);gl.uniform1f(U('uKy'),M.ky);gl.uniform1f(U('uS2'),s2);gl.uniform1f(U('uKbm'),pk.kbm);gl.uniform1f(U('uGain'),gain)};
   gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,L.tSB);gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,L.tGR);
   gl.bindFramebuffer(gl.FRAMEBUFFER,L.fb);gl.viewport(0,0,Nl,Nl);set(L.pPix);gl.drawArrays(gl.TRIANGLES,0,3);
-  gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,N,N);gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,L.tOut);set(L.pTone);gl.drawArrays(gl.TRIANGLES,0,3);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);if(!bench){gl.viewport(0,0,N,N);gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,L.tOut);set(L.pTone);gl.drawArrays(gl.TRIANGLES,0,3)}  /* bench: the speed test leaves the visible canvas alone */
   /* resolve when the GPU has finished, polling a fence so the page never blocks on it */
   const fence=gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0);gl.flush();
   return new Promise(res=>{const poll=()=>{const r=gl.clientWaitSync(fence,0,0);if(r===gl.TIMEOUT_EXPIRED)setTimeout(poll,1);else{gl.deleteSync(fence);res()}};poll()})}
@@ -849,22 +853,82 @@ onmessage=e=>{const t0=performance.now(),m=e.data,{N,Nl,rc2,j0,j1,d,T,kx,ky,s2,k
   const url=URL.createObjectURL(new Blob([src],{type:'text/javascript'}));const W={pool:Array.from({length:n},()=>new Worker(url)),n,job:0};
   return W}
 
-/* ---- backend selection ---- */
+/* ---- backend selection ----
+   The automatic order below is only the starting guess. A speed test (ring-bench.js, MS-18) times every available renderer once
+   per device and ranks them (RB.rank, cached); pickBackend takes the fastest that still works, so a lost GPU falls back to the
+   next fastest. ?renderer= forces one (tests). */
 const BACKENDS=[['webgpu','WebGPU'],['webgl2','WebGL2'],['workers','CPU, all cores'],['cpu','CPU, one core']];
-async function probeBackends(){const ok=[];
-  try{RB.gpu=await initWebGPU($('ringGPU'));ok.push('webgpu')}catch(e){RB.gpuErr=e.message}
-  try{RB.gl=initWebGL2($('ringGL'));ok.push('webgl2')}catch(e){RB.glErr=e.message}
-  try{RB.workers=initWorkers();ok.push('workers')}catch(e){}
-  ok.push('cpu');pickBackend()}
-function pickBackend(why){RB.busy=false;RB.dirty=false;const avail=BACKENDS.map(b=>b[0]).filter(k=>(k==='webgpu'&&RB.gpu)||(k==='webgl2'&&RB.gl)||(k==='workers'&&RB.workers)||k==='cpu');
-  RB.active=RB.pref!=='auto'&&avail.includes(RB.pref)?RB.pref:avail[0];
+const beName=k=>BACKENDS.find(b=>b[0]===k)[1];
+const availBackends=()=>BACKENDS.map(b=>b[0]).filter(k=>(k==='webgpu'&&RB.gpu)||(k==='webgl2'&&RB.gl)||(k==='workers'&&RB.workers)||k==='cpu');
+async function probeBackends(){
+  try{RB.gpu=await initWebGPU($('ringGPU'))}catch(e){RB.gpuErr=e.message}
+  try{RB.gl=initWebGL2($('ringGL'))}catch(e){RB.glErr=e.message}
+  try{RB.workers=initWorkers()}catch(e){}
+  if(RB.pref==='auto')benchLoad();pickBackend();
+  if(RB.pref==='auto'&&!RB.rank&&availBackends().length>1)benchSchedule()}
+function pickBackend(why){RB.busy=false;RB.dirty=false;const avail=availBackends(),rank=(RB.rank||[]).filter(k=>avail.includes(k)),order=[...rank,...avail.filter(k=>!rank.includes(k))];
+  RB.active=RB.pref!=='auto'&&avail.includes(RB.pref)?RB.pref:order[0];
   $('ring').hidden=!['cpu','workers'].includes(RB.active);$('ringGL').hidden=RB.active!=='webgl2';$('ringGPU').hidden=RB.active!=='webgpu';
-  /* the available and active renderers, for the tests; the ? popup on the pattern panel names the active one */
+  /* the available (in the default order) and active renderers, for the tests; the ? popup on the pattern panel names the active one */
   document.documentElement.dataset.renderers=avail.join(',');document.documentElement.dataset.renderer=RB.active;
-  $('rendV').textContent=BACKENDS.find(b=>b[0]===RB.active)[1];
-  $('rendNote').textContent='Every renderer evaluates the same exact per-pixel formula, and the "Ring pixels" check reads back whichever one is active.'+(RB.gpuErr&&!RB.gpu?` WebGPU unavailable: ${RB.gpuErr}.`:'')+(RB.glErr&&!RB.gl?` WebGL2 unavailable: ${RB.glErr}.`:'');
+  $('rendV').textContent=beName(RB.active);
+  $('rendNote').textContent=benchNote()+' Every renderer evaluates the same exact per-pixel formula, and the "Ring pixels" check reads back whichever one is active.'+(RB.gpuErr&&!RB.gpu?` WebGPU unavailable: ${RB.gpuErr}.`:'')+(RB.glErr&&!RB.gl?` WebGL2 unavailable: ${RB.glErr}.`:'');
   if(why)console.info('renderer:',RB.active,why);update(false)}
-
+/* ---- startup speed test (MS-18): pick the fastest renderer on this device ----
+   Every available renderer computes the same fixed image (the LED preset, d = 3 µm, 10° field, a small tilt) on a BENCH_N² grid
+   of exact footprint averages, one warm-up run and then three timed runs (the median counts). Equal work for all of them: the GPUs
+   skip their display pass, so the visible canvas is untouched, and the workers and the main thread compute the same grid points
+   without painting. A renderer must be at least 10% faster than one earlier in the default order to rank ahead of it (timing noise).
+   The test starts once the first image is finished and the page is at rest, stops at once if anything starts moving (and tries
+   again later), and while it runs the ring keeps its last image. The ranking is cached per device (browser, cores, GPU names,
+   available renderers) for BENCH_DAYS, so later visits start straight on the fastest renderer. */
+const BENCH_KEY='mich-renderer-bench',BENCH_V=1,BENCH_N=160,BENCH_DAYS=30;
+const benchSig=()=>JSON.stringify([BENCH_V,navigator.userAgent,navigator.hardwareConcurrency||0,RB.gpuName||'',RB.glName||'',availBackends()]);
+function benchLoad(){try{const c=JSON.parse(localStorage.getItem(BENCH_KEY)||'null');
+  if(c&&c.sig===benchSig()&&Date.now()-c.at<BENCH_DAYS*864e5){RB.rank=c.rank;RB.benchRes=c;benchShow()}}catch(e){}}
+const benchShow=()=>{if(RB.benchRes)document.documentElement.dataset.bench=JSON.stringify(RB.benchRes.ms)};  /* for the tests */
+function benchNote(){const r=RB.benchRes;if(RB.pref!=='auto')return'Renderer forced by the address (?renderer=).';
+  if(!r)return RB.rank||availBackends().length<2?'':'A quick speed test runs once on this device and switches to the fastest renderer.';
+  return`Chosen by a speed test on this device (the same ${BENCH_N}² image on each): `+r.rank.map(k=>`${beName(k)}: ${isFinite(r.ms[k])?F(r.ms[k],2)+' ms':'failed'}`).join('; ')+'.'}
+/* the fixed workload */
+function benchWork(){const SL=splitBands(presets.led),pr=prepSL(SL),M=ringModelOf(3,10,40,25),N=BENCH_N,rc=rcut(N,1);let kbm=0;for(const o of SL)kbm=Math.max(kbm,o.kb);
+  return{pr,M,N,kbm,s2:(PIXSD*2/N)**2,rc2:rc*rc,pk:packRing(pr,M)}}
+/* one run of one renderer, in ms */
+const benchRun={
+  webgpu:W=>gpuDraw(RB.gpu,W.N,W.M,W.pk,W.s2,1,W.N,true),
+  webgl2:W=>glDraw(RB.gl,W.N,W.M,W.pk,W.s2,1,W.N,true),
+  workers:W=>new Promise(res=>{const P=RB.workers,id=++P.job,N=W.N,blk=8;let next=0,pending=0;
+    const msg={N,Nl:N,rc2:W.rc2,d:W.M.d,T:W.M.T,kx:W.M.kx,ky:W.M.ky,s2:W.s2,kbm:W.kbm,pr:W.pr};
+    const send=w=>{if(next>=N)return;const j0=next,j1=Math.min(N,next+blk);next=j1;pending++;w.postMessage({...msg,id,j0,j1})};
+    P.pool.forEach(w=>{w.onmessage=e=>{if(e.data.id!==id)return;pending--;send(w);if(!pending)res()};send(w)})}),
+  /* the main thread in 8-row slices, so the page stays responsive; only the computing time counts */
+  cpu:async W=>{const N=W.N,h=N/2;let ms=0;
+    for(let j0=0;j0<N;j0+=8){const t0=performance.now();for(let j=j0;j<j0+8;j++){const v=-((j+0.5)-h)/h;for(let i=0;i<N;i++){const u=((i+0.5)-h)/h;if(u*u+v*v<=W.rc2)gridPix(W.M,W.pr,W.kbm,W.s2,u,v)}}
+      ms+=performance.now()-t0;await new Promise(r=>setTimeout(r,0))}return ms}};
+async function benchTime(be,W){const t0=performance.now();let to;
+  const r=await Promise.race([benchRun[be](W),new Promise((_,rej)=>to=setTimeout(()=>rej(new Error('timed out')),3000))]);clearTimeout(to);
+  return be==='cpu'?r:performance.now()-t0}
+const benchStop=()=>ringLive||document.hidden;
+async function benchAll(){const W=benchWork(),ms={};
+  for(const be of availBackends()){
+    try{const best=Math.min(Infinity,...Object.values(ms)),w=await benchTime(be,W);if(benchStop())return null;  /* warm-up: compiles shaders, warms up the JIT */
+      if(w>5*best){ms[be]=w;continue}  /* clearly slower: no need to time it again */
+      const t=[];for(let i=0;i<3;i++){t.push(await benchTime(be,W));if(benchStop())return null}t.sort((a,b)=>a-b);ms[be]=t[1]}
+    catch(e){ms[be]=Infinity;console.warn('speed test:',be,'failed:',e&&e.message)}}
+  return ms}
+/* fastest first; within 10% of each other the default order decides; a failed renderer goes last */
+function benchRank(ms){const def=availBackends();return def.slice().sort((a,b)=>{const x=ms[a],y=ms[b];
+  if(isFinite(x)&&isFinite(y)&&Math.abs(x-y)>0.1*Math.min(x,y))return x-y;if(isFinite(x)!==isFinite(y))return isFinite(x)?-1:1;return def.indexOf(a)-def.indexOf(b)})}
+/* wait until the page is at rest and the current image is finished, then test; try again later if anything moves meanwhile */
+function benchSchedule(tries=0){if(tries>60)return;setTimeout(async()=>{
+  if(benchStop()||RB.busy||(RB.workers&&RB.workers.busy))return benchSchedule(tries+1);
+  if(RB.wDone)await RB.wDone;if(benchStop()||RB.busy)return benchSchedule(tries+1);
+  RB.benching=true;let ms=null;RB.benchP=benchAll().then(m=>ms=m,()=>{});await RB.benchP;RB.benching=false;RB.benchP=null;
+  ringKey='';  /* a GPU's output buffer now holds the test image: render the real one again (also the frames skipped meanwhile) */
+  if(!ms){if(!raf)raf=requestAnimationFrame(draw);return benchSchedule(tries+1)}
+  const rank=benchRank(ms);RB.rank=rank;RB.benchRes={ms,rank,at:Date.now()};benchShow();
+  try{localStorage.setItem(BENCH_KEY,JSON.stringify({...RB.benchRes,sig:benchSig()}))}catch(e){}
+  console.info('speed test (ms):',JSON.stringify(ms));pickBackend('speed test')},tries?1500:1000)}
 /* Timing: the tilted (non-radial) image costs one exact pixel average per block. While moving, the block size comes from the
    adaptive preview below. At rest, the full-resolution image is computed in ~12 ms slices between frames,
    sharpening top-down, so the page never blocks; a newer render cancels an unfinished one. Verification renders synchronously. */
@@ -914,7 +978,8 @@ measureFrame();document.addEventListener('visibilitychange',()=>{if(!document.hi
 const showRes=(N,Nl,live)=>{const e=$('resV'),t=`${Nl}²${live&&Nl<N?' preview':''}`;if(e&&e.textContent!==t)e.textContent=t};
 let ringKey='',ringWasLive=false;
 function ringInputs(){sublines();return JSON.stringify([slKey,$('d').value,$('fov').value,$('tx').value,$('ty').value,ring.width,RB.active,...box($('prof')),document.documentElement.dataset.theme])}
-function renderRingIfNeeded(){const k=ringInputs();if(k===ringKey&&!(ringWasLive&&!ringLive))return;ringKey=k;ringWasLive=ringLive;renderRing()}
+function renderRingIfNeeded(){if(RB.benching)return;  /* the speed test is running: keep the last image (ringKey is reset when it ends) */
+  const k=ringInputs();if(k===ringKey&&!(ringWasLive&&!ringLive))return;ringKey=k;ringWasLive=ringLive;renderRing()}
 /* reusable image buffers (one per size) and the small off-screen canvas for previews */
 const ringImgs=new Map();function ringImg(n){let im=ringImgs.get(n);if(!im){if(ringImgs.size>6)ringImgs.clear();im=rctx.createImageData(n,n);ringImgs.set(n,im)}
   if(!RB.off)RB.off=document.createElement('canvas');if(RB.off.width!==n){RB.off.width=n;RB.off.height=n}return im}
@@ -959,9 +1024,7 @@ function renderRing(sync){
         put(j,i,RX[q]+(RX[q+1]-RX[q])*f,RY[q]+(RY[q+1]-RY[q])*f,RZ[q]+(RZ[q+1]-RZ[q])*f,RI[q]+(RI[q+1]-RI[q])*f)}}}
     else{const kbm=Math.max(...SL.map(o=>o.kb)),s2=sd*sd;
       /* grid point (j, i): the exact footprint average, or 0 beyond rcut (MS-13) */
-      const pix=(j,i)=>{const v=-((j+0.5)*k-h)/h,u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2)return put(j,i,0,0,0,0);const r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
-        const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;  /* the same curvature test in previews: their footprint is k times wider, so curvature matters more there */
-        const p=pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad);put(j,i,p[0],p[1],p[2],p[3])};
+      const pix=(j,i)=>{const v=-((j+0.5)*k-h)/h,u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2)return put(j,i,0,0,0,0);const p=gridPix(M,pr,kbm,s2,u,v);put(j,i,p[0],p[1],p[2],p[3])};
       const rows=(j0,j1)=>{for(let j=j0;j<j1;j++)for(let i=0;i<Nl;i++)pix(j,i)};
       if(!tilted){/* at rest and untilted (MS-15): the pattern and the pixel grid share the square's 8 symmetries (u → −u, v → −v, u ↔ v),
           so only the octant 0 ≤ i ≤ j < N/2 is evaluated, exactly as above, and each value is copied to its 8 mirror pixels. */
@@ -988,11 +1051,15 @@ function renderRing(sync){
         ringProfile(M);return}
       else if(ringLive||sync)rows(0,Nl);
       else{/* progressive full-resolution pass */
-        let j=0;const slice=()=>{if(job!==ringJob)return;const t0=performance.now(),jj=j;while(j<N&&performance.now()-t0<12){rows(j,j+4);j+=4}
-          present(jj,Math.min(j,N));if(j<N)setTimeout(slice,0)};
+        let j=0,done;RB.wDone=new Promise(r=>done=r);const slice=()=>{if(job!==ringJob)return done();const t0=performance.now(),jj=j;while(j<N&&performance.now()-t0<12){rows(j,j+4);j+=4}
+          present(jj,Math.min(j,N));if(j<N)setTimeout(slice,0);else done()};
         slice();ringProfile(M);return}}
   }else{D.fill(0);for(let o=3;o<D.length;o+=4)D[o]=255}
   present(0,N);ringProfile(M);if(ringLive&&cs.length)lqRecord(pathKey,Nl,performance.now()-T0);LQ.ms=performance.now()-T0}
+/* one grid point's exact footprint average at (u, v): the OPD's gradient and Hessian there, then pixVal (also used by the speed test) */
+function gridPix(M,pr,kbm,s2,u,v){const r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
+  const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;  /* the same curvature test in previews: their footprint is k times wider, so curvature matters more there */
+  return pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad)}
 function ringProfile(M){const cs=act();
   /* profile cut: through the centre along the tilt direction n = (αx, αy)/|α| (along x when there is no tilt) */
   const ax=+$('tx').value,ay=+$('ty').value,an=Math.hypot(ax,ay),nx=an?ax/an:1,ny=an?ay/an:0,phi=Math.atan2(ny,nx)*180/Math.PI;
@@ -1028,6 +1095,7 @@ async function verify(){
     e4=Math.max(e4,Math.hypot(sb[0]-q[0],sb[1]-q[1],sb[2]-q[2])/Math.max(1e-12,Math.hypot(...q)))}
   row('Colour (XYZ)','sub-band XYZ vs ∫S·½(1+cos)·x̄ȳz̄ dσ at δ = 0, δ₀, δmax/2 (relative)',e4,1e-2);
   /* 5 rendered ring pixels vs brute-force 2-D integration of the exact pattern over each pixel's footprint */
+  if(RB.benchP)await RB.benchP;  /* a running speed test may still switch the renderer */
   ringLive=false;if(RB.active==='workers'){renderRing();if(RB.wDone)await RB.wDone}else{while(RB.busy)await RB.done;renderRing(true);if(RB.done)await RB.done}await ringReadback();let e5=0;const N=ring.width,hN=N/2,sd=PIXSD*2/N;
   for(const[fi,fj]of [[0.5,0.5],[0.503,0.497],[0.508,0.512],[0.75,0.5],[0.675,0.325],[0.15,0.3],[0.972,0.475],[0.6,0.95]]){const i0=Math.floor(fi*N),j0=Math.floor(fj*N);const u0=(i0+0.5-hN)/hN,v0=-(j0+0.5-hN)/hN;
     const gr=M.grad(u0,v0),fr=8*sd*Math.hypot(...gr)*Math.max(...SL.map(o=>o.s)),n=clamp(Math.ceil(fr*12)+21,21,801);

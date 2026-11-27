@@ -1,16 +1,9 @@
 """Run the in-page verification table for every preset (with and without tilt) on every available renderer."""
 import asyncio, sys
 from playwright.async_api import async_playwright
-from _common import open_page, backends, use_renderer
+from _common import open_page, backends, use_renderer, run_checks
 
 PRESETS = ["hene", "na", "led", "two"]
-
-async def run_checks(pg):
-    await pg.click("#openMethod"); await pg.click("#verBtn")
-    await pg.wait_for_function("document.getElementById('verAt').textContent.startsWith('Last run')", timeout=180000)
-    rows = await pg.evaluate("[...document.querySelectorAll('#ver tr')].map(t=>t.innerText.replace(/\\s+/g,' '))")
-    await pg.keyboard.press("Escape")
-    return rows
 
 async def main():
     failed = 0
