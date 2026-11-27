@@ -7,3 +7,4 @@ The spectral plots: shared axes (`axes`, `gpath`), the spectrum editor (`renderS
 - Wavelength axes run 800 → 400 nm, left to right.
 - Moving d redraws only what depends on it. The editor is skipped when `specKey` is unchanged. The interfered spectrum keeps its axes, grid and S(σ) (`outC`) and re-evaluates only T(σ;δ₀). A new input to either must go into its cache key, or the plot goes stale.
 - A dragged Gaussian narrower than FWHM 0.008 µm⁻¹ snaps back to a line.
+- `renderOut` builds its DOM once per key (`outC.ns`, `outC.dom`) and afterwards only updates the `d`, `y2` and `cy` attributes, giving markup identical to a rebuild. If you add an element that depends on δ₀, update it in both branches, or the child-count check falls back to a rebuild.

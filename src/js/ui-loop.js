@@ -18,8 +18,8 @@ editable('txV',()=>+$('tx').value,v=>{tGlide=null;widen('tx',v,true)});
 editable('tyV',()=>+$('ty').value,v=>{tGlide=null;widen('ty',v,true)});
 
 /* ---------- ring sizing: the canvas fills the largest square that fits its panel ---------- */
-function fitRing(){const b=$('ringBox'),s=Math.max(120,Math.floor(Math.min(b.clientWidth,b.clientHeight||b.clientWidth)));
-  $('ringWrap').style.width=$('ringWrap').style.height=s+'px';const gpu=RB.active==='webgpu'||RB.active==='webgl2',n=clamp(Math.round(s*(window.devicePixelRatio||1)),200,gpu?1024:480);
+function fitRing(){const[bw,bh]=box($('ringBox')),s=Math.max(120,Math.floor(Math.min(bw,bh||bw)));
+  if($('ringWrap').style.width!==s+'px'){$('ringWrap').style.width=$('ringWrap').style.height=s+'px';SZC.delete(ov)}const gpu=RB.active==='webgpu'||RB.active==='webgl2',n=clamp(Math.round(s*(window.devicePixelRatio||1)),200,gpu?1024:480);
   for(const c of [ring,$('ringGL'),$('ringGPU')])if(c.width!==n){c.width=n;c.height=n}}  /* GPUs render at full device resolution (up to 1024²); the CPU caps at 480² */
 
 /* ---------- each panel's equations and notes open as a centred modal window ---------- */
@@ -37,10 +37,10 @@ document.addEventListener('click',e=>{const a=e.target.closest('a[href^="#s"]');
 
 /* ---------- loop ---------- */
 let raf=0,eqT=0;
-const setTxt=(id,t)=>{if(!editing.has(id))$(id).textContent=t};
+const setTxt=(id,t)=>{const e=$(id);if(!editing.has(id)&&e.textContent!==t)e.textContent=t};  /* an unchanged text is not rewritten, so it doesn't dirty the layout */
 function draw(){raf=0;/* d and δ0 to the nearest nm (3 decimals in µm), with a fixed-width minus slot so the row never reflows */
   const nm3=v=>{const t=Math.abs(v).toFixed(3);return (v<0&&+t?'−':'\u2007')+t+' µm'};setTxt('dV',nm3(+$('d').value));setTxt('dV0',nm3(D0()));setTxt('dRV',`${F(DMAX(),3)} µm`);
-  setTxt('rV',`±${F(RANGE(),4)} µm`);{const[a,b]=outWin(),dg=b-a<5?2:b-a<50?1:0;$('oV').textContent=`${a.toFixed(dg)}–${b.toFixed(dg)} nm`}setTxt('fV',`${F(+$('fov').value,4)}°`);setTxt('txV',`${F(+$('tx').value,4)} µrad`);setTxt('tyV',`${F(+$('ty').value,4)} µrad`);
+  setTxt('rV',`±${F(RANGE(),4)} µm`);{const[a,b]=outWin(),dg=b-a<5?2:b-a<50?1:0;setTxt('oV',`${a.toFixed(dg)}–${b.toFixed(dg)} nm`)}setTxt('fV',`${F(+$('fov').value,4)}°`);setTxt('txV',`${F(+$('tx').value,4)} µrad`);setTxt('tyV',`${F(+$('ty').value,4)} µrad`);
   const t0=performance.now();LQ.ms=0;fitRing();renderSpec();renderOut();renderIfg();renderRingIfNeeded();renderOv();renderRail();renderMini();
   if(ringLive){const t=performance.now()-t0;LQ.other=0.7*LQ.other+0.3*Math.max(0,t-LQ.ms);LQ.tot=0.7*LQ.tot+0.3*t}}
 function runEq(){eqT=0;eqs();table();save()}
@@ -50,9 +50,10 @@ function update(live){ringLive=!!live;clearTimeout(idleT);if(live)idleT=setTimeo
   if(!raf)raf=requestAnimationFrame(draw);
   if(live){if(!eqT)eqT=setTimeout(runEq,350)}else{clearTimeout(eqT);eqT=setTimeout(runEq,40)}  /* let the released frame paint first */
   $('verAt').textContent='Settings changed since the last run. Press Run checks to verify the current state.'}
-const ro=new ResizeObserver(()=>{if(!raf)raf=requestAnimationFrame(draw)});window.addEventListener('resize',()=>measureFrame());
+const ro=new ResizeObserver(()=>{SZC.clear();if(!raf)raf=requestAnimationFrame(draw)});window.addEventListener('resize',()=>{SZC.clear();measureFrame()});
 let lastK=EQK();window.addEventListener('resize',()=>{if(EQK()!==lastK){lastK=EQK();eqs()}});
 ['specBox','profBox','ringBox','railBox'].forEach(k=>ro.observe($(k)));document.querySelectorAll('.plot').forEach(p=>ro.observe(p));
-const mo=new MutationObserver(()=>update(false));mo.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{CSSC.clear();update(false)});
+const mo=new MutationObserver(()=>{CSSC.clear();update(false)});mo.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 const waitMJ=setInterval(()=>{if(window.MathJax&&MathJax.typesetPromise){clearInterval(waitMJ);eqs()}},200);
 update(false);

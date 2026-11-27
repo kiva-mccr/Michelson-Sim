@@ -345,7 +345,12 @@ try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');
   if(v&&Array.isArray(v.c)){comps=v.c;$('d').value=v.d;if(v.fov)$('fov').value=v.fov;if(v.tx!=null){$('tx').value=v.tx;$('ty').value=v.ty}if(v.ra===false)$('rAuto').checked=false;if(v.env===false)$('envOn').checked=false}}catch(e){}
 comps.forEach(c=>{if(c.on===undefined)c.on=true});
 const save=()=>{try{localStorage.setItem('mich-sim-v2',JSON.stringify({c:comps,d:$('d').value,fov:$('fov').value,tx:$('tx').value,ty:$('ty').value,ra:$('rAuto').checked,rm:Rman,env:$('envOn').checked}))}catch(e){}};
-const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+/* Reading computed styles or box sizes after a DOM write forces the browser to recompute style or layout, and the draw loop
+   alternates reads and writes. So theme colours and plot box sizes are read once and cached: colours until the theme changes
+   (CSSC, cleared in ui-loop.js), sizes until a ResizeObserver or window resize reports a change (SZC). Same values, read once. */
+const CSSC=new Map(),SZC=new Map();
+const css=n=>{let v=CSSC.get(n);if(v===undefined){v=getComputedStyle(document.documentElement).getPropertyValue(n).trim();CSSC.set(n,v)}return v};
+const box=el=>{let v=SZC.get(el);if(!v){v=[el.clientWidth,el.clientHeight];if(v[0])SZC.set(el,v)}return v};
 const F=(x,n=3)=>{if(!isFinite(x))return'\\infty';if(x===0)return'0';return String(Number(x.toPrecision(n)))};
 const wOf=c=>c.f/KW;
 /* Heights are what you see: a Gaussian's height a_n is its peak spectral density, so its power is the area under its curve,
@@ -360,6 +365,14 @@ try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');if(v&&v.rm)R
 const col=c=>markHex(1000/c.s);
 function gamma(d,cs=act()){let re=0,im=0,A=0;for(const c of cs){const w=wOf(c),pc=P(c),e=w?pc*Math.exp(-((Math.PI*w*d)**2)):pc,p=2*Math.PI*c.s*d;re+=e*Math.cos(p);im+=e*Math.sin(p);A+=pc}  /* a line (w = 0) has e^0 = 1 exactly */
   return A?[re/A,im/A]:[0,0]}
+/* gamma for many OPDs of one spectrum (the range plots): the per-component constants are taken out of the loop and no array is
+   allocated. Each term is the same expression as in gamma(), in the same order (Math.PI*w*d = (Math.PI*w)*d and
+   2*Math.PI*c.s*d = (2*Math.PI*c.s)*d), so re() and mag() equal gamma()[0] and |gamma()| bit for bit. re() skips the sines. */
+function gammaOf(cs){const n=cs.length,W=new Float64Array(n),PC=new Float64Array(n),PW=new Float64Array(n),TS=new Float64Array(n);let A=0;
+  cs.forEach((c,i)=>{W[i]=wOf(c);PC[i]=P(c);PW[i]=Math.PI*W[i];TS[i]=2*Math.PI*c.s;A+=PC[i]});
+  const e=(i,d)=>W[i]?PC[i]*Math.exp(-((PW[i]*d)**2)):PC[i];
+  return{re(d){if(!A)return 0;let re=0;for(let i=0;i<n;i++)re+=e(i,d)*Math.cos(TS[i]*d);return re/A},
+    mag(d){if(!A)return 0;let re=0,im=0;for(let i=0;i<n;i++){const ei=e(i,d),p=TS[i]*d;re+=ei*Math.cos(p);im+=ei*Math.sin(p)}return Math.hypot(re/A,im/A)}}}
 const shape=(c,s)=>c.f?c.a*Math.exp(-4*LN2*(s-c.s)**2/(c.f*c.f)):0;
 const dens=(c,s)=>c.f?c.a*Math.exp(-(((s-c.s)/wOf(c))**2)):0;
 /* combined continuous spectrum: the sum of the Gaussian outlines exactly as drawn (no rescaling) */
@@ -398,7 +411,7 @@ function gpath(x,y,W,pl,pr,f,l0=LMIN,l1=LMAX){let p='';const n=Math.max(200,Math
 /* ---------- editor ---------- */
 const spec=$('spec');let G={},specKey='';
 function renderSpec(){
-  const W=spec.clientWidth,H=spec.clientHeight;if(!W)return;
+  const [W,H]=box(spec);if(!W)return;
   /* the editor depends only on the components, the selection, drag state, size and theme colours, not on d: skip identical redraws */
   const key=JSON.stringify([comps,sel,!!drag,W,H,css('--fr'),css('--ink'),css('--mute')]);if(key===specKey)return;specKey=key;
   const pl=40,pr=12,pt=20,pb=36,ym=calcYM(),A=axes(W,H,pl,pr,pt,pb,'Spectral density (rel.)',LMIN,LMAX,ym),{x,y}=A;G={x,y,W,H,pl,pr,pt,pb,ym};
@@ -454,23 +467,28 @@ function setOutMan(a,b){const span=clamp(b-a,0.05,LMAX-LMIN);let m=(a+b)/2;a=m-s
 /* the axes, the sample grid and S(σ) do not depend on d, so they are cached; moving the mirror only re-evaluates T(σ;δ₀) */
 let outC={key:''};
 function renderOut(){
-  const svg=$('out'),W=svg.clientWidth,H=svg.clientHeight;if(!W)return;
+  const svg=$('out'),[W,H]=box(svg);if(!W)return;
   const pl=40,pr=10,pt=8,pb=36,[l0,l1]=outWin(),fr=css('--fr'),fill=css('--fill'),ts=trueShape();OG={W,pl,pr,l0,l1};
-  const key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),l0,l1,W,H,YM,fr,css('--mute')]);
+  const key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),l0,l1,W,H,YM,fr,fill,css('--mute')]);
   if(key!==outC.key){const A=axes(W,H,pl,pr,pt,pb,'S_out (rel.)',l0,l1,YM),{x,y}=A,n=Math.max(200,Math.round((W-pl-pr)*2)),S=new Float64Array(n+1),TS=ts?new Float64Array(n+1):null,XS=[];
     /* the same grid and strings as gpath() */
     for(let i=0;i<=n;i++){const s=1000/(l0+(l1-l0)*i/n);S[i]=s;XS.push((i?'L':'M')+x(s).toFixed(1)+' ');if(ts)TS[i]=ts(s)}
     let tp='';if(ts)for(let i=0;i<=n;i++)tp+=XS[i]+y(TS[i]).toFixed(1);
     outC={key,A,S,TS,XS,n,tp}}
   const {A,S,TS,XS,n,tp}=outC,{x,y}=A;
-  let h=A.h;const d0=D0(),T=s=>0.5*(1+Math.cos(2*Math.PI*s*d0));
+  const d0=D0(),T=s=>0.5*(1+Math.cos(2*Math.PI*s*d0));
   let pT='',pP='';for(let i=0;i<=n;i++){const t=T(S[i]);pT+=XS[i]+y(t).toFixed(1);if(TS)pP+=XS[i]+y(TS[i]*t).toFixed(1)}
-  h+=`<path d="${pT}" fill="none" stroke="${A.mute}" stroke-opacity=".55" stroke-width="1"/>`;
+  const pPd=`${pP}L${x(1000/l1)} ${y(0)}L${x(1000/l0)} ${y(0)}Z`,lines=act().filter(c=>!c.f&&1000/c.s>=l0&&1000/c.s<=l1);
+  /* while only d moves, the axes and S(σ) stay in the DOM and only the d-dependent attributes are updated (the same markup as a rebuild) */
+  const ch=svg.children,ns=outC.ns;
+  if(outC.dom===svg&&ch.length===ns+1+(ts?2:0)+3*lines.length){ch[ns].setAttribute('d',pT);if(ts)ch[ns+2].setAttribute('d',pPd);
+    lines.forEach((c,j)=>{const v=y(c.a*T(c.s)),o=ns+1+(ts?2:0)+3*j;ch[o+1].setAttribute('y2',v);ch[o+2].setAttribute('cy',v)});return}
+  let h=`<path d="${pT}" fill="none" stroke="${A.mute}" stroke-opacity=".55" stroke-width="1"/>`;
   if(ts){h+=`<path d="${tp}" fill="none" stroke="${fr}" stroke-dasharray="4 3"/>`;
-    h+=`<path d="${pP}L${x(1000/l1)} ${y(0)}L${x(1000/l0)} ${y(0)}Z" fill="${fill}" fill-opacity=".85" stroke="${fr}" stroke-width="1.5"/>`}
-  for(const c of act())if(!c.f){const lc=1000/c.s;if(lc<l0||lc>l1)continue;const v=c.a*T(c.s);
+    h+=`<path d="${pPd}" fill="${fill}" fill-opacity=".85" stroke="${fr}" stroke-width="1.5"/>`}
+  for(const c of lines){const v=c.a*T(c.s);
     h+=`<line x1="${x(c.s)}" x2="${x(c.s)}" y1="${y(0)}" y2="${y(c.a)}" stroke="${fr}" stroke-dasharray="3 3"/><line x1="${x(c.s)}" x2="${x(c.s)}" y1="${y(0)}" y2="${y(v)}" stroke="${col(c)}" stroke-width="3"/><circle cx="${x(c.s)}" cy="${y(v)}" r="3.5" fill="${col(c)}"/>`}
-  svg.innerHTML=h}
+  svg.innerHTML=A.h;outC.ns=svg.children.length;outC.dom=svg;svg.insertAdjacentHTML('beforeend',h)}
 
 /* ---------- shared exact maths for rendering ----------
    Pixel footprint: each displayed pixel averages the pattern over a 2-D Gaussian footprint (sd PIXSD px).
@@ -489,9 +507,10 @@ const enc=v=>GL[v<=0?0:v>=1?4096:(v*4096+0.5)|0];
    drawn at least 1.25 px tall, with 1/K coverage and fractional coverage at its ends (shown with a 0.45 display gamma, like scope persistence). Summing coverage is a box filter:
    proper anti-aliasing, so fringes near the pixel pitch blend into an even tone instead of beating into moiré.
    A small horizontal Gaussian (sd 0.7 px) then suppresses the box filter's own side-lobes. */
-function spanOf(t0,t1,dAt,cs,smax){const fr=Math.abs(dAt(t1)-dAt(t0))*smax;let lo=1,hi=0;
-  if(fr>=1){for(let q=0;q<=4;q++){const[re,im]=gamma(dAt(t0+(t1-t0)*q/4),cs),m=Math.hypot(re,im);lo=Math.min(lo,0.5*(1-m));hi=Math.max(hi,0.5*(1+m))}}
-  else{const k=Math.max(2,Math.ceil(16*fr)+1);for(let q=0;q<=k;q++){const v=0.5*(1+gamma(dAt(t0+(t1-t0)*q/k),cs)[0]);lo=Math.min(lo,v);hi=Math.max(hi,v)}}return[lo,hi]}
+function spanOf(t0,t1,dAt,g,smax){const fr=Math.abs(dAt(t1)-dAt(t0))*smax;let lo=1,hi=0;  /* g = gammaOf(cs) */
+  if(fr>=1){for(let q=0;q<=4;q++){const m=g.mag(dAt(t0+(t1-t0)*q/4));lo=Math.min(lo,0.5*(1-m));hi=Math.max(hi,0.5*(1+m))}}
+  else{const k=Math.max(2,Math.ceil(16*fr)+1);for(let q=0;q<=k;q++){const v=0.5*(1+g.re(dAt(t0+(t1-t0)*q/k)));lo=Math.min(lo,v);hi=Math.max(hi,v)}}SPAN2[0]=lo;SPAN2[1]=hi;return SPAN2}
+const SPAN2=[0,0];
 /* buffers are reused between calls, one set per target canvas; only the rows a column (or its filter neighbours) touched are visited */
 /* Sub-columns per pixel: 8 at rest. While moving, the ring has priority: the plots stay at 2 until the ring preview is at full
    resolution, then use only the time the frame has to spare. From the profile's measured cost per sub-column c and the last
@@ -503,10 +522,10 @@ function dpRecord(K,ms){const c=ms/K;DPQ.c=DPQ.c?0.7*DPQ.c+0.3*c:c;if(LQ.last>1)
   DPQ.k=[...DPK].reverse().find(k=>DPQ.c*k<=0.2*F&&DPQ.c*(k-K)<=(k>K?0.85*slack:slack))||2}
 function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=dpK(),
   B=ctx.__dp&&ctx.__dp.Wd===Wd&&ctx.__dp.Hd===Hd?ctx.__dp:(ctx.__dp={Wd,Hd,img:ctx.createImageData(Wd,Hd),C:new Float32Array(Wd*Hd),r0:new Int32Array(Wd),r1:new Int32Array(Wd),off:document.createElement('canvas')});
-  const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],smax=Math.max(...cs.map(c=>c.s)),MINH=1.25*(window.devicePixelRatio||1);
+  const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],smax=Math.max(...cs.map(c=>c.s)),g=gammaOf(cs),MINH=1.25*(window.devicePixelRatio||1);
   D.fill(0);C.fill(0);
   for(let px=0;px<Wd;px++){const base=px*Hd;let c0=Hd,c1=-1;
-    for(let k=0;k<K;k++){const[lo,hi]=spanOf((px+k/K)/Wd,(px+(k+1)/K)/Wd,dAt,cs,smax);let ya=(1-hi)*(Hd-1),yb=(1-lo)*(Hd-1);
+    for(let k=0;k<K;k++){const[lo,hi]=spanOf((px+k/K)/Wd,(px+(k+1)/K)/Wd,dAt,g,smax);let ya=(1-hi)*(Hd-1),yb=(1-lo)*(Hd-1);
       if(yb-ya<MINH){const m=(ya+yb)/2;ya=m-MINH/2;yb=m+MINH/2}
       const ja=Math.max(0,Math.floor(ya)),jb=Math.min(Hd-1,Math.ceil(yb));if(ja<c0)c0=ja;if(jb>c1)c1=jb;
       for(let yy=ja;yy<=jb;yy++){const o=Math.min(yy+1,yb)-Math.max(yy,ya);if(o>0)C[base+yy]+=o/K}}
@@ -519,14 +538,14 @@ function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=dpK(),
   const off=B.off;if(off.width!==Wd||off.height!==Hd){off.width=Wd;off.height=Hd}off.getContext('2d').putImageData(img,0,0);
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(off,x0,y0);ctx.restore()}
 const rgb8=c=>c.map(v=>enc(v)|0);
-let _probe=null;function cssRGB(v){if(!_probe){_probe=document.createElement('span');_probe.style.display='none';document.body.appendChild(_probe)}_probe.style.color=`var(${v})`;return getComputedStyle(_probe).color.match(/\d+/g).slice(0,3).map(Number)}
+let _probe=null;function cssRGB(v){const c=CSSC.get('rgb'+v);if(c)return c;if(!_probe){_probe=document.createElement('span');_probe.style.display='none';document.body.appendChild(_probe)}_probe.style.color=`var(${v})`;const r=getComputedStyle(_probe).color.match(/\d+/g).slice(0,3).map(Number);CSSC.set('rgb'+v,r);return r}
 
 /* ---------- interferogram (canvas trace coloured by perceived colour) ---------- */
 /* The trace and its envelope depend only on the spectrum, the range and the plot size, not on d, so they are cached:
    moving the mirror only redraws the δ₀ marker. */
 let ifgKey='',ifgEnv='';
 function renderIfg(){
-  const svg=$('ifg'),cv=$('ifgC'),W=svg.clientWidth,H=svg.clientHeight;if(!W)return;
+  const svg=$('ifg'),cv=$('ifgC'),[W,H]=box(svg);if(!W)return;
   const dpr=window.devicePixelRatio||1,key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr,dpK()]),fresh=key!==ifgKey;ifgKey=key;
   if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
   const R=RANGE(),pl=46,pr=10,pt=10,pb=42,x=d=>pl+(d+R)/(2*R)*(W-pl-pr),y=v=>pt+(1-v)*(H-pt-pb),mute=css('--mute');
@@ -552,6 +571,9 @@ function renderIfg(){
    With zero tilt the pattern is radial. At rest only one octant of the pixels is evaluated and mirrored (exact, MS-15); a moving CPU
    preview evaluates a radial grid at 4 samples per grid pixel and interpolates linearly. */
 const ring=$('ring'),rctx=ring.getContext('2d');let ringLive=false,Ibuf=null;
+/* The canvas is square but shown as a circle (CSS border-radius), so grid points with r > rcut are never seen and are not evaluated:
+   they are stored as 0 (black). The margin is RCUT grid cells, wider than the CSS edge anti-aliasing and the preview upscaling filters. */
+const RCUT=3,rcut=(N,k)=>1+RCUT*2*k/N;
 function ringModel(){const d=+$('d').value,tm=(+$('fov').value)*Math.PI/180,T=Math.tan(tm),aE=AMM*T/Math.tan(10*Math.PI/180),kx=2e-3*(+$('tx').value)*aE,ky=2e-3*(+$('ty').value)*aE;
   return{d,T,kx,ky,
     th:r=>Math.atan(r*T),
@@ -585,8 +607,8 @@ function avgQ(kb,dm,gx,gy,h11,h12,h22,s2){const Q=QS,ki=kb;
   const dr=Q.p1-m11i*m22i-(Q.p2-m12i*m12i),di=m11r*m22i+m11i*m22r-2*m12r*m12i;
   const nr=Q.nr,ni=m22i*gx*gx-2*m12i*gx*gy+m11i*gy*gy;
   const dd=dr*dr+di*di,qr=(nr*dr+ni*di)/dd,qi=(ni*dr-nr*di)/dd,k2r=Q.kk-ki*ki,k2i=Q.k2*ki;
-  const er=Q.e0+Q.hs*(k2r*qr-k2i*qi)-0.25*Math.log(dd),ei=kb*dm+Q.hs*(k2r*qi+k2i*qr)-0.5*Math.atan2(di,dr);
-  return er<-40?0:Math.exp(er)*Math.cos(ei)}
+  const er=Q.e0+Q.hs*(k2r*qr-k2i*qi)-0.25*Math.log(dd);if(er<-40)return 0;  /* cut off before the phase is needed */
+  return Math.exp(er)*Math.cos(kb*dm+Q.hs*(k2r*qi+k2i*qr)-0.5*Math.atan2(di,dr))}
 const PV=[0,0,0,0];
 /* quad=false uses the first-order form (H = 0); it is only chosen when the curvature phase kb·s²·|H| < 3e-4, below which the two agree to that level.
    All sub-bands of one Gaussian share a, so the terms that depend only on a are computed once per run of equal a.
@@ -698,7 +720,7 @@ fn pix(u:f32,v:f32)->vec4f{
   return acc;}
 @compute @workgroup_size(8,8) fn cmain(@builtin(global_invocation_id) id:vec3u){
   let N=f32(P.a.x);let k=P.a.z;let Nl=u32(P.a.w);if(id.x>=Nl||id.y>=Nl){return;}let h=N*0.5;
-  let u=((f32(id.x)+0.5)*k-h)/h;let v=-((f32(id.y)+0.5)*k-h)/h;OUT[id.y*Nl+id.x]=pix(u,v);}`;
+  let u=((f32(id.x)+0.5)*k-h)/h;let v=-((f32(id.y)+0.5)*k-h)/h;let rc=1.+6.*k/N;if(u*u+v*v>rc*rc){OUT[id.y*Nl+id.x]=vec4f(0.);return;}OUT[id.y*Nl+id.x]=pix(u,v);}`;
 const WGSL_R=WGSL_HEAD+`
 @group(0) @binding(3) var<storage,read> OUT:array<vec4f>;
 fn gam(v0:f32)->f32{let v=clamp(v0,0.,1.);return select(1.055*pow(v,1./2.4)-0.055,12.92*v,v<=0.0031308);}
@@ -718,7 +740,7 @@ precision highp float;precision highp int;precision highp sampler2D;
 uniform sampler2D uSB,uGR,uOut;uniform int uNG,uN,uNl;uniform float uD,uT,uKx,uKy,uS2,uKbm,uGain;out vec4 o;
 vec4 fetchS(int t){return texelFetch(uSB,ivec2(t%1024,t/1024),0);}vec4 fetchG(int t){return texelFetch(uGR,ivec2(t%1024,t/1024),0);}`;
 const GLSL_PIX=GLSL_HEAD+PIX_GLSL+`
-void main(){float h=float(uN)*0.5,k=float(uN)/float(uNl);vec2 p=(floor(gl_FragCoord.xy)+0.5)*k;float u=(p.x-h)/h,v=(p.y-h)/h;o=pix(u,v);}`;
+void main(){float h=float(uN)*0.5,k=float(uN)/float(uNl);vec2 p=(floor(gl_FragCoord.xy)+0.5)*k;float u=(p.x-h)/h,v=(p.y-h)/h,rc=1.+6.*k/float(uN);if(u*u+v*v>rc*rc){o=vec4(0.);return;}o=pix(u,v);}`;
 const GLSL_TONE=GLSL_HEAD+`
 float gam(float v){v=clamp(v,0.,1.);return v<=0.0031308?12.92*v:1.055*pow(v,1./2.4)-0.055;}`+TONE_GLSL+`
 void main(){if(uNl==uN){o=vec4(tone(texelFetch(uOut,ivec2(gl_FragCoord.xy),0)),1.);return;}
@@ -788,9 +810,9 @@ ${avgQpre.toString()}
 ${avgQ.toString()}
 ${pixVal.toString()}
 const PV=[0,0,0,0];
-onmessage=e=>{const m=e.data,{N,Nl,j0,j1,d,T,kx,ky,s2,kbm,pr}=m,h=N/2,k=N/Nl,out=new Float32Array((j1-j0)*Nl*4+8);let o=0;
+onmessage=e=>{const m=e.data,{N,Nl,rc2,j0,j1,d,T,kx,ky,s2,kbm,pr}=m,h=N/2,k=N/Nl,out=new Float32Array((j1-j0)*Nl*4+8);let o=0;
   const rad=r=>{const th=Math.atan(r*T),q=1+r*r*T*T,c=T/q,cp=-2*r*T**3/(q*q),f1=-2*d*Math.sin(th)*c,f2=-2*d*(Math.cos(th)*c*c+Math.sin(th)*cp);return[f1,f2,r>1e-12?f1/r:f2]};
-  for(let j=j0;j<j1;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h,r=Math.hypot(u,v),[f1,f2,fr]=rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
+  for(let j=j0;j<j1;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2){out[o++]=0;out[o++]=0;out[o++]=0;out[o++]=0;continue}const r=Math.hypot(u,v),[f1,f2,fr]=rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
     const gx=f1*ux+kx,gy=f1*uy+ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=Nl===N&&kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;
     const p=pixVal(2*d*Math.cos(Math.atan(r*T))+kx*u+ky*v,gx,gy,h11,h12,h22,s2,pr,quad);out[o++]=p[0];out[o++]=p[1];out[o++]=p[2];out[o++]=p[3]}}
   postMessage({id:m.id,j0,j1,out},[out.buffer])}`;
@@ -835,7 +857,7 @@ let ringJob=0;
 const LQ={other:4,ms:0,tot:16.7,last:1,cpuR:{p:1},cpuT:{p:2},wk:{p:2},gpu:{p:2},mv:{v:Infinity,at:0,M:null,sk:''}},KMAX=16,IDLE=150;
 const lqPts=(()=>{const o=[];for(const r of [0.3,0.6,0.85,1])for(let a=0;a<8;a++)o.push([r*Math.cos(a*Math.PI/4+r),r*Math.sin(a*Math.PI/4+r)]);return o})();
 /* fringe speed between the previous preview frame and this one */
-function lqMotion(M,N){const mv=LQ.mv,now=performance.now(),sk=JSON.stringify(sublines().map(o=>[o.s,o.p,o.w]));
+function lqMotion(M,N){const mv=LQ.mv,now=performance.now(),sk=(sublines(),slKey);
   if(!mv.M||sk!==mv.sk||now-mv.at>250)mv.v=Infinity;
   else{const smax=Math.max(...sublines().map(o=>o.s),1e-9),gmin=2/(smax*N),dt=Math.max(now-mv.at,1);let disp=0;
     for(const[u,v]of lqPts){const g=M.grad(u,v),gp=Math.max(Math.hypot(g[0],g[1])*2/N,gmin);disp=Math.max(disp,Math.abs(M.opd(u,v)-mv.M.opd(u,v))/gp)}
@@ -859,9 +881,9 @@ const FRM={fr:16.7,run:0};const FR=()=>FRM.fr;
 function measureFrame(){const run=++FRM.run,ts=[];const step=t=>{if(run!==FRM.run)return;ts.push(t);if(ts.length<40){requestAnimationFrame(step);return}
   const d=[];for(let i=1;i<ts.length;i++){const x=ts[i]-ts[i-1];if(x>2&&x<200)d.push(x)}if(d.length<8)return;d.sort((a,b)=>a-b);FRM.fr=clamp(d[Math.floor(d.length/4)],16.7,33.4)};requestAnimationFrame(step)}
 measureFrame();document.addEventListener('visibilitychange',()=>{if(!document.hidden)measureFrame()});
-const showRes=(N,Nl,live)=>{const e=$('resV');if(e)e.textContent=`${Nl}²${live&&Nl<N?' preview':''}`};
+const showRes=(N,Nl,live)=>{const e=$('resV'),t=`${Nl}²${live&&Nl<N?' preview':''}`;if(e&&e.textContent!==t)e.textContent=t};
 let ringKey='',ringWasLive=false;
-function ringInputs(){return JSON.stringify([sublines().map(o=>[o.s,o.p,o.w]),$('d').value,$('fov').value,$('tx').value,$('ty').value,ring.width,RB.active,$('prof').clientWidth,$('prof').clientHeight,document.documentElement.dataset.theme])}
+function ringInputs(){sublines();return JSON.stringify([slKey,$('d').value,$('fov').value,$('tx').value,$('ty').value,ring.width,RB.active,...box($('prof')),document.documentElement.dataset.theme])}
 function renderRingIfNeeded(){const k=ringInputs();if(k===ringKey&&!(ringWasLive&&!ringLive))return;ringKey=k;ringWasLive=ringLive;renderRing()}
 /* reusable image buffers (one per size) and the small off-screen canvas for previews */
 const ringImgs=new Map();function ringImg(n){let im=ringImgs.get(n);if(!im){if(ringImgs.size>6)ringImgs.clear();im=rctx.createImageData(n,n);ringImgs.set(n,im)}
@@ -895,26 +917,27 @@ function renderRing(sync){
   const small=Nl<N,img=ringImg(Nl),D=img.data;Ibuf=small?null:new Float32Array(N*N);
   const present=(jA,jB)=>{if(small){RB.off.getContext('2d').putImageData(img,0,0);rctx.imageSmoothingEnabled=true;rctx.imageSmoothingQuality='high';rctx.drawImage(RB.off,0,0,Nl,Nl,0,0,N,N)}else rctx.putImageData(img,0,0,0,jA,N,jB-jA)};
   if(cs.length){const SL=sublines(),pr=prepSL(SL),A=cs.reduce((t,c)=>t+P(c),0);let fX=0,fY=0,fZ=0;for(const o of SL){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}
-    const fl=desat(toLin([fX,fY,fZ])),gain=1/Math.max(...fl,1e-9),h=N/2,px=2/N*k,sd=PIXSD*px;
+    const fl=desat(toLin([fX,fY,fZ])),gain=1/Math.max(...fl,1e-9),h=N/2,px=2/N*k,sd=PIXSD*px,rc=rcut(N,k),rc2=rc*rc;
     /* grid point (j, i): one image pixel; at full resolution also the I/I_tot buffer */
     const put=(j,i,X,Y,Z,I)=>{if(j>=Nl)return;let r=MX[0][0]*X+MX[0][1]*Y+MX[0][2]*Z,g=MX[1][0]*X+MX[1][1]*Y+MX[1][2]*Z,b=MX[2][0]*X+MX[2][1]*Y+MX[2][2]*Z;const m=Math.min(r,g,b,0);
       const o=4*(j*Nl+i);D[o]=enc((r-m)*gain);D[o+1]=enc((g-m)*gain);D[o+2]=enc((b-m)*gain);D[o+3]=255;if(!small)Ibuf[j*N+i]=I/A};
     if(!tilted&&ringLive){/* moving and untilted: a radial grid at 4 samples per grid pixel, linearly interpolated (preview only) */
       const Nr=Math.ceil(1.42*h/k*4)+2,dr=1.42/(Nr-1),RX=new Float64Array(Nr),RY=new Float64Array(Nr),RZ=new Float64Array(Nr),RI=new Float64Array(Nr);
-      for(let q=0;q<Nr;q++){const r=q*dr,dm=2*M.d*Math.cos(Math.atan(r*M.T)),[f1,f2,fr]=M.rad(r),v=pixVal(dm,f1,0,f2,0,fr,sd*sd,pr,true);RX[q]=v[0];RY[q]=v[1];RZ[q]=v[2];RI[q]=v[3]}
-      for(let j=0;j<Nl;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h,t=Math.hypot(u,v)/dr,q=Math.min(Nr-2,t|0),f=t-q;
+      const Nq=Math.min(Nr,Math.ceil(rc/dr)+2);  /* the table keeps its spacing dr, but stops just past rcut */
+      for(let q=0;q<Nq;q++){const r=q*dr,dm=2*M.d*Math.cos(Math.atan(r*M.T)),[f1,f2,fr]=M.rad(r),v=pixVal(dm,f1,0,f2,0,fr,sd*sd,pr,true);RX[q]=v[0];RY[q]=v[1];RZ[q]=v[2];RI[q]=v[3]}
+      for(let j=0;j<Nl;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2){put(j,i,0,0,0,0);continue}const t=Math.hypot(u,v)/dr,q=Math.min(Nr-2,t|0),f=t-q;
         put(j,i,RX[q]+(RX[q+1]-RX[q])*f,RY[q]+(RY[q+1]-RY[q])*f,RZ[q]+(RZ[q+1]-RZ[q])*f,RI[q]+(RI[q+1]-RI[q])*f)}}}
     else{const kbm=Math.max(...SL.map(o=>o.kb)),s2=sd*sd;
-      /* the exact footprint average of grid point (j, i) */
-      const pix=(j,i)=>{const v=-((j+0.5)*k-h)/h,u=((i+0.5)*k-h)/h,r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
+      /* grid point (j, i): the exact footprint average, or 0 beyond rcut (MS-13) */
+      const pix=(j,i)=>{const v=-((j+0.5)*k-h)/h,u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2)return put(j,i,0,0,0,0);const r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
         const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=!ringLive&&kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;  /* the second-order correction only in the at-rest pass */
-        return pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad)};
-      const rows=(j0,j1)=>{for(let j=j0;j<j1;j++)for(let i=0;i<Nl;i++){const p=pix(j,i);put(j,i,p[0],p[1],p[2],p[3])}};
+        const p=pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad);put(j,i,p[0],p[1],p[2],p[3])};
+      const rows=(j0,j1)=>{for(let j=j0;j<j1;j++)for(let i=0;i<Nl;i++)pix(j,i)};
       if(!tilted){/* at rest and untilted (MS-15): the pattern and the pixel grid share the square's 8 symmetries (u → −u, v → −v, u ↔ v),
           so only the octant 0 ≤ i ≤ j < N/2 is evaluated, exactly as above, and each value is copied to its 8 mirror pixels. */
         const n=N-1,H=Math.ceil(N/2);
         const cp=(o,a)=>{D[a]=D[o];D[a+1]=D[o+1];D[a+2]=D[o+2];D[a+3]=255};
-        const oct=(j0,j1)=>{for(let j=j0;j<j1;j++)for(let i=0;i<=j;i++){const p=pix(j,i);put(j,i,p[0],p[1],p[2],p[3]);const o=4*(j*N+i),I=Ibuf[j*N+i];
+        const oct=(j0,j1)=>{for(let j=j0;j<j1;j++)for(let i=0;i<=j;i++){pix(j,i);const o=4*(j*N+i),I=Ibuf[j*N+i];
           for(const m of [j*N+n-i,(n-j)*N+i,(n-j)*N+n-i,i*N+j,i*N+n-j,(n-i)*N+j,(n-i)*N+n-j]){cp(o,4*m);Ibuf[m]=I}}};
         if(sync)oct(0,H);
         else{/* progressive, in 12 ms slices; RB.wDone resolves when done or superseded (the checks await it on the workers renderer) */
@@ -923,7 +946,7 @@ function renderRing(sync){
           slice();ringProfile(M);return}}
       else if(RB.active==='workers'&&!sync){/* split the grid rows over every worker; each block is painted as it arrives */
         const W=RB.workers,id=++W.job,blk=8,t0=performance.now(),live=ringLive;let pending=0,next=0,done;RB.wDone=new Promise(r=>done=r);W.busy=true;
-        const msg={N,Nl,d:M.d,T:M.T,kx:M.kx,ky:M.ky,s2:sd*sd,kbm,pr:{n:pr.n,P:pr.P,KA:pr.KA,KB:pr.KB,X:pr.X,Y:pr.Y,Z:pr.Z,G:pr.G}};
+        const msg={N,Nl,rc2,d:M.d,T:M.T,kx:M.kx,ky:M.ky,s2:sd*sd,kbm,pr:{n:pr.n,P:pr.P,KA:pr.KA,KB:pr.KB,X:pr.X,Y:pr.Y,Z:pr.Z,G:pr.G}};
         const send=w=>{if(next>=Nl)return;const j0=next,j1=Math.min(Nl,next+blk);next=j1;pending++;w.postMessage({...msg,id,j0,j1})};
         W.pool.forEach(w=>{w.onmessage=e=>{const r=e.data;if(r.id!==W.job||job!==ringJob)return;pending--;let o=0;
           for(let j=r.j0;j<r.j1;j++)for(let i=0;i<Nl;i++){put(j,i,r.out[o],r.out[o+1],r.out[o+2],r.out[o+3]);o+=4}
@@ -939,12 +962,12 @@ function renderRing(sync){
 function ringProfile(M){const cs=act();
   /* profile cut: through the centre along the tilt direction n = (αx, αy)/|α| (along x when there is no tilt) */
   const ax=+$('tx').value,ay=+$('ty').value,an=Math.hypot(ax,ay),nx=an?ax/an:1,ny=an?ay/an:0,phi=Math.atan2(ny,nx)*180/Math.PI;
-  const svg=$('prof'),W=svg.clientWidth,H=svg.clientHeight;if(!W)return;
+  const svg=$('prof'),[W,H]=box(svg);if(!W)return;
   const pl=46,pr2=10,pt=10,pb=42,x=u=>pl+(u+1)/2*(W-pl-pr2),y=v=>pt+(1-v)*(H-pt-pb),mute=css('--mute');
   let s='';for(const v of [0,0.5,1])s+=`<line x1="${pl}" x2="${W-pr2}" y1="${y(v)}" y2="${y(v)}" stroke="${mute}" stroke-opacity="${v?0.15:0.5}"/><text x="${pl-6}" y="${y(v)+4}" font-size="12" fill="${mute}" text-anchor="end">${v}</text>`;
   for(const u of [-1,-0.5,0,0.5,1]){const t=Math.sign(u)*M.th(Math.abs(u))*180/Math.PI;s+=`<text x="${x(u)}" y="${H-pb+16}" font-size="12" fill="${mute}" text-anchor="${u<-0.9?'start':u>0.9?'end':'middle'}">${F(t,2)}°</text>`}
   /* same anti-aliased range plot as the interferogram, along the cut */
-  {const pc=$('profC'),dpr=window.devicePixelRatio||1;pc.width=Math.round(W*dpr);pc.height=Math.round(H*dpr);const pg=pc.getContext('2d');pg.clearRect(0,0,pc.width,pc.height);
+  {const pc=$('profC'),dpr=window.devicePixelRatio||1,cw=Math.round(W*dpr),ch=Math.round(H*dpr);if(pc.width!==cw||pc.height!==ch){pc.width=cw;pc.height=ch}  /* resizing a canvas reallocates it: only when the size changes */const pg=pc.getContext('2d');pg.clearRect(0,0,pc.width,pc.height);
     if(cs.length){const col=cssRGB('--fr'),t0=performance.now(),K=dpK();densityPlot(pg,Math.round(pl*dpr),Math.round(pt*dpr),Math.round((W-pl-pr2)*dpr),Math.round((H-pt-pb)*dpr),t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},cs,()=>col);if(ringLive)dpRecord(K,performance.now()-t0)}}
   s+=`<text x="${(pl+W-pr2)/2}" y="${H-4}" font-size="12" fill="${mute}" text-anchor="middle">${an?`θ along the tilt direction (${F(phi,3)}° from x)`:"θ along x"}</text><text transform="translate(12 ${(pt+H-pb)/2}) rotate(-90)" font-size="12" fill="${mute}" text-anchor="middle">I / I_tot</text>`;svg.innerHTML=s}
 
@@ -1098,7 +1121,7 @@ const onRim=g=>Math.abs(g.rr-g.R)<Math.max(9,0.06*g.R);
    Within SNAP px of the centre it locks to 0, 0. At 0, 0 it is hidden until the pointer is over the pattern. */
 const DOTK=0.92,SNAP=10;let ovHover=null;
 const dotPos=c=>{const ax=+$('tx').value,ay=+$('ty').value,f=c*DOTK/TMAXU;let x=ax*f,y=-ay*f;const L=Math.hypot(x,y),mx=c*DOTK;if(L>mx){x*=mx/L;y*=mx/L}return[c+x,c+y]};
-function renderOv(){const s=ov.clientWidth;if(!s)return;const c=s/2,[ex,ey]=dotPos(c),L=Math.hypot(ex-c,ey-c),zero=L<0.5;
+function renderOv(){const s=box(ov)[0];if(!s)return;const c=s/2,[ex,ey]=dotPos(c),L=Math.hypot(ex-c,ey-c),zero=L<0.5;
   const hx=c+(c-3)*Math.SQRT1_2,hy=c+(c-3)*Math.SQRT1_2,drag=rdrag&&rdrag.m!=='rim';
   const showDot=!zero||!!ovHover||drag;  /* at 0, 0 the dot shows whenever the pointer is over the pattern */
   const big=drag||(ovHover&&Math.hypot(ovHover[0]-ex,ovHover[1]-ey)<14);
@@ -1146,7 +1169,7 @@ ov.addEventListener('keydown',e=>{const st=e.shiftKey?1:10,k={ArrowLeft:[-st,0],
   if(e.key==='+'||e.key==='-'){e.preventDefault();setFov(+$('fov').value*(e.key==='+'?1.1:1/1.1));update(false)}});
 /* mirror rail: a ruler spanning the current range ±m; drag (or click) the carriage, scroll to rescale the range */
 const rail=$('rail'),RPAD=16;let raildrag=false;
-function renderRail(){const W=rail.clientWidth,H=rail.clientHeight;if(!W)return;const m=DMAX(),d=+$('d').value,X=v=>RPAD+(v+m)/(2*m)*(W-2*RPAD),st=nice(2*m/(W<360?4:8)),mute=css('--mute'),acc=css('--acc'),ink=css('--ink');
+function renderRail(){const [W,H]=box(rail);if(!W)return;const m=DMAX(),d=+$('d').value,X=v=>RPAD+(v+m)/(2*m)*(W-2*RPAD),st=nice(2*m/(W<360?4:8)),mute=css('--mute'),acc=css('--acc'),ink=css('--ink');
   let h=`<rect x="${RPAD}" y="10" width="${W-2*RPAD}" height="6" rx="3" fill="${mute}" fill-opacity=".18"/>`;const dec=Math.max(0,-Math.floor(Math.log10(st)+1e-9));
   for(let v=Math.ceil(-m/st)*st;v<=m+1e-9*m;v+=st){h+=`<line x1="${X(v)}" x2="${X(v)}" y1="7" y2="19" stroke="${mute}" stroke-opacity=".6"/><text x="${X(v)}" y="33" font-size="10.5" fill="${mute}" text-anchor="middle">${v.toFixed(dec)}</text>`}
   for(let v=Math.ceil(-m/(st/5))*(st/5);v<=m+1e-9*m;v+=st/5)h+=`<line x1="${X(v)}" x2="${X(v)}" y1="11" y2="15" stroke="${mute}" stroke-opacity=".35"/>`;
@@ -1221,8 +1244,8 @@ editable('txV',()=>+$('tx').value,v=>{tGlide=null;widen('tx',v,true)});
 editable('tyV',()=>+$('ty').value,v=>{tGlide=null;widen('ty',v,true)});
 
 /* ---------- ring sizing: the canvas fills the largest square that fits its panel ---------- */
-function fitRing(){const b=$('ringBox'),s=Math.max(120,Math.floor(Math.min(b.clientWidth,b.clientHeight||b.clientWidth)));
-  $('ringWrap').style.width=$('ringWrap').style.height=s+'px';const gpu=RB.active==='webgpu'||RB.active==='webgl2',n=clamp(Math.round(s*(window.devicePixelRatio||1)),200,gpu?1024:480);
+function fitRing(){const[bw,bh]=box($('ringBox')),s=Math.max(120,Math.floor(Math.min(bw,bh||bw)));
+  if($('ringWrap').style.width!==s+'px'){$('ringWrap').style.width=$('ringWrap').style.height=s+'px';SZC.delete(ov)}const gpu=RB.active==='webgpu'||RB.active==='webgl2',n=clamp(Math.round(s*(window.devicePixelRatio||1)),200,gpu?1024:480);
   for(const c of [ring,$('ringGL'),$('ringGPU')])if(c.width!==n){c.width=n;c.height=n}}  /* GPUs render at full device resolution (up to 1024²); the CPU caps at 480² */
 
 /* ---------- each panel's equations and notes open as a centred modal window ---------- */
@@ -1240,10 +1263,10 @@ document.addEventListener('click',e=>{const a=e.target.closest('a[href^="#s"]');
 
 /* ---------- loop ---------- */
 let raf=0,eqT=0;
-const setTxt=(id,t)=>{if(!editing.has(id))$(id).textContent=t};
+const setTxt=(id,t)=>{const e=$(id);if(!editing.has(id)&&e.textContent!==t)e.textContent=t};  /* an unchanged text is not rewritten, so it doesn't dirty the layout */
 function draw(){raf=0;/* d and δ0 to the nearest nm (3 decimals in µm), with a fixed-width minus slot so the row never reflows */
   const nm3=v=>{const t=Math.abs(v).toFixed(3);return (v<0&&+t?'−':'\u2007')+t+' µm'};setTxt('dV',nm3(+$('d').value));setTxt('dV0',nm3(D0()));setTxt('dRV',`${F(DMAX(),3)} µm`);
-  setTxt('rV',`±${F(RANGE(),4)} µm`);{const[a,b]=outWin(),dg=b-a<5?2:b-a<50?1:0;$('oV').textContent=`${a.toFixed(dg)}–${b.toFixed(dg)} nm`}setTxt('fV',`${F(+$('fov').value,4)}°`);setTxt('txV',`${F(+$('tx').value,4)} µrad`);setTxt('tyV',`${F(+$('ty').value,4)} µrad`);
+  setTxt('rV',`±${F(RANGE(),4)} µm`);{const[a,b]=outWin(),dg=b-a<5?2:b-a<50?1:0;setTxt('oV',`${a.toFixed(dg)}–${b.toFixed(dg)} nm`)}setTxt('fV',`${F(+$('fov').value,4)}°`);setTxt('txV',`${F(+$('tx').value,4)} µrad`);setTxt('tyV',`${F(+$('ty').value,4)} µrad`);
   const t0=performance.now();LQ.ms=0;fitRing();renderSpec();renderOut();renderIfg();renderRingIfNeeded();renderOv();renderRail();renderMini();
   if(ringLive){const t=performance.now()-t0;LQ.other=0.7*LQ.other+0.3*Math.max(0,t-LQ.ms);LQ.tot=0.7*LQ.tot+0.3*t}}
 function runEq(){eqT=0;eqs();table();save()}
@@ -1253,10 +1276,11 @@ function update(live){ringLive=!!live;clearTimeout(idleT);if(live)idleT=setTimeo
   if(!raf)raf=requestAnimationFrame(draw);
   if(live){if(!eqT)eqT=setTimeout(runEq,350)}else{clearTimeout(eqT);eqT=setTimeout(runEq,40)}  /* let the released frame paint first */
   $('verAt').textContent='Settings changed since the last run. Press Run checks to verify the current state.'}
-const ro=new ResizeObserver(()=>{if(!raf)raf=requestAnimationFrame(draw)});window.addEventListener('resize',()=>measureFrame());
+const ro=new ResizeObserver(()=>{SZC.clear();if(!raf)raf=requestAnimationFrame(draw)});window.addEventListener('resize',()=>{SZC.clear();measureFrame()});
 let lastK=EQK();window.addEventListener('resize',()=>{if(EQK()!==lastK){lastK=EQK();eqs()}});
 ['specBox','profBox','ringBox','railBox'].forEach(k=>ro.observe($(k)));document.querySelectorAll('.plot').forEach(p=>ro.observe(p));
-const mo=new MutationObserver(()=>update(false));mo.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{CSSC.clear();update(false)});
+const mo=new MutationObserver(()=>{CSSC.clear();update(false)});mo.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 const waitMJ=setInterval(()=>{if(window.MathJax&&MathJax.typesetPromise){clearInterval(waitMJ);eqs()}},200);
 update(false);
 }

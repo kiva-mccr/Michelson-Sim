@@ -12,7 +12,7 @@ const HOOK=`window.__S=()=>{renderRing(true);const N=ring.width,M=ringModel(),cs
     const p=pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad);V.set(p,4*(j*N+i))}}
   const n=N-1,can=(j,i)=>{if(j>n-j)j=n-j;if(i>n-i)i=n-i;return i<=j?[j,i]:[i,j]};let bad=0,ib=0,mx=0;
   for(let j=0;j<N;j++)for(let i=0;i<N;i++){const[cj,ci]=can(j,i),a=4*(j*N+i),b=4*(cj*N+ci);for(let c=0;c<4;c++)if(V[a+c]!==V[b+c])bad++;
-    const e=Math.abs(Ibuf[j*N+i]-Math.fround(V[a+3]/A));if(e){ib++;mx=Math.max(mx,e)}}
+    const u=((i+0.5)-h)/h,v=-((j+0.5)-h)/h,rc=rcut(N,1),e=Math.abs(Ibuf[j*N+i]-(u*u+v*v>rc*rc?0:Math.fround(V[a+3]/A)));  /* beyond rcut the page stores 0 (MS-13) */if(e){ib++;mx=Math.max(mx,e)}}
   return{N,tilted:!!(M.kx||M.ky),bad,ib,mx}};\n`;
 const tail='\nupdate(false);\n}\n</script>';if(!html.includes(tail))throw new Error('hook point not found');html=html.replace(tail,'\n'+HOOK+tail);
 const hooked=path.join(os.tmpdir(),`mich-symmetry-${process.pid}.html`);fs.writeFileSync(hooked,html);
