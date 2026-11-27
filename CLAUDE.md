@@ -106,6 +106,10 @@ Headless Chrome can't display WebGPU canvases, so screenshots there show WebGPU 
 
 An earlier copy of this page is published as a claude.ai artifact (slug `03326018-be11-42b4-a9b7-bd0f496c0628`), where the owner leaves feedback as comments. `reference/michelson-table.html` is the original sourced formula table (also an artifact). `mockups/controls-mockups.html` holds the three control mockups that led to the current drag design.
 
-## Ideas not done yet
+## Roadmap (ideas not done yet)
 
-- None listed. (A beamsplitter π-phase toggle and glass dispersion/compensator plate were tried and dropped at the owner's request; Gaussians stay symmetric in σ, the usual convention.)
+- **Tilt on the fixed arm.** Show the tilt on M₁, the non-translating mirror, not on the moving M₂, and make the drawn tilt represent the total magnitude √(αx² + αy²) of both components. Today the schematic rotates M₂ by αx alone.
+- **Remove the renderer controls.** Drop the Renderer menu under the pattern and always use the automatic choice (WebGPU → WebGL2 → workers → CPU).
+- **Animate the tilt snap.** When the tilt dot snaps to 0, 0 near the centre, it should glide there smoothly instead of jumping in one frame.
+
+(A beamsplitter π-phase toggle and glass dispersion/compensator plate were tried and dropped at the owner's request; Gaussians stay symmetric in σ, the usual convention.)
