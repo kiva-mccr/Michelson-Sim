@@ -5,8 +5,9 @@
 const {chromium}=require('playwright');const fs=require('fs'),os=require('os'),path=require('path');
 const dir=process.argv[2]||path.join(__dirname,'..','src','js');
 const js=['ring-model.js','ring-shaders.js'].map(f=>fs.readFileSync(path.join(dir,f),'utf8')).join('\n');
+const PIXSD=+fs.readFileSync(path.join(dir,'plots-range.js'),'utf8').match(/const PIXSD=([\d.]+);/)[1];  // the page's footprint sd, not a copy
 const page=`<!doctype html><canvas id="ring" width="8" height="8"></canvas><canvas id="gl" width="8" height="8"></canvas><script>
-const $=id=>document.getElementById(id),AMM=5,PIXSD=0.4,clamp=(x,a,b)=>Math.min(b,Math.max(a,x));{
+const $=id=>document.getElementById(id),AMM=5,PIXSD=${PIXSD},clamp=(x,a,b)=>Math.min(b,Math.max(a,x));{
 ${js}
 /* sub-bands like sublines(): each Gaussian split into K sub-bands over ±2.8w; a smooth stand-in for the colour (X, Y, Z) */
 function SLof(cs){const out=[];let gi=0;const col=s=>[Math.exp(-(((s-1.65)/0.25)**2)),Math.exp(-(((s-1.8)/0.3)**2)),Math.exp(-(((s-2.2)/0.3)**2))+0.05];

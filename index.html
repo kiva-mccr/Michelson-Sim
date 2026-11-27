@@ -276,7 +276,7 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
       <div>
         <p class="mh3">3 · Pixel averaging (no aliasing)</p>
         <div class="eq">$$\big\langle e^{-a\delta^2+ib\delta}\big\rangle_{\Delta\sim\mathcal N(0,s^2I)}=\frac{e^{X}}{\sqrt{\det(I-s^2B)}}$$</div><div class="eq">$$X=-a\bar\delta^2+ib\bar\delta+\tfrac12\kappa^2s^2\,g^{\mathsf T}(I-s^2B)^{-1}g$$</div><div class="eq">$$\kappa=-2a\bar\delta+ib$$</div><div class="eq">$$B=\kappa H-2a\,gg^{\mathsf T}$$</div>
-        <p class="note">Each pixel is a Gaussian footprint with a standard deviation of $s=0.4$ px. Across it the OPD is expanded to second order, $\delta=\bar\delta+g^{\mathsf T}\Delta+\tfrac12\Delta^{\mathsf T}H\Delta$, with the gradient $g$ and the Hessian $H$ computed analytically. The sub-band envelope is expanded to first order. Here $a=\pi^2w^2$ and $b=2\pi\sigma$. The result is a closed-form Gaussian integral; for lines ($a=0$) it is exact for any quadratic OPD. With $H=0$ it reduces to $q^{-1/2}e^{-(a\bar\delta^2+b^2\tau^2/2)/q}\cos(b\bar\delta/q)$, where $q=1+2a\tau^2$ and $\tau=s|g|$. That first-order form is used where the curvature phase $b\,s^2|H|<3\times10^{-4}$, and also for the interferogram's dense-mode colours.</p>
+        <p class="note">Each pixel is a Gaussian footprint with a standard deviation of $s=0.5$ px (a fringe at the pixel pitch keeps $e^{-2\pi^2s^2}<1\%$ of its contrast, so it can't alias into moiré); a moving preview uses the same footprint scaled to its own, larger pixels. Across it the OPD is expanded to second order, $\delta=\bar\delta+g^{\mathsf T}\Delta+\tfrac12\Delta^{\mathsf T}H\Delta$, with the gradient $g$ and the Hessian $H$ computed analytically. The sub-band envelope is expanded to first order. Here $a=\pi^2w^2$ and $b=2\pi\sigma$. The result is a closed-form Gaussian integral; for lines ($a=0$) it is exact for any quadratic OPD. With $H=0$ it reduces to $q^{-1/2}e^{-(a\bar\delta^2+b^2\tau^2/2)/q}\cos(b\bar\delta/q)$, where $q=1+2a\tau^2$ and $\tau=s|g|$. That first-order form is used where the curvature phase $b\,s^2|H|<3\times10^{-4}$, and also for the interferogram's dense-mode colours.</p>
         <p class="mh3">4 · Colour</p>
         <div class="eq">$$\begin{aligned}(X,Y,Z)&=\sum_k p_k\,\tfrac12\big[1+\langle e^{-a_k\delta^2}\cos b_k\delta\rangle\big]\\&\qquad\times\big(\bar x,\bar y,\bar z\big)(\lambda_k)\end{aligned}$$</div>
         <p class="note">Each Gaussian is split into $K$ sub-Gaussians spanning $\pm2.8w$, spaced $\Delta x\,w$ apart with $\Delta x=5.6/(K-1)$, each with width $w_s=\Delta x\,w$. $K$ is at least 15 and large enough that $w_s\le0.012\ \mu\text{m}^{-1}$, with a maximum of 241. The whole Gaussian is always computed, including any part outside the plotted 380–800 nm window: that light carries power (it counts in $I_{\rm tot}$, the interferogram and the ring's brightness profile) but outside 390–780 nm it adds no colour. Each sub-band's colour is its own shape integrated against the colour-matching functions. Their weights are $\propto e^{-(x_k/w_c)^2}$ with $w_c=\sqrt{1-\Delta x^2}\,w$, chosen so the convolution reproduces the parent Gaussian. The colour-matching functions $\bar x\bar y\bar z$ are CVRL CIE 2006 2°.<sup><a href="#s13">[13]</a></sup> XYZ is converted to linear sRGB with the IEC 61966-2-1 matrix. Out-of-gamut colours are desaturated by $c\to c-\min(c,0)$. Each ring image is scaled so its brightest possible state (fully constructive) maps to 1, then sRGB-encoded.</p>
@@ -491,10 +491,12 @@ function renderOut(){
   svg.innerHTML=A.h;outC.ns=svg.children.length;outC.dom=svg;svg.insertAdjacentHTML('beforeend',h)}
 
 /* ---------- shared exact maths for rendering ----------
-   Pixel footprint: each displayed pixel averages the pattern over a 2-D Gaussian footprint (sd PIXSD px).
+   Pixel footprint: each displayed pixel averages the pattern over a 2-D Gaussian footprint (sd PIXSD px). A fringe at the pixel
+   pitch (1 cycle/px, which samples to a flat tone and shows as ghost ring centres) keeps e^{-2π²·PIXSD²} of its contrast:
+   0.7% at 0.5 px. At 0.4 px it kept 4.2%, which was visible as moiré.
    With the OPD linearised across the pixel, delta ~ N(dm, tau^2), tau = PIXSD*|grad delta|*pixel, and for a term e^{-a delta^2}cos(b delta):
    <e^{-a d^2} cos(b d)> = q^{-1/2} exp(-(a dm^2 + b^2 tau^2/2)/q) cos(b dm/q),  q = 1 + 2 a tau^2   (closed form, Gaussian integral). */
-const PIXSD=0.4;
+const PIXSD=0.5;
 const avgTerm=(ka,kb,dm,t2)=>{const q=1+2*ka*t2;return Math.exp(-(ka*dm*dm+0.5*kb*kb*t2)/q)*Math.cos(kb*dm/q)/Math.sqrt(q)};
 function xyzAt(dm,t2,SL){let X=0,Y=0,Z=0;for(const o of SL){const v=0.5*o.p*(1+avgTerm(o.ka,o.kb,dm,t2));X+=v*o.X[0];Y+=v*o.X[1];Z+=v*o.X[2]}return[X,Y,Z]}
 const hueOf=xyz=>norm(desat(toLin(xyz)));
@@ -512,15 +514,11 @@ function spanOf(t0,t1,dAt,g,smax){const fr=Math.abs(dAt(t1)-dAt(t0))*smax;let lo
   else{const k=Math.max(2,Math.ceil(16*fr)+1);for(let q=0;q<=k;q++){const v=0.5*(1+g.re(dAt(t0+(t1-t0)*q/k)));lo=Math.min(lo,v);hi=Math.max(hi,v)}}SPAN2[0]=lo;SPAN2[1]=hi;return SPAN2}
 const SPAN2=[0,0];
 /* buffers are reused between calls, one set per target canvas; only the rows a column (or its filter neighbours) touched are visited */
-/* Sub-columns per pixel: 8 at rest. While moving, the ring has priority: the plots stay at 2 until the ring preview is at full
-   resolution, then use only the time the frame has to spare. From the profile's measured cost per sub-column c and the last
-   frame's main-thread time (LQ.tot), they take the most of 2, 3, 4, 6, 8 whose extra cost fits what is left of the frame budget
-   (stepping down when the frame runs over), capped at a fifth of the budget; going up needs a 15% margin so it doesn't flicker.
-   Since they only take spare time, they never push the ring back to a coarser preview. */
-const DPQ={k:2,c:0},DPK=[2,3,4,6,8],dpK=()=>ringLive?DPQ.k:8;
-function dpRecord(K,ms){const c=ms/K;DPQ.c=DPQ.c?0.7*DPQ.c+0.3*c:c;if(LQ.last>1){DPQ.k=2;return}const F=FR(),slack=F-LQ.tot;
-  DPQ.k=[...DPK].reverse().find(k=>DPQ.c*k<=0.2*F&&DPQ.c*(k-K)<=(k>K?0.85*slack:slack))||2}
-function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=dpK(),
+/* Sub-columns per pixel: always 8, moving or at rest. Never adapt this to the frame time: dense fringes look very different at
+   2 and at 8 sub-columns (a solid band against the true crowding at ½(1 ± |γ|)), so switching between them made the plots flicker
+   while dragging (fixed after MS-11). */
+const DPK=8;
+function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=DPK,
   B=ctx.__dp&&ctx.__dp.Wd===Wd&&ctx.__dp.Hd===Hd?ctx.__dp:(ctx.__dp={Wd,Hd,img:ctx.createImageData(Wd,Hd),C:new Float32Array(Wd*Hd),r0:new Int32Array(Wd),r1:new Int32Array(Wd),off:document.createElement('canvas')});
   const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],smax=Math.max(...cs.map(c=>c.s)),g=gammaOf(cs),MINH=1.25*(window.devicePixelRatio||1);
   D.fill(0);C.fill(0);
@@ -546,7 +544,7 @@ let _probe=null;function cssRGB(v){const c=CSSC.get('rgb'+v);if(c)return c;if(!_
 let ifgKey='',ifgEnv='';
 function renderIfg(){
   const svg=$('ifg'),cv=$('ifgC'),[W,H]=box(svg);if(!W)return;
-  const dpr=window.devicePixelRatio||1,key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr,dpK()]),fresh=key!==ifgKey;ifgKey=key;
+  const dpr=window.devicePixelRatio||1,key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr]),fresh=key!==ifgKey;ifgKey=key;
   if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
   const R=RANGE(),pl=46,pr=10,pt=10,pb=42,x=d=>pl+(d+R)/(2*R)*(W-pl-pr),y=v=>pt+(1-v)*(H-pt-pb),mute=css('--mute');
   if(fresh){g.clearRect(0,0,W,H);g.fillStyle='#05070f';g.fillRect(pl,pt,W-pl-pr,H-pt-pb)}
@@ -570,7 +568,7 @@ function renderIfg(){
    OPD: delta(u,v) = 2 d cos(theta) + 2 (alpha_x x + alpha_y y). Every pixel is the exact footprint average above.
    With zero tilt the pattern is radial. At rest only one octant of the pixels is evaluated and mirrored (exact, MS-15); a moving CPU
    preview evaluates a radial grid at 4 samples per grid pixel and interpolates linearly. */
-const ring=$('ring'),rctx=ring.getContext('2d');let ringLive=false,Ibuf=null;
+const ring=$('ring'),rctx=ring.getContext('2d');let ringLive=false,Ibuf=null,Pbuf=null;
 /* The canvas is square but shown as a circle (CSS border-radius), so grid points with r > rcut are never seen and are not evaluated:
    they are stored as 0 (black). The margin is RCUT grid cells, wider than the CSS edge anti-aliasing and the preview upscaling filters. */
 const RCUT=3,rcut=(N,k)=>1+RCUT*2*k/N;
@@ -842,7 +840,7 @@ const PV=[0,0,0,0];
 onmessage=e=>{const m=e.data,{N,Nl,rc2,j0,j1,d,T,kx,ky,s2,kbm,pr}=m,h=N/2,k=N/Nl,out=new Float32Array((j1-j0)*Nl*4+8);let o=0;
   const rad=r=>{const th=Math.atan(r*T),q=1+r*r*T*T,c=T/q,cp=-2*r*T**3/(q*q),f1=-2*d*Math.sin(th)*c,f2=-2*d*(Math.cos(th)*c*c+Math.sin(th)*cp);return[f1,f2,r>1e-12?f1/r:f2]};
   for(let j=j0;j<j1;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2){out[o++]=0;out[o++]=0;out[o++]=0;out[o++]=0;continue}const r=Math.hypot(u,v),[f1,f2,fr]=rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
-    const gx=f1*ux+kx,gy=f1*uy+ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=Nl===N&&kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;
+    const gx=f1*ux+kx,gy=f1*uy+ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;
     const p=pixVal(2*d*Math.cos(Math.atan(r*T))+kx*u+ky*v,gx,gy,h11,h12,h22,s2,pr,quad);out[o++]=p[0];out[o++]=p[1];out[o++]=p[2];out[o++]=p[3]}}
   postMessage({id:m.id,j0,j1,out},[out.buffer])}`;
   const url=URL.createObjectURL(new Blob([src],{type:'text/javascript'}));const W={pool:Array.from({length:n},()=>new Worker(url)),n,job:0};
@@ -883,7 +881,7 @@ let ringJob=0;
    The fringe speed v (device px/ms) is the largest shift |Δδ|/|∇δ| of the pattern between the last two preview frames, at 32
    points over the field (|∇δ| floored at one fringe per field radius), over their time apart. A spectrum change, or no recent
    frame, counts as fast. When the inputs stop changing for IDLE ms with the button still held, the exact image is rendered. */
-const LQ={other:4,ms:0,tot:16.7,last:1,cpuR:{p:1},cpuT:{p:2},wk:{p:2},gpu:{p:2},mv:{v:Infinity,at:0,M:null,sk:''}},KMAX=16,IDLE=150;
+const LQ={other:4,ms:0,cpuR:{p:1},cpuT:{p:2},wk:{p:2},gpu:{p:2},mv:{v:Infinity,at:0,M:null,sk:''}},KMAX=16,IDLE=150;
 const lqPts=(()=>{const o=[];for(const r of [0.3,0.6,0.85,1])for(let a=0;a<8;a++)o.push([r*Math.cos(a*Math.PI/4+r),r*Math.sin(a*Math.PI/4+r)]);return o})();
 /* fringe speed between the previous preview frame and this one */
 function lqMotion(M,N){const mv=LQ.mv,now=performance.now(),sk=(sublines(),slKey);
@@ -900,7 +898,7 @@ function lqPick(key,N,gpu,main){const q=LQ[key],n=sublines().length;
   if(q.a==null)q.k=4;  /* no fresh measurement: start coarse, the next frame's time corrects it */
   else{let k=q.k||4,kt=k;for(let it=0;it<2;it++){kt=clamp(N/Math.pow(0.9*lqBudget(k,gpu,main)/q.a,1/q.p),1,KMAX);k=kt}  /* the budget depends on k (one preview pixel of motion): two passes settle it */
     q.k=kt>=q.k?kt:Math.exp(0.5*Math.log(q.k)+0.5*Math.log(kt))}  /* coarser at once, finer half the way (log space) */
-  const Nl=q.k<1.03?N:clamp(Math.round(N/q.k),Math.ceil(N/KMAX),N);LQ.last=N/Nl;return Nl}
+  const Nl=q.k<1.03?N:clamp(Math.round(N/q.k),Math.ceil(N/KMAX),N);return Nl}
 function lqRecord(key,Nl,ms){const q=LQ[key],a=ms/Math.pow(Nl,q.p);q.a=q.a==null?a:Math.exp(0.7*Math.log(q.a)+0.3*Math.log(a));q.at=performance.now()}
 /* The frame budget follows the display: FR is its refresh interval, measured from idle requestAnimationFrame steps (the 25th
    percentile, so frames slowed by our own drawing don't count), at least 16.7 ms (60 Hz; faster displays still get 60 Hz-quality
@@ -930,7 +928,7 @@ function renderRing(sync){
     ringProfile(M);if(RB.busy&&!sync){RB.dirty=true;return}
     ringJob=job;if(ringLive)lqMotion(M,N);
     const Nl=ringLive?lqPick('gpu',N,true,false):N,k=N/Nl;showRes(N,Nl,ringLive);
-    const pk=packRing(pr,M),s2=(PIXSD*2*k/N)**2;Ibuf=null;RB.busy=true;const t0=performance.now();
+    const pk=packRing(pr,M),s2=(PIXSD*2*k/N)**2;Ibuf=null;Pbuf=null;RB.busy=true;const t0=performance.now();
     let done;try{done=RB.active==='webgpu'?gpuDraw(RB.gpu,N,M,pk,s2,gain,Nl):glDraw(RB.gl,N,M,pk,s2,gain,Nl)}catch(e){RB.busy=false;console.warn(RB.active,'failed, falling back',e);if(RB.active==='webgpu')RB.gpu=null;else RB.gl=null;pickBackend('error');return}
     /* a lost device rejects the pending frame: fall back instead of leaving an unhandled rejection and a renderer stuck busy */
     const be=RB.active;
@@ -943,13 +941,13 @@ function renderRing(sync){
   if(ringLive)lqMotion(M,N);
   const Nl=ringLive?lqPick(pathKey,N,false,pathKey!=='wk'):N,k=N/Nl;showRes(N,Nl,ringLive);
   /* a moving preview is an Nl×Nl grid of exact block averages, drawn into a small image and scaled up smoothly, so its fixed cost shrinks with it */
-  const small=Nl<N,img=ringImg(Nl),D=img.data;Ibuf=small?null:new Float32Array(N*N);
+  const small=Nl<N,img=ringImg(Nl),D=img.data;Ibuf=small?null:new Float32Array(N*N);Pbuf=small?new Float32Array(Nl*Nl):null;  /* Pbuf: a preview's grid as I/I_tot, for tests/antialias.js */
   const present=(jA,jB)=>{if(small){RB.off.getContext('2d').putImageData(img,0,0);rctx.imageSmoothingEnabled=true;rctx.imageSmoothingQuality='high';rctx.drawImage(RB.off,0,0,Nl,Nl,0,0,N,N)}else rctx.putImageData(img,0,0,0,jA,N,jB-jA)};
   if(cs.length){const SL=sublines(),pr=prepSL(SL),A=cs.reduce((t,c)=>t+P(c),0);let fX=0,fY=0,fZ=0;for(const o of SL){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}
     const fl=desat(toLin([fX,fY,fZ])),gain=1/Math.max(...fl,1e-9),h=N/2,px=2/N*k,sd=PIXSD*px,rc=rcut(N,k),rc2=rc*rc;
     /* grid point (j, i): one image pixel; at full resolution also the I/I_tot buffer */
     const put=(j,i,X,Y,Z,I)=>{if(j>=Nl)return;let r=MX[0][0]*X+MX[0][1]*Y+MX[0][2]*Z,g=MX[1][0]*X+MX[1][1]*Y+MX[1][2]*Z,b=MX[2][0]*X+MX[2][1]*Y+MX[2][2]*Z;const m=Math.min(r,g,b,0);
-      const o=4*(j*Nl+i);D[o]=enc((r-m)*gain);D[o+1]=enc((g-m)*gain);D[o+2]=enc((b-m)*gain);D[o+3]=255;if(!small)Ibuf[j*N+i]=I/A};
+      const o=4*(j*Nl+i);D[o]=enc((r-m)*gain);D[o+1]=enc((g-m)*gain);D[o+2]=enc((b-m)*gain);D[o+3]=255;if(small)Pbuf[j*Nl+i]=I/A;else Ibuf[j*N+i]=I/A};
     if(!tilted&&ringLive){/* moving and untilted: a radial grid at 4 samples per grid pixel, linearly interpolated (preview only) */
       const Nr=Math.ceil(1.42*h/k*4)+2,dr=1.42/(Nr-1),RX=new Float64Array(Nr),RY=new Float64Array(Nr),RZ=new Float64Array(Nr),RI=new Float64Array(Nr);
       const Nq=Math.min(Nr,Math.ceil(rc/dr)+2);  /* the table keeps its spacing dr, but stops just past rcut */
@@ -959,7 +957,7 @@ function renderRing(sync){
     else{const kbm=Math.max(...SL.map(o=>o.kb)),s2=sd*sd;
       /* grid point (j, i): the exact footprint average, or 0 beyond rcut (MS-13) */
       const pix=(j,i)=>{const v=-((j+0.5)*k-h)/h,u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2)return put(j,i,0,0,0,0);const r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
-        const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=!ringLive&&kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;  /* the second-order correction only in the at-rest pass */
+        const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;  /* the same curvature test in previews: their footprint is k times wider, so curvature matters more there */
         const p=pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad);put(j,i,p[0],p[1],p[2],p[3])};
       const rows=(j0,j1)=>{for(let j=j0;j<j1;j++)for(let i=0;i<Nl;i++)pix(j,i)};
       if(!tilted){/* at rest and untilted (MS-15): the pattern and the pixel grid share the square's 8 symmetries (u → −u, v → −v, u ↔ v),
@@ -997,7 +995,7 @@ function ringProfile(M){const cs=act();
   for(const u of [-1,-0.5,0,0.5,1]){const t=Math.sign(u)*M.th(Math.abs(u))*180/Math.PI;s+=`<text x="${x(u)}" y="${H-pb+16}" font-size="12" fill="${mute}" text-anchor="${u<-0.9?'start':u>0.9?'end':'middle'}">${F(t,2)}°</text>`}
   /* same anti-aliased range plot as the interferogram, along the cut */
   {const pc=$('profC'),dpr=window.devicePixelRatio||1,cw=Math.round(W*dpr),ch=Math.round(H*dpr);if(pc.width!==cw||pc.height!==ch){pc.width=cw;pc.height=ch}  /* resizing a canvas reallocates it: only when the size changes */const pg=pc.getContext('2d');pg.clearRect(0,0,pc.width,pc.height);
-    if(cs.length){const col=cssRGB('--fr'),t0=performance.now(),K=dpK();densityPlot(pg,Math.round(pl*dpr),Math.round(pt*dpr),Math.round((W-pl-pr2)*dpr),Math.round((H-pt-pb)*dpr),t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},cs,()=>col);if(ringLive)dpRecord(K,performance.now()-t0)}}
+    if(cs.length){const col=cssRGB('--fr');densityPlot(pg,Math.round(pl*dpr),Math.round(pt*dpr),Math.round((W-pl-pr2)*dpr),Math.round((H-pt-pb)*dpr),t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},cs,()=>col)}}
   s+=`<text x="${(pl+W-pr2)/2}" y="${H-4}" font-size="12" fill="${mute}" text-anchor="middle">${an?`θ along the tilt direction (${F(phi,3)}° from x)`:"θ along x"}</text><text transform="translate(12 ${(pt+H-pb)/2}) rotate(-90)" font-size="12" fill="${mute}" text-anchor="middle">I / I_tot</text>`;svg.innerHTML=s}
 
 /* ---------- verification: every rendered quantity checked against an independent computation ---------- */
@@ -1297,7 +1295,7 @@ function draw(){raf=0;/* d and δ0 to the nearest nm (3 decimals in µm), with a
   const nm3=v=>{const t=Math.abs(v).toFixed(3);return (v<0&&+t?'−':'\u2007')+t+' µm'};setTxt('dV',nm3(+$('d').value));setTxt('dV0',nm3(D0()));setTxt('dRV',`${F(DMAX(),3)} µm`);
   setTxt('rV',`±${F(RANGE(),4)} µm`);{const[a,b]=outWin(),dg=b-a<5?2:b-a<50?1:0;setTxt('oV',`${a.toFixed(dg)}–${b.toFixed(dg)} nm`)}setTxt('fV',`${F(+$('fov').value,4)}°`);setTxt('txV',`${F(+$('tx').value,4)} µrad`);setTxt('tyV',`${F(+$('ty').value,4)} µrad`);
   const t0=performance.now();LQ.ms=0;fitRing();renderSpec();renderOut();renderIfg();renderRingIfNeeded();renderOv();renderRail();renderMini();
-  if(ringLive){const t=performance.now()-t0;LQ.other=0.7*LQ.other+0.3*Math.max(0,t-LQ.ms);LQ.tot=0.7*LQ.tot+0.3*t}}
+  if(ringLive){const t=performance.now()-t0;LQ.other=0.7*LQ.other+0.3*Math.max(0,t-LQ.ms)}}
 function runEq(){eqT=0;eqs();table();save()}
 /* MS-11: a live input that stops changing for IDLE ms (the button still held) gets the exact at-rest image; the next change goes live again */
 let idleT=0;const goIdle=()=>{if(ringLive){ringLive=false;if(!raf)raf=requestAnimationFrame(draw)}};
