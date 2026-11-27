@@ -1,8 +1,10 @@
 /* ---------- shared exact maths for rendering ----------
-   Pixel footprint: each displayed pixel averages the pattern over a 2-D Gaussian footprint (sd PIXSD px).
+   Pixel footprint: each displayed pixel averages the pattern over a 2-D Gaussian footprint (sd PIXSD px). A fringe at the pixel
+   pitch (1 cycle/px, which samples to a flat tone and shows as ghost ring centres) keeps e^{-2π²·PIXSD²} of its contrast:
+   0.7% at 0.5 px. At 0.4 px it kept 4.2%, which was visible as moiré.
    With the OPD linearised across the pixel, delta ~ N(dm, tau^2), tau = PIXSD*|grad delta|*pixel, and for a term e^{-a delta^2}cos(b delta):
    <e^{-a d^2} cos(b d)> = q^{-1/2} exp(-(a dm^2 + b^2 tau^2/2)/q) cos(b dm/q),  q = 1 + 2 a tau^2   (closed form, Gaussian integral). */
-const PIXSD=0.4;
+const PIXSD=0.5;
 const avgTerm=(ka,kb,dm,t2)=>{const q=1+2*ka*t2;return Math.exp(-(ka*dm*dm+0.5*kb*kb*t2)/q)*Math.cos(kb*dm/q)/Math.sqrt(q)};
 function xyzAt(dm,t2,SL){let X=0,Y=0,Z=0;for(const o of SL){const v=0.5*o.p*(1+avgTerm(o.ka,o.kb,dm,t2));X+=v*o.X[0];Y+=v*o.X[1];Z+=v*o.X[2]}return[X,Y,Z]}
 const hueOf=xyz=>norm(desat(toLin(xyz)));
@@ -20,15 +22,11 @@ function spanOf(t0,t1,dAt,g,smax){const fr=Math.abs(dAt(t1)-dAt(t0))*smax;let lo
   else{const k=Math.max(2,Math.ceil(16*fr)+1);for(let q=0;q<=k;q++){const v=0.5*(1+g.re(dAt(t0+(t1-t0)*q/k)));lo=Math.min(lo,v);hi=Math.max(hi,v)}}SPAN2[0]=lo;SPAN2[1]=hi;return SPAN2}
 const SPAN2=[0,0];
 /* buffers are reused between calls, one set per target canvas; only the rows a column (or its filter neighbours) touched are visited */
-/* Sub-columns per pixel: 8 at rest. While moving, the ring has priority: the plots stay at 2 until the ring preview is at full
-   resolution, then use only the time the frame has to spare. From the profile's measured cost per sub-column c and the last
-   frame's main-thread time (LQ.tot), they take the most of 2, 3, 4, 6, 8 whose extra cost fits what is left of the frame budget
-   (stepping down when the frame runs over), capped at a fifth of the budget; going up needs a 15% margin so it doesn't flicker.
-   Since they only take spare time, they never push the ring back to a coarser preview. */
-const DPQ={k:2,c:0},DPK=[2,3,4,6,8],dpK=()=>ringLive?DPQ.k:8;
-function dpRecord(K,ms){const c=ms/K;DPQ.c=DPQ.c?0.7*DPQ.c+0.3*c:c;if(LQ.last>1){DPQ.k=2;return}const F=FR(),slack=F-LQ.tot;
-  DPQ.k=[...DPK].reverse().find(k=>DPQ.c*k<=0.2*F&&DPQ.c*(k-K)<=(k>K?0.85*slack:slack))||2}
-function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=dpK(),
+/* Sub-columns per pixel: always 8, moving or at rest. Never adapt this to the frame time: dense fringes look very different at
+   2 and at 8 sub-columns (a solid band against the true crowding at ½(1 ± |γ|)), so switching between them made the plots flicker
+   while dragging (fixed after MS-11). */
+const DPK=8;
+function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=DPK,
   B=ctx.__dp&&ctx.__dp.Wd===Wd&&ctx.__dp.Hd===Hd?ctx.__dp:(ctx.__dp={Wd,Hd,img:ctx.createImageData(Wd,Hd),C:new Float32Array(Wd*Hd),r0:new Int32Array(Wd),r1:new Int32Array(Wd),off:document.createElement('canvas')});
   const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],smax=Math.max(...cs.map(c=>c.s)),g=gammaOf(cs),MINH=1.25*(window.devicePixelRatio||1);
   D.fill(0);C.fill(0);
@@ -54,7 +52,7 @@ let _probe=null;function cssRGB(v){const c=CSSC.get('rgb'+v);if(c)return c;if(!_
 let ifgKey='',ifgEnv='';
 function renderIfg(){
   const svg=$('ifg'),cv=$('ifgC'),[W,H]=box(svg);if(!W)return;
-  const dpr=window.devicePixelRatio||1,key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr,dpK()]),fresh=key!==ifgKey;ifgKey=key;
+  const dpr=window.devicePixelRatio||1,key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr]),fresh=key!==ifgKey;ifgKey=key;
   if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
   const R=RANGE(),pl=46,pr=10,pt=10,pb=42,x=d=>pl+(d+R)/(2*R)*(W-pl-pr),y=v=>pt+(1-v)*(H-pt-pb),mute=css('--mute');
   if(fresh){g.clearRect(0,0,W,H);g.fillStyle='#05070f';g.fillRect(pl,pt,W-pl-pr,H-pt-pb)}

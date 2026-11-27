@@ -42,7 +42,7 @@ function draw(){raf=0;/* d and δ0 to the nearest nm (3 decimals in µm), with a
   const nm3=v=>{const t=Math.abs(v).toFixed(3);return (v<0&&+t?'−':'\u2007')+t+' µm'};setTxt('dV',nm3(+$('d').value));setTxt('dV0',nm3(D0()));setTxt('dRV',`${F(DMAX(),3)} µm`);
   setTxt('rV',`±${F(RANGE(),4)} µm`);{const[a,b]=outWin(),dg=b-a<5?2:b-a<50?1:0;setTxt('oV',`${a.toFixed(dg)}–${b.toFixed(dg)} nm`)}setTxt('fV',`${F(+$('fov').value,4)}°`);setTxt('txV',`${F(+$('tx').value,4)} µrad`);setTxt('tyV',`${F(+$('ty').value,4)} µrad`);
   const t0=performance.now();LQ.ms=0;fitRing();renderSpec();renderOut();renderIfg();renderRingIfNeeded();renderOv();renderRail();renderMini();
-  if(ringLive){const t=performance.now()-t0;LQ.other=0.7*LQ.other+0.3*Math.max(0,t-LQ.ms);LQ.tot=0.7*LQ.tot+0.3*t}}
+  if(ringLive){const t=performance.now()-t0;LQ.other=0.7*LQ.other+0.3*Math.max(0,t-LQ.ms)}}
 function runEq(){eqT=0;eqs();table();save()}
 /* MS-11: a live input that stops changing for IDLE ms (the button still held) gets the exact at-rest image; the next change goes live again */
 let idleT=0;const goIdle=()=>{if(ringLive){ringLive=false;if(!raf)raf=requestAnimationFrame(draw)}};

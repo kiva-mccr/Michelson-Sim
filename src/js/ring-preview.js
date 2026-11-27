@@ -17,7 +17,7 @@ let ringJob=0;
    The fringe speed v (device px/ms) is the largest shift |Δδ|/|∇δ| of the pattern between the last two preview frames, at 32
    points over the field (|∇δ| floored at one fringe per field radius), over their time apart. A spectrum change, or no recent
    frame, counts as fast. When the inputs stop changing for IDLE ms with the button still held, the exact image is rendered. */
-const LQ={other:4,ms:0,tot:16.7,last:1,cpuR:{p:1},cpuT:{p:2},wk:{p:2},gpu:{p:2},mv:{v:Infinity,at:0,M:null,sk:''}},KMAX=16,IDLE=150;
+const LQ={other:4,ms:0,cpuR:{p:1},cpuT:{p:2},wk:{p:2},gpu:{p:2},mv:{v:Infinity,at:0,M:null,sk:''}},KMAX=16,IDLE=150;
 const lqPts=(()=>{const o=[];for(const r of [0.3,0.6,0.85,1])for(let a=0;a<8;a++)o.push([r*Math.cos(a*Math.PI/4+r),r*Math.sin(a*Math.PI/4+r)]);return o})();
 /* fringe speed between the previous preview frame and this one */
 function lqMotion(M,N){const mv=LQ.mv,now=performance.now(),sk=(sublines(),slKey);
@@ -34,7 +34,7 @@ function lqPick(key,N,gpu,main){const q=LQ[key],n=sublines().length;
   if(q.a==null)q.k=4;  /* no fresh measurement: start coarse, the next frame's time corrects it */
   else{let k=q.k||4,kt=k;for(let it=0;it<2;it++){kt=clamp(N/Math.pow(0.9*lqBudget(k,gpu,main)/q.a,1/q.p),1,KMAX);k=kt}  /* the budget depends on k (one preview pixel of motion): two passes settle it */
     q.k=kt>=q.k?kt:Math.exp(0.5*Math.log(q.k)+0.5*Math.log(kt))}  /* coarser at once, finer half the way (log space) */
-  const Nl=q.k<1.03?N:clamp(Math.round(N/q.k),Math.ceil(N/KMAX),N);LQ.last=N/Nl;return Nl}
+  const Nl=q.k<1.03?N:clamp(Math.round(N/q.k),Math.ceil(N/KMAX),N);return Nl}
 function lqRecord(key,Nl,ms){const q=LQ[key],a=ms/Math.pow(Nl,q.p);q.a=q.a==null?a:Math.exp(0.7*Math.log(q.a)+0.3*Math.log(a));q.at=performance.now()}
 /* The frame budget follows the display: FR is its refresh interval, measured from idle requestAnimationFrame steps (the 25th
    percentile, so frames slowed by our own drawing don't count), at least 16.7 ms (60 Hz; faster displays still get 60 Hz-quality

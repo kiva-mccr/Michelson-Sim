@@ -17,7 +17,7 @@ function renderRing(sync){
     ringProfile(M);if(RB.busy&&!sync){RB.dirty=true;return}
     ringJob=job;if(ringLive)lqMotion(M,N);
     const Nl=ringLive?lqPick('gpu',N,true,false):N,k=N/Nl;showRes(N,Nl,ringLive);
-    const pk=packRing(pr,M),s2=(PIXSD*2*k/N)**2;Ibuf=null;RB.busy=true;const t0=performance.now();
+    const pk=packRing(pr,M),s2=(PIXSD*2*k/N)**2;Ibuf=null;Pbuf=null;RB.busy=true;const t0=performance.now();
     let done;try{done=RB.active==='webgpu'?gpuDraw(RB.gpu,N,M,pk,s2,gain,Nl):glDraw(RB.gl,N,M,pk,s2,gain,Nl)}catch(e){RB.busy=false;console.warn(RB.active,'failed, falling back',e);if(RB.active==='webgpu')RB.gpu=null;else RB.gl=null;pickBackend('error');return}
     /* a lost device rejects the pending frame: fall back instead of leaving an unhandled rejection and a renderer stuck busy */
     const be=RB.active;
@@ -30,13 +30,13 @@ function renderRing(sync){
   if(ringLive)lqMotion(M,N);
   const Nl=ringLive?lqPick(pathKey,N,false,pathKey!=='wk'):N,k=N/Nl;showRes(N,Nl,ringLive);
   /* a moving preview is an Nl×Nl grid of exact block averages, drawn into a small image and scaled up smoothly, so its fixed cost shrinks with it */
-  const small=Nl<N,img=ringImg(Nl),D=img.data;Ibuf=small?null:new Float32Array(N*N);
+  const small=Nl<N,img=ringImg(Nl),D=img.data;Ibuf=small?null:new Float32Array(N*N);Pbuf=small?new Float32Array(Nl*Nl):null;  /* Pbuf: a preview's grid as I/I_tot, for tests/antialias.js */
   const present=(jA,jB)=>{if(small){RB.off.getContext('2d').putImageData(img,0,0);rctx.imageSmoothingEnabled=true;rctx.imageSmoothingQuality='high';rctx.drawImage(RB.off,0,0,Nl,Nl,0,0,N,N)}else rctx.putImageData(img,0,0,0,jA,N,jB-jA)};
   if(cs.length){const SL=sublines(),pr=prepSL(SL),A=cs.reduce((t,c)=>t+P(c),0);let fX=0,fY=0,fZ=0;for(const o of SL){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}
     const fl=desat(toLin([fX,fY,fZ])),gain=1/Math.max(...fl,1e-9),h=N/2,px=2/N*k,sd=PIXSD*px,rc=rcut(N,k),rc2=rc*rc;
     /* grid point (j, i): one image pixel; at full resolution also the I/I_tot buffer */
     const put=(j,i,X,Y,Z,I)=>{if(j>=Nl)return;let r=MX[0][0]*X+MX[0][1]*Y+MX[0][2]*Z,g=MX[1][0]*X+MX[1][1]*Y+MX[1][2]*Z,b=MX[2][0]*X+MX[2][1]*Y+MX[2][2]*Z;const m=Math.min(r,g,b,0);
-      const o=4*(j*Nl+i);D[o]=enc((r-m)*gain);D[o+1]=enc((g-m)*gain);D[o+2]=enc((b-m)*gain);D[o+3]=255;if(!small)Ibuf[j*N+i]=I/A};
+      const o=4*(j*Nl+i);D[o]=enc((r-m)*gain);D[o+1]=enc((g-m)*gain);D[o+2]=enc((b-m)*gain);D[o+3]=255;if(small)Pbuf[j*Nl+i]=I/A;else Ibuf[j*N+i]=I/A};
     if(!tilted&&ringLive){/* moving and untilted: a radial grid at 4 samples per grid pixel, linearly interpolated (preview only) */
       const Nr=Math.ceil(1.42*h/k*4)+2,dr=1.42/(Nr-1),RX=new Float64Array(Nr),RY=new Float64Array(Nr),RZ=new Float64Array(Nr),RI=new Float64Array(Nr);
       const Nq=Math.min(Nr,Math.ceil(rc/dr)+2);  /* the table keeps its spacing dr, but stops just past rcut */
@@ -46,7 +46,7 @@ function renderRing(sync){
     else{const kbm=Math.max(...SL.map(o=>o.kb)),s2=sd*sd;
       /* grid point (j, i): the exact footprint average, or 0 beyond rcut (MS-13) */
       const pix=(j,i)=>{const v=-((j+0.5)*k-h)/h,u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2)return put(j,i,0,0,0,0);const r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
-        const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=!ringLive&&kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;  /* the second-order correction only in the at-rest pass */
+        const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;  /* the same curvature test in previews: their footprint is k times wider, so curvature matters more there */
         const p=pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad);put(j,i,p[0],p[1],p[2],p[3])};
       const rows=(j0,j1)=>{for(let j=j0;j<j1;j++)for(let i=0;i<Nl;i++)pix(j,i)};
       if(!tilted){/* at rest and untilted (MS-15): the pattern and the pixel grid share the square's 8 symmetries (u → −u, v → −v, u ↔ v),
@@ -84,6 +84,6 @@ function ringProfile(M){const cs=act();
   for(const u of [-1,-0.5,0,0.5,1]){const t=Math.sign(u)*M.th(Math.abs(u))*180/Math.PI;s+=`<text x="${x(u)}" y="${H-pb+16}" font-size="12" fill="${mute}" text-anchor="${u<-0.9?'start':u>0.9?'end':'middle'}">${F(t,2)}°</text>`}
   /* same anti-aliased range plot as the interferogram, along the cut */
   {const pc=$('profC'),dpr=window.devicePixelRatio||1,cw=Math.round(W*dpr),ch=Math.round(H*dpr);if(pc.width!==cw||pc.height!==ch){pc.width=cw;pc.height=ch}  /* resizing a canvas reallocates it: only when the size changes */const pg=pc.getContext('2d');pg.clearRect(0,0,pc.width,pc.height);
-    if(cs.length){const col=cssRGB('--fr'),t0=performance.now(),K=dpK();densityPlot(pg,Math.round(pl*dpr),Math.round(pt*dpr),Math.round((W-pl-pr2)*dpr),Math.round((H-pt-pb)*dpr),t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},cs,()=>col);if(ringLive)dpRecord(K,performance.now()-t0)}}
+    if(cs.length){const col=cssRGB('--fr');densityPlot(pg,Math.round(pl*dpr),Math.round(pt*dpr),Math.round((W-pl-pr2)*dpr),Math.round((H-pt-pb)*dpr),t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},cs,()=>col)}}
   s+=`<text x="${(pl+W-pr2)/2}" y="${H-4}" font-size="12" fill="${mute}" text-anchor="middle">${an?`θ along the tilt direction (${F(phi,3)}° from x)`:"θ along x"}</text><text transform="translate(12 ${(pt+H-pb)/2}) rotate(-90)" font-size="12" fill="${mute}" text-anchor="middle">I / I_tot</text>`;svg.innerHTML=s}
 

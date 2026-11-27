@@ -70,8 +70,8 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - `tanθ = r·tanθmax`
   - `δ = 2d cosθ + 2(αx·x + αy·y)`, with mirror coordinate scale `L·tanθmax` and L = 28.4 mm. See `ringModel`.
 - Pixel averaging:
-  - Each pixel is averaged over a Gaussian footprint with sd 0.4 px.
-  - The first-order average has a closed form. A second-order correction (`avgQ`) is used when the fringe curvature matters (a 3e-4 test).
+  - Each pixel is averaged over a Gaussian footprint with sd 0.5 px (`PIXSD`; MS-17, it was 0.4). A fringe at the pixel pitch keeps e^{−2π²·0.25} = 0.7% of its contrast; at 0.4 px it kept 4.2%, which showed as moiré (ghost ring centres). A preview grid point uses the same footprint scaled to its block, sd 0.5·k device px.
+  - The first-order average has a closed form. A second-order correction (`avgQ`) is used when the fringe curvature matters (a 3e-4 test), at rest and in previews, on every renderer (MS-17: CPU and worker previews used to skip it, and coarse previews got the ring centre wrong).
   - Untilted, at rest, on the CPU (MS-15): the pattern and the pixel grid share the square's 8 symmetries, so only one octant of pixels is evaluated (exactly as every other pixel) and copied to its mirror pixels. The result is identical to evaluating every pixel. A moving untilted CPU preview still uses a radial grid (4 samples per grid pixel, linear interpolation). The GPU renderers evaluate every pixel.
   - In `pixVal` (CPU and workers), the terms that depend only on a sub-band's width are computed once per Gaussian (`avgQpre`), which is bit-identical.
   - First-order fast path: in an evenly spaced group (`g.lin`, set in `prepSL`), e^{ex} and the fringe cos/sin are stepped by exact ratios and re-evaluated directly every 16 sub-bands. It agrees with direct evaluation to < 1e-15 absolute (`tests/fastpath.js`). The −40 cut-off is exact: ex is monotonic along a group, so testing its two ends decides it for every sub-band, otherwise it is tested per sub-band (MS-16, bit-identical).
@@ -98,7 +98,7 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - When the inputs stop changing for 150 ms (`IDLE`) with the button still held, the exact at-rest image is rendered (`goIdle` in `ui-loop.js`).
   - Measurements expire after 3 s and reset when the number of sub-bands changes.
   - The budget follows the device: the display's refresh interval is measured from idle `requestAnimationFrame` steps (`measureFrame`, `FR()`, 25th percentile, clamped to 16.7–33.4 ms) and re-measured on resize and when the page becomes visible. CPU paths get what is left of that frame after the plots; GPU paths get 85% of it.
-  - The profile and interferogram range plots adapt too (`DPQ`, `dpK`, `dpRecord`): 8 sub-columns per pixel at rest; while moving, they stay at 2 until the ring preview is at full resolution (the ring has priority), then use only spare frame time: the most of 2, 3, 4, 6, 8 whose extra cost (measured cost per sub-column) fits the budget minus the last frame's main-thread time (`LQ.tot`), capped at a fifth of the budget. So they never push the ring back to a coarser preview.
+  - The profile and interferogram range plots do **not** adapt: always 8 sub-columns per pixel (`DPK`), moving or at rest (MS-17). MS-10 had them switch between 2 and 8 with the spare frame time, and dense fringes look very different at 2 and 8, so the plots flickered while dragging. `tests/plotstable.js` requires their pixels to be identical moving and at rest.
   - At rest, the image is always rendered at every pixel (Nl = N, the same code path and bit-identical outputs as before MS-11). On the CPU this is time-sliced into 12 ms slices so the page never blocks.
 - **Hidden corners are skipped** (MS-13): the canvas is square but shown as a circle, so grid points with r > 1 + 3 grid cells (`rcut`) are stored as 0 instead of evaluated, on every renderer. Visible pixels are bit-identical; only the corner values in the snapshots change. Check points must stay inside the circle.
 - Layout reads are cached (`box()`, `css()`, cleared on resize and theme change), and the interfered spectrum updates its existing SVG instead of rebuilding it (MS-13).
@@ -123,9 +123,11 @@ python3 tests/compare_snapshots.py before.json after.json   # IDENTICAL, or the 
 node tests/fastpath.js                            # pixVal's stepped fast path vs direct evaluation
 node tests/symmetry.js                            # untilted at-rest ring: octant mirrored 8 ways vs every pixel evaluated (MS-15)
 node tests/gpukernel.js                           # WGSL and GLSL pixel kernels alone vs pixVal in float64 (MS-16)
+node tests/antialias.js                           # previews at several grid sizes vs brute-force footprint integrals, and moiré on a dense ring, every renderer (MS-17)
+node tests/plotstable.js                          # profile and interferogram pixels identical moving and at rest (MS-17)
 ```
 
-`snapshot.js` records every output for 7 spectra on the CPU, worker and WebGL2 renderers. Two runs of the same build are identical, so any difference is real. Only accept a difference at floating-point noise level, and say so. Since MS-13, `ring` and `Ib` differ from pre-MS-13 builds in the hidden corners (r > rcut) only.
+`snapshot.js` records every output for 7 spectra on the CPU, worker and WebGL2 renderers. Two runs of the same build are identical, so any difference is real. Only accept a difference at floating-point noise level, and say so. Since MS-13, `ring` and `Ib` differ from pre-MS-13 builds in the hidden corners (r > rcut) only. Since MS-17 (footprint sd 0.4 → 0.5 px), `ring`, `Ib`, `ifgC` (the interferogram colours) and the check table differ from pre-MS-17 builds on purpose; everything else (γ, sub-bands, coherence, plot SVGs, `profC`, equations, readouts) must stay identical.
 
 - Offline, or with the CDN blocked: `npm i mathjax@3.2.2`, then set `MATHJAX_DIR=…/node_modules/mathjax` and the tests serve MathJax from there.
 - `GPU_ARGS=0` launches Chromium without the WebGPU/Vulkan flags. On hosts without a GPU those flags can make both GPU contexts get lost; the page then falls back to the CPU. With `GPU_ARGS=0`, WebGL2 still runs on SwiftShader, and `tests/gpukernel.js` checks the WebGPU kernel on its own.
@@ -148,6 +150,7 @@ These were only checked in headless Chromium on a cloud machine without a GPU. K
 - WebGL2 was tested through SwiftShader (software rendering), not on a real GPU.
 - Frame times and the adaptive preview resolution (`tests/perf.py`) were measured on the cloud machine, not on Kiva's hardware. That includes the device scaling (MS-10): the refresh-rate measurement only ever saw a 60 Hz headless display, and 30 Hz was simulated by forcing `FR()`. The motion-driven budget (MS-11) was checked only with scripted rail drags at fixed speeds in headless Chromium (SwiftShader WebGL2, workers, CPU); how smooth slow drags look on a real screen has not been seen.
 - The layout checks ran in headless Chromium only. Firefox and Safari have never been tested.
+- MS-17 (plot flicker, moiré) was reproduced and checked in headless Chromium on CPU, workers and SwiftShader WebGL2, by pixel comparisons and brute-force integrals. Kiva saw both problems on a real machine; whether the fix looks right there has not been seen. The WebGPU preview path was checked only through `tests/gpukernel.js` here, since the full page loses its WebGPU context on this host.
 
 ## Roadmap
 

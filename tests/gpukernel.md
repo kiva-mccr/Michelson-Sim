@@ -4,6 +4,6 @@ Runs the WebGPU (WGSL) and WebGL2 (GLSL) pixel kernels on their own, on small gr
 
 ## Rules and pitfalls
 
-- It loads `ring-model.js` and `ring-shaders.js` from `src/js` directly (no build needed), with stand-ins for `$`, `AMM`, `PIXSD` and `clamp`, and a smooth stand-in for the colour. If those files start to use other names, add stand-ins here.
+- It loads `ring-model.js` and `ring-shaders.js` from `src/js` directly (no build needed), with stand-ins for `$`, `AMM` and `clamp` (`PIXSD` is read from `plots-range.js`), and a smooth stand-in for the colour. If those files start to use other names, add stand-ins here.
 - WebGPU runs compute-only (no canvas) in a browser launched with `--disable-webgl`, and WebGL2 in a separate browser: on hosts without a GPU, SwiftShader's GPU process otherwise loses both contexts, which is why the full page falls back to the CPU there.
 - Its grid-point positions follow each shader (WebGL2 rows run bottom-up).

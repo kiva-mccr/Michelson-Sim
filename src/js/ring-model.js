@@ -4,7 +4,7 @@
    OPD: delta(u,v) = 2 d cos(theta) + 2 (alpha_x x + alpha_y y). Every pixel is the exact footprint average above.
    With zero tilt the pattern is radial. At rest only one octant of the pixels is evaluated and mirrored (exact, MS-15); a moving CPU
    preview evaluates a radial grid at 4 samples per grid pixel and interpolates linearly. */
-const ring=$('ring'),rctx=ring.getContext('2d');let ringLive=false,Ibuf=null;
+const ring=$('ring'),rctx=ring.getContext('2d');let ringLive=false,Ibuf=null,Pbuf=null;
 /* The canvas is square but shown as a circle (CSS border-radius), so grid points with r > rcut are never seen and are not evaluated:
    they are stored as 0 (black). The margin is RCUT grid cells, wider than the CSS edge anti-aliasing and the preview upscaling filters. */
 const RCUT=3,rcut=(N,k)=>1+RCUT*2*k/N;

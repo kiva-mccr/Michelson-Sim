@@ -5,7 +5,8 @@ Drawing the ring: `ringInputs`/`renderRingIfNeeded` (re-render only on a change)
 ## Rules and pitfalls
 
 - Only one GPU or worker frame is in flight at a time (busy/dirty).
-- At rest (Nl = N) every pixel is an exact footprint average and `Ibuf` holds I/I_tot for the checks; previews (Nl < N) leave `Ibuf` empty.
+- At rest (Nl = N) every pixel is an exact footprint average and `Ibuf` holds I/I_tot for the checks; previews (Nl < N) leave `Ibuf` empty and the CPU paths put their Nl×Nl grid's I/I_tot in `Pbuf` instead (for `tests/antialias.js`).
+- Previews use the same second-order curvature test (`quad`, 3e-4) as the at-rest pass, on every path. Their footprint is k times wider, so curvature matters more there, not less: before MS-17 the CPU tilted and worker previews skipped it, and coarse previews got the ring centre wrong.
 - The untilted octant (MS-15) relies on the grid being exactly symmetric: u of column N−1−i is exactly −u of column i, and v of row j is exactly −u of column j. Only the octant 0 ≤ i ≤ j < N/2 is computed; each value goes to its 8 mirror pixels. Before MS-15 the at-rest image was a radial grid at 16 samples per pixel, interpolated; that was off by up to 1.1e-3 of I/I_tot near the edge at d = 3 mm (He–Ne), above the 1e-3 check tolerance.
 - The radial interpolated grid is for moving previews only (`!tilted&&ringLive`); its cost is linear in N, which the preview cost model assumes (p = 1).
 - Keep the at-rest expressions exactly as they are, e.g. `((i+0.5)*k-h)/h` with k = 1: they are what the snapshots compare.

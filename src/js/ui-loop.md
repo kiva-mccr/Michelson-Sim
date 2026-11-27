@@ -7,6 +7,6 @@ Last in the build order. Editable numbers (`editable`, `setD`, `widen`), ring si
 - Every number next to a control goes through `editable()`.
 - Keep the file ending `update(false);` followed by `}` and `</script>`: `tests/snapshot.js` and `tests/fastpath.js` insert their hooks there.
 - `update(true)` arms `goIdle` (`IDLE` = 150 ms): a live input that stops changing gets the exact at-rest image while the button is still held.
-- `draw()` keeps `LQ.other` (plot time outside the ring) and `LQ.tot` (the whole main-thread frame) as running averages while moving; the preview budgets use them.
+- `draw()` keeps `LQ.other` (plot time outside the ring) as a running average while moving; the CPU preview budget uses it.
 - The CPU ring is capped at 480² pixels. The GPUs render at device resolution, up to 1024².
 - `fitRing` reads sizes through `box()` and writes the ring size only when it changed; `setTxt` writes text only when it changed. Both avoid forced layouts every frame (MS-13).
