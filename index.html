@@ -619,6 +619,14 @@ function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2
   for(const gr of pr.G){if(gr.pka*dmin*dmin>30){X+=gr.cX;Y+=gr.cY;Z+=gr.cZ;I+=gr.cI;continue}
   if(!quad&&gr.lin){const D=gr.lin,ka=pr.KA[gr.a],q=1+2*ka*t2,sq=ka?Math.sqrt(q):1,e0=ka*dm*dm,ph1=D*dm/q,c1=Math.cos(ph1),s1=Math.sin(ph1),g2=Math.exp(-(t2*D*D)/q);
     let E=0,R=0,C=0,S=0,j=16;
+    /* ex falls as k_b grows, also in floating point (every operation in it is monotonic), so testing both ends of the group
+       decides the −40 cut-off for all of it: then the per-sub-band test is dropped (or the whole fringe term), bit-identically */
+    const kL=pr.KB[gr.a],kH=pr.KB[gr.b-1],cL=-(e0+0.5*kL*kL*t2)/q>-40,cH=-(e0+0.5*kH*kH*t2)/q>-40;
+    if(cL&&cH){for(let k=gr.a;k<gr.b;k++){if(j>=16){const kb=pr.KB[k];E=Math.exp(-(e0+0.5*kb*kb*t2)/q);const ph=kb*dm/q;C=Math.cos(ph);S=Math.sin(ph);R=Math.exp(-(t2*kb*D+0.5*t2*D*D)/q);j=0}
+        const f=E*C/sq;E*=R;R*=g2;const c=C*c1-S*s1;S=S*c1+C*s1;C=c;j++;
+        const v=pr.P[k]*(1+f);I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}
+      continue}
+    if(!cL&&!cH){for(let k=gr.a;k<gr.b;k++){const v=pr.P[k]*(1+0);I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}continue}
     for(let k=gr.a;k<gr.b;k++){const kb=pr.KB[k],ex=-(e0+0.5*kb*kb*t2)/q;let f=0;
       if(ex>-40){if(j>=16){E=Math.exp(ex);const ph=kb*dm/q;C=Math.cos(ph);S=Math.sin(ph);R=Math.exp(-(t2*kb*D+0.5*t2*D*D)/q);j=0}
         f=E*C/sq;E*=R;R*=g2;const c=C*c1-S*s1;S=S*c1+C*s1;C=c;j++}else j=16;
@@ -637,21 +645,25 @@ function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2
    GPUs work in 32-bit floats, so the large part of each fringe phase is taken out in 64-bit on the CPU:
    k_b·δ̄ = [k_b·2d mod 2π] + k_b·Δ, with Δ = −4d sin²(θ/2) + k_x u + k_y v computed on the GPU.
    Where Δ is large the fringes are far finer than a pixel and the footprint average has already damped them to ~0.
+   In an evenly spaced group the first-order terms are stepped from sub-band to sub-band (exact ratios and a rotation) and re-evaluated
+   directly every GSTEP sub-bands, as pixVal's CPU fast path does (MS-16).
    The verification table reads the active backend's pixels back and checks them against brute-force integration. */
 const RB={pref:'auto',active:'cpu',gpu:null,gl:null,workers:null,busy:false,dirty:false,done:null};
 /* always the automatic choice; tests force one with ?renderer=webgpu|webgl2|workers|cpu (no control on the page).
    The old Renderer menu saved its choice here: clear it so nobody stays stuck on it. */
 try{RB.pref=new URLSearchParams(location.search).get('renderer')||'auto'}catch(e){}
 try{localStorage.removeItem('mich-renderer')}catch(e){}
-const TAU=2*Math.PI;
-/* pack sub-bands and groups for the GPU: per sub-band (P, KA, KB, phase0), (X, Y, Z, 0); per group (a, b, pka, cI), (cX, cY, cZ, 0) */
-function packRing(pr,M){const n=pr.n,sb=new Float32Array(Math.max(8,n*8)),G=pr.G,gr=new Float32Array(Math.max(8,G.length*8));
-  for(let k=0;k<n;k++){const o=8*k,ph=(pr.KB[k]*2*M.d)%TAU;sb[o]=pr.P[k];sb[o+1]=pr.KA[k];sb[o+2]=pr.KB[k];sb[o+3]=ph;sb[o+4]=pr.X[k];sb[o+5]=pr.Y[k];sb[o+6]=pr.Z[k]}
-  G.forEach((g,i)=>{const o=8*i;gr[o]=g.a;gr[o+1]=g.b;gr[o+2]=g.pka;gr[o+3]=g.cI;gr[o+4]=g.cX;gr[o+5]=g.cY;gr[o+6]=g.cZ});
+const TAU=2*Math.PI,GSTEP=8;  /* GPU fast path: sub-bands between direct re-evaluations */
+/* pack sub-bands and groups for the GPU: per sub-band (KA, KB, phase0, 0), (P·X, P·Y, P·Z, P);
+   per group (a, b, pka, cI), (cX, cY, cZ, Δk_b), (Δk_b·2d mod 2π, 0, 0, 0). Δk_b = g.lin (0 when the group is not evenly spaced). */
+function packRing(pr,M){const n=pr.n,sb=new Float32Array(Math.max(8,n*8)),G=pr.G,gr=new Float32Array(Math.max(12,G.length*12));
+  for(let k=0;k<n;k++){const o=8*k,p=pr.P[k];sb[o]=pr.KA[k];sb[o+1]=pr.KB[k];sb[o+2]=(pr.KB[k]*2*M.d)%TAU;sb[o+4]=p*pr.X[k];sb[o+5]=p*pr.Y[k];sb[o+6]=p*pr.Z[k];sb[o+7]=p}
+  G.forEach((g,i)=>{const o=12*i;gr[o]=g.a;gr[o+1]=g.b;gr[o+2]=g.pka;gr[o+3]=g.cI;gr[o+4]=g.cX;gr[o+5]=g.cY;gr[o+6]=g.cZ;gr[o+7]=g.lin;gr[o+8]=(g.lin*2*M.d)%TAU});
   let kbm=0;for(let k=0;k<n;k++)kbm=Math.max(kbm,pr.KB[k]);return{sb,gr,n,ng:G.length,kbm}}
 
 /* shared pixel maths in GLSL (the WGSL version below repeats it line for line) */
 const PIX_GLSL=`
+const int GSTEP=${GSTEP};
 float gam(float v){v=clamp(v,0.,1.);return v<=0.0031308?12.92*v:1.055*pow(v,1./2.4)-0.055;}
 /* GPU sin/cos are only accurate to ~5e-4 (absolute), so fringe phases use this: reduce to [0, π], then a 16th-order Taylor series (error < 1e-9) */
 float cosA(float x){float y=abs(x-6.283185307*floor(x/6.283185307+0.5));float sg=1.;if(y>1.5707963){y=3.14159265-y;sg=-1.;}
@@ -665,10 +677,18 @@ vec4 pix(float u,float v){
   bool quad=uKbm*uS2*max(abs(f2),abs(fr))>=3e-4;
   float t2=uS2*(gx*gx+gy*gy),dmin=max(0.,abs(dm)-5.*sqrt(t2));
   vec4 acc=vec4(0.);
-  for(int gi=0;gi<uNG;gi++){vec4 g0=fetchG(2*gi),g1=fetchG(2*gi+1);
+  for(int gi=0;gi<uNG;gi++){vec4 g0=fetchG(3*gi),g1=fetchG(3*gi+1);
     if(g0.z*dmin*dmin>30.){acc+=vec4(g1.xyz,g0.w);continue;}
     int a=int(g0.x+0.5),b=int(g0.y+0.5);
-    for(int k=a;k<b;k++){vec4 s0=fetchS(2*k),s1=fetchS(2*k+1);float ka=s0.y,kb=s0.z,ph=s0.w+kb*Dl,f;
+    if(!quad&&g1.w!=0.){/* first-order, evenly spaced group: e^{ex} and the fringe phase stepped (see above) */
+      vec4 sa=fetchS(2*a);float D=g1.w,ka=sa.x,kb0=sa.y,qq=1.+2.*ka*t2,rq=(qq-1.)/qq,isq=ka>0.?1./sqrt(qq):1.,e0=ka*dm*dm,st=fetchG(3*gi+2).x+D*Dl-D*dm*rq;
+      if(-(e0+0.5*kb0*kb0*t2)/qq<-40.){acc+=vec4(g1.xyz,g0.w);continue;}  /* every fringe term below e^{-40}: the constant part only */
+      float c1=cosA(st),s1=cosA(st-1.5707963),g2=exp(-t2*D*D/qq),E=0.,R=0.,C=0.,S=0.;int j=GSTEP;
+      for(int k=a;k<b;k++){
+        if(j==GSTEP){vec4 s0=fetchS(2*k);float kb=s0.y,ph=s0.z+kb*Dl-kb*dm*rq;E=exp(-(e0+0.5*kb*kb*t2)/qq)*isq;C=cosA(ph);S=cosA(ph-1.5707963);R=exp(-t2*(kb*D+0.5*D*D)/qq);j=0;}
+        acc+=fetchS(2*k+1)*(1.+E*C);E*=R;R*=g2;float c=C*c1-S*s1;S=S*c1+C*s1;C=c;j++;}
+      continue;}
+    for(int k=a;k<b;k++){vec4 s0=fetchS(2*k);float ka=s0.x,kb=s0.y,ph=s0.z+kb*Dl,f;
       if(quad){
         float kr=-2.*ka*dm,ki=kb;
         float b11r=kr*h11-2.*ka*gx*gx,b11i=ki*h11,b12r=kr*h12-2.*ka*gx*gy,b12i=ki*h12,b22r=kr*h22-2.*ka*gy*gy,b22i=ki*h22;
@@ -679,7 +699,7 @@ vec4 pix(float u,float v){
         float er=-ka*dm*dm+0.5*uS2*(k2r*qr-k2i*qi)-0.25*log(dd),ei=ph+0.5*uS2*(k2r*qi+k2i*qr)-0.5*atan(di,dr);
         f=er<-40.?0.:exp(er)*cosA(ei);
       }else{float qq=1.+2.*ka*t2,ex=-(ka*dm*dm+0.5*kb*kb*t2)/qq;f=ex>-40.?exp(ex)*cosA(ph-kb*dm*(qq-1.)/qq)/(ka>0.?sqrt(qq):1.):0.;}
-      float w=s0.x*(1.+f);acc+=vec4(w*s1.xyz,w);}}
+      acc+=fetchS(2*k+1)*(1.+f);}}
   return acc;}`;
 const TONE_GLSL=`
 vec3 tone(vec4 x){vec3 c=vec3(dot(vec3(3.2406,-1.5372,-0.4986),x.xyz),dot(vec3(-0.9689,1.8758,0.0415),x.xyz),dot(vec3(0.0557,-0.2040,1.0570),x.xyz));
@@ -691,6 +711,7 @@ const WGSL=WGSL_HEAD+`
 @group(0) @binding(1) var<storage,read> SB:array<vec4f>;
 @group(0) @binding(2) var<storage,read> GR:array<vec4f>;
 @group(0) @binding(3) var<storage,read_write> OUT:array<vec4f>;
+const GSTEP=${GSTEP};
 fn cosA(x:f32)->f32{var y=abs(x-6.283185307*floor(x/6.283185307+0.5));var sg=1.;if(y>1.5707963){y=3.14159265-y;sg=-1.;}
   let z=y*y;return sg*(1.+z*(-0.5+z*(1./24.+z*(-1./720.+z*(1./40320.+z*(-1./3628800.+z*(1./479001600.+z*(-1./87178291200.))))))));}
 fn pix(u:f32,v:f32)->vec4f{
@@ -702,10 +723,18 @@ fn pix(u:f32,v:f32)->vec4f{
   let quad=uKbm*uS2*max(abs(f2),abs(fr))>=3e-4;
   let t2=uS2*(gx*gx+gy*gy);let dmin=max(0.,abs(dm)-5.*sqrt(t2));
   var acc=vec4f(0.);
-  for(var gi=0;gi<NG;gi++){let g0=GR[2*gi];let g1=GR[2*gi+1];
+  for(var gi=0;gi<NG;gi++){let g0=GR[3*gi];let g1=GR[3*gi+1];
     if(g0.z*dmin*dmin>30.){acc+=vec4f(g1.xyz,g0.w);continue;}
     let a=i32(g0.x+0.5);let b=i32(g0.y+0.5);
-    for(var k=a;k<b;k++){let s0=SB[2*k];let s1=SB[2*k+1];let ka=s0.y;let kb=s0.z;let ph=s0.w+kb*Dl;var f=0.;
+    if(!quad&&g1.w!=0.){/* first-order, evenly spaced group: e^{ex} and the fringe phase stepped (see the GLSL) */
+      let sa=SB[2*a];let D=g1.w;let ka=sa.x;let kb0=sa.y;let qq=1.+2.*ka*t2;let rq=(qq-1.)/qq;let isq=select(1.,1./sqrt(qq),ka>0.);let e0=ka*dm*dm;let st=GR[3*gi+2].x+D*Dl-D*dm*rq;
+      if(-(e0+0.5*kb0*kb0*t2)/qq<-40.){acc+=vec4f(g1.xyz,g0.w);continue;}  /* every fringe term below e^{-40}: the constant part only */
+      let c1=cosA(st);let s1=cosA(st-1.5707963);let g2=exp(-t2*D*D/qq);var E=0.;var R=0.;var C=0.;var S=0.;var j=GSTEP;
+      for(var k=a;k<b;k++){
+        if(j==GSTEP){let s0=SB[2*k];let kb=s0.y;let ph=s0.z+kb*Dl-kb*dm*rq;E=exp(-(e0+0.5*kb*kb*t2)/qq)*isq;C=cosA(ph);S=cosA(ph-1.5707963);R=exp(-t2*(kb*D+0.5*D*D)/qq);j=0;}
+        acc+=SB[2*k+1]*(1.+E*C);E*=R;R*=g2;let c=C*c1-S*s1;S=S*c1+C*s1;C=c;j++;}
+      continue;}
+    for(var k=a;k<b;k++){let s0=SB[2*k];let ka=s0.x;let kb=s0.y;let ph=s0.z+kb*Dl;var f=0.;
       if(quad){
         let kr=-2.*ka*dm;let ki=kb;
         let b11r=kr*h11-2.*ka*gx*gx;let b11i=ki*h11;let b12r=kr*h12-2.*ka*gx*gy;let b12i=ki*h12;let b22r=kr*h22-2.*ka*gy*gy;let b22i=ki*h22;
@@ -716,7 +745,7 @@ fn pix(u:f32,v:f32)->vec4f{
         let er=-ka*dm*dm+0.5*uS2*(k2r*qr-k2i*qi)-0.25*log(dd);let ei=ph+0.5*uS2*(k2r*qi+k2i*qr)-0.5*atan2(di,dr);
         if(er>=-40.){f=exp(er)*cosA(ei);}
       }else{let qq=1.+2.*ka*t2;let ex=-(ka*dm*dm+0.5*kb*kb*t2)/qq;if(ex>-40.){f=exp(ex)*cosA(ph-kb*dm*(qq-1.)/qq)/select(1.,sqrt(qq),ka>0.);}}
-      let w=s0.x*(1.+f);acc+=vec4f(w*s1.xyz,w);}}
+      acc+=SB[2*k+1]*(1.+f);}}
   return acc;}
 @compute @workgroup_size(8,8) fn cmain(@builtin(global_invocation_id) id:vec3u){
   let N=f32(P.a.x);let k=P.a.z;let Nl=u32(P.a.w);if(id.x>=Nl||id.y>=Nl){return;}let h=N*0.5;
@@ -738,7 +767,7 @@ fn gam(v0:f32)->f32{let v=clamp(v0,0.,1.);return select(1.055*pow(v,1./2.4)-0.05
 const GLSL_HEAD=`#version 300 es
 precision highp float;precision highp int;precision highp sampler2D;
 uniform sampler2D uSB,uGR,uOut;uniform int uNG,uN,uNl;uniform float uD,uT,uKx,uKy,uS2,uKbm,uGain;out vec4 o;
-vec4 fetchS(int t){return texelFetch(uSB,ivec2(t%1024,t/1024),0);}vec4 fetchG(int t){return texelFetch(uGR,ivec2(t%1024,t/1024),0);}`;
+vec4 fetchS(int t){return texelFetch(uSB,ivec2(t&1023,t>>10),0);}vec4 fetchG(int t){return texelFetch(uGR,ivec2(t&1023,t>>10),0);}`;
 const GLSL_PIX=GLSL_HEAD+PIX_GLSL+`
 void main(){float h=float(uN)*0.5,k=float(uN)/float(uNl);vec2 p=(floor(gl_FragCoord.xy)+0.5)*k;float u=(p.x-h)/h,v=(p.y-h)/h,rc=1.+6.*k/float(uN);if(u*u+v*v>rc*rc){o=vec4(0.);return;}o=pix(u,v);}`;
 const GLSL_TONE=GLSL_HEAD+`

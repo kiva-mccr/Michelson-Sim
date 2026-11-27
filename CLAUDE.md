@@ -74,7 +74,7 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - The first-order average has a closed form. A second-order correction (`avgQ`) is used when the fringe curvature matters (a 3e-4 test).
   - Untilted, at rest, on the CPU (MS-15): the pattern and the pixel grid share the square's 8 symmetries, so only one octant of pixels is evaluated (exactly as every other pixel) and copied to its mirror pixels. The result is identical to evaluating every pixel. A moving untilted CPU preview still uses a radial grid (4 samples per grid pixel, linear interpolation). The GPU renderers evaluate every pixel.
   - In `pixVal` (CPU and workers), the terms that depend only on a sub-band's width are computed once per Gaussian (`avgQpre`), which is bit-identical.
-  - First-order fast path: in an evenly spaced group (`g.lin`, set in `prepSL`), e^{ex} and the fringe cos/sin are stepped by exact ratios and re-evaluated directly every 16 sub-bands. It agrees with direct evaluation to < 1e-15 absolute (`tests/fastpath.js`). The −40 cut-off is still tested exactly per sub-band.
+  - First-order fast path: in an evenly spaced group (`g.lin`, set in `prepSL`), e^{ex} and the fringe cos/sin are stepped by exact ratios and re-evaluated directly every 16 sub-bands. It agrees with direct evaluation to < 1e-15 absolute (`tests/fastpath.js`). The −40 cut-off is exact: ex is monotonic along a group, so testing its two ends decides it for every sub-band, otherwise it is tested per sub-band (MS-16, bit-identical).
 - Colour: each Gaussian is split into K sub-band Gaussians.
   - K is between 15 and 241, spanning ±2.8w, with each sub-band at most 0.012 µm⁻¹ wide. See `sublines`.
   - Each sub-band's XYZ is integrated over its own shape using the CVRL CIE 2006 2° CMFs (390–780 nm, embedded). Light outside that range adds no colour but still counts in the power.
@@ -89,6 +89,7 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - sin and cos of θ come from square roots, not GPU trig.
   - The fringe cosine is `cosA`: range-reduced, then a Taylor series. GPU `cos` is only good to about 5e-4.
   - Do not "simplify" any of this back to built-ins. The tolerance is 1e-3, and builtin GPU trig failed it at d = 5 mm.
+  - GPU fast path (MS-16): in a first-order, evenly spaced group, e^{ex} and the fringe cos/sin are stepped (as on the CPU) and re-evaluated with `exp`/`cosA` every 8 sub-bands (`GSTEP`). The phase step's large part, Δk_b·2d mod 2π, is also float64 from the CPU. Sub-band weights are premultiplied (P·X, P·Y, P·Z, P), so each sub-band is one fetch. A group whose first sub-band already has ex < −40 adds only its constant part. `tests/gpukernel.js` checks both kernels against `pixVal` (largest error 9e-6 of I, as before).
 - **Verification:** the "Ring pixels" check reads back the **active** renderer's pixels (`ringReadback`) and compares them with brute-force integration.
 - **Adaptive preview resolution while moving** (`LQ`, `lqPick`, `lqRecord`, `lqMotion`, `lqBudget`; MS-10, MS-11):
   - A preview is an Nl×Nl grid of exact footprint averages, Nl any whole number from N/16 to N, each over a block of k = N/Nl device pixels, scaled up (bilinear in XYZ/I on the GPUs, smooth canvas scaling on the CPU).
@@ -121,12 +122,13 @@ node tests/snapshot.js index.html after.json      # on the new build
 python3 tests/compare_snapshots.py before.json after.json   # IDENTICAL, or the largest difference per output
 node tests/fastpath.js                            # pixVal's stepped fast path vs direct evaluation
 node tests/symmetry.js                            # untilted at-rest ring: octant mirrored 8 ways vs every pixel evaluated (MS-15)
+node tests/gpukernel.js                           # WGSL and GLSL pixel kernels alone vs pixVal in float64 (MS-16)
 ```
 
 `snapshot.js` records every output for 7 spectra on the CPU, worker and WebGL2 renderers. Two runs of the same build are identical, so any difference is real. Only accept a difference at floating-point noise level, and say so. Since MS-13, `ring` and `Ib` differ from pre-MS-13 builds in the hidden corners (r > rcut) only.
 
 - Offline, or with the CDN blocked: `npm i mathjax@3.2.2`, then set `MATHJAX_DIR=…/node_modules/mathjax` and the tests serve MathJax from there.
-- `GPU_ARGS=0` launches Chromium without the WebGPU/Vulkan flags. On hosts without a GPU those flags can make both GPU contexts get lost; the page then falls back to the CPU, and WebGL2 goes untested.
+- `GPU_ARGS=0` launches Chromium without the WebGPU/Vulkan flags. On hosts without a GPU those flags can make both GPU contexts get lost; the page then falls back to the CPU. With `GPU_ARGS=0`, WebGL2 still runs on SwiftShader, and `tests/gpukernel.js` checks the WebGPU kernel on its own.
 - Use a Playwright version that matches the installed Chromium.
 
 Headless Chrome can't display WebGPU canvases, so screenshots there show WebGPU as black. Its numbers are still checked through readback. Use `--use-angle=swiftshader` for WebGL2 without a GPU.
@@ -141,7 +143,8 @@ The owner can leave feedback as comments on that artifact. (The earlier artifact
 
 These were only checked in headless Chromium on a cloud machine without a GPU. Kiva, please confirm them on a real machine.
 
-- The WebGPU ring has only been checked through its readback numbers. Headless Chrome shows WebGPU canvases as black, so nobody has looked at its image in a test.
+- The WebGPU ring has only been checked through its readback numbers (since MS-16, on this host, through `tests/gpukernel.js`'s compute-only run on SwiftShader, because the full page loses its GPU contexts here).
+- The MS-16 GPU speed-up (about 2× per sub-band) was measured on SwiftShader only. On a real GPU, where exp and cos are cheaper relative to memory reads, the gain may be smaller. Headless Chrome shows WebGPU canvases as black, so nobody has looked at its image in a test.
 - WebGL2 was tested through SwiftShader (software rendering), not on a real GPU.
 - Frame times and the adaptive preview resolution (`tests/perf.py`) were measured on the cloud machine, not on Kiva's hardware. That includes the device scaling (MS-10): the refresh-rate measurement only ever saw a 60 Hz headless display, and 30 Hz was simulated by forcing `FR()`. The motion-driven budget (MS-11) was checked only with scripted rail drags at fixed speeds in headless Chromium (SwiftShader WebGL2, workers, CPU); how smooth slow drags look on a real screen has not been seen.
 - The layout checks ran in headless Chromium only. Firefox and Safari have never been tested.

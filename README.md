@@ -11,7 +11,7 @@ While you drag, the ring and the range plots show a lower-resolution preview siz
 - `reference/michelson-table.html`: the sourced formula table (single line → N lines → Gaussian → N Gaussians → arbitrary spectrum)
 - `mockups/controls-mockups.html`: the drag-control mockups (A, B and C)
 - `mockups/roadmap-mockups.html`: the mock-ups for MS-7, MS-8, MS-9 and MS-11
-- `tests/`: Playwright checks for correctness, layout and performance, plus `snapshot.js` / `compare_snapshots.py` (Node) to confirm that a change leaves every output identical
+- `tests/`: Playwright checks for correctness, layout and performance, plus `snapshot.js` / `compare_snapshots.py` (Node) to confirm that a change leaves every output identical, and `gpukernel.js` (Node) to check the GPU pixel kernels against the exact float64 formula
 - `ROADMAP.md`: the steps (by ID), done and next, and the settled and shelved decisions
 - `.claude/CHECKLIST.md`: what to check before handing a change over
 - `*.md` beside each code file: what the file does, and its rules and pitfalls
