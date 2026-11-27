@@ -47,11 +47,11 @@ ov.addEventListener('pointerleave',()=>{ovHover=null;if(!rdrag)renderOv()});
 ov.addEventListener('pointerdown',e=>{const g=ovGeom(e);if(g.rr>g.R+4)return;
   const[dx,dy]=dotPos(g.R),onDot=Math.hypot(g.x+g.R-dx,g.y+g.R-dy)<14;
   const m=onDot?'dot':onRim(g)?'rim':null;if(!m)return;
-  e.preventDefault();ov.setPointerCapture(e.pointerId);if(m==='dot')inSnap=!+$('tx').value&&!+$('ty').value;rdrag={m,r0:g.rr,f0:+$('fov').value,cx:e.clientX,cy:e.clientY,px0:dx-g.R,py0:dy-g.R};if(onDot)ov.style.cursor='grabbing';renderOv()});
+  e.preventDefault();ov.setPointerCapture(e.pointerId);if(m==='dot')inSnap=!+$('tx').value&&!+$('ty').value;rdrag={m,r0:g.rr,f0:+$('fov').value};if(onDot)ov.style.cursor='grabbing';renderOv()});
 const rend=()=>{if(rdrag){const wasDot=rdrag.m==='dot';rdrag=null;ov.style.cursor=wasDot?'grab':'default';renderOv();update(false)}};ov.addEventListener('pointerup',rend);ov.addEventListener('pointercancel',rend);
 ov.addEventListener('dblclick',()=>glideTilt(0,0));
 /* scrolling on the pattern zooms: scroll up narrows the field of view (zoom in), scroll down widens it */
-let wT=0;ov.addEventListener('wheel',e=>{e.preventDefault();setFov(+$('fov').value*Math.pow(1.0015,e.deltaY));update(true);clearTimeout(wT);wT=setTimeout(()=>update(false),200)},{passive:false});
+ov.addEventListener('wheel',e=>{e.preventDefault();setFov(+$('fov').value*Math.pow(1.0015,e.deltaY));update(true);settle()},{passive:false});
 ov.addEventListener('keydown',e=>{const st=e.shiftKey?1:10,k={ArrowLeft:[-st,0],ArrowRight:[st,0],ArrowUp:[0,st],ArrowDown:[0,-st]}[e.key];
   if(k){e.preventDefault();tGlide=null;setTilt(+$('tx').value+k[0],+$('ty').value+k[1]);update(false)}
   if(e.key==='+'||e.key==='-'){e.preventDefault();setFov(+$('fov').value*(e.key==='+'?1.1:1/1.1));update(false)}});

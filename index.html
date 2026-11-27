@@ -341,10 +341,12 @@ const presets={
   two:[{s:1.55,a:0.8,f:0.06},{s:1.85,a:0.6,f:0.06}]
 };
 let comps=[{s:1000/632.8,a:0.6,f:0,on:true},{s:1000/540,a:0.8,f:0.06,on:true}],sel=-1,drag=null;
-try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');
+/* the saved state (save() below), read once */
+const STORE='mich-sim-v2',SAVED=(()=>{try{return JSON.parse(localStorage.getItem(STORE)||'null')}catch(e){return null}})();
+try{const v=SAVED;
   if(v&&Array.isArray(v.c)){comps=v.c;$('d').value=v.d;if(v.fov)$('fov').value=v.fov;if(v.tx!=null){$('tx').value=v.tx;$('ty').value=v.ty}if(v.ra===false)$('rAuto').checked=false;if(v.env===false)$('envOn').checked=false}}catch(e){}
 comps.forEach(c=>{if(c.on===undefined)c.on=true});
-const save=()=>{try{localStorage.setItem('mich-sim-v2',JSON.stringify({c:comps,d:$('d').value,fov:$('fov').value,tx:$('tx').value,ty:$('ty').value,ra:$('rAuto').checked,rm:Rman,env:$('envOn').checked,swt:SWT}))}catch(e){}};
+const save=()=>{try{localStorage.setItem(STORE,JSON.stringify({c:comps,d:$('d').value,fov:$('fov').value,tx:$('tx').value,ty:$('ty').value,ra:$('rAuto').checked,rm:Rman,env:$('envOn').checked,swt:SWT}))}catch(e){}};
 /* Reading computed styles or box sizes after a DOM write forces the browser to recompute style or layout, and the draw loop
    alternates reads and writes. So theme colours and plot box sizes are read once and cached: colours until the theme changes
    (CSSC, cleared in ui-loop.js), sizes until a ResizeObserver or window resize reports a change (SZC). Same values, read once. */
@@ -358,12 +360,13 @@ const wOf=c=>c.f/KW;
    (FWHM 0.008 µm⁻¹, where dragging snaps back to a line), I_n = a_n·√π·w_0, so the power is continuous when a line widens into a Gaussian. */
 const F0=0.008,W0=F0/KW,P=c=>c.a*Math.sqrt(Math.PI)*(c.f?wOf(c):W0);
 const act=()=>comps.filter(c=>c.on);
+const Itot=cs=>cs.reduce((t,c)=>t+P(c),0);  /* total power I_tot */
 const D0=()=>2*(+$('d').value);
 let Rauto=50,Rman=91;  /* interferogram half-range (µm): automatic, or manual once the user zooms */
 const RANGE=()=>$('rAuto').checked?Rauto:Rman;
 let SWT=8;  /* sweep: seconds for one pass from −range to +range (MS-14), 0.5–600 s */
 const SWTset=t=>{if(t>0)SWT=clamp(t,0.5,600)};
-try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');if(v&&v.rm)Rman=v.rm;if(v&&v.swt)SWTset(+v.swt)}catch(e){}
+if(SAVED){if(SAVED.rm)Rman=SAVED.rm;if(SAVED.swt)SWTset(+SAVED.swt)}
 const col=c=>markHex(1000/c.s);
 function gamma(d,cs=act()){let re=0,im=0,A=0;for(const c of cs){const w=wOf(c),pc=P(c),e=w?pc*Math.exp(-((Math.PI*w*d)**2)):pc,p=2*Math.PI*c.s*d;re+=e*Math.cos(p);im+=e*Math.sin(p);A+=pc}  /* a line (w = 0) has e^0 = 1 exactly */
   return A?[re/A,im/A]:[0,0]}
@@ -520,7 +523,7 @@ const SPAN2=[0,0];
 /* buffers are reused between calls, one set per target canvas; only the rows a column (or its filter neighbours) touched are visited */
 /* Sub-columns per pixel: always 8, moving or at rest. Never adapt this to the frame time: dense fringes look very different at
    2 and at 8 sub-columns (a solid band against the true crowding at ½(1 ± |γ|)), so switching between them made the plots flicker
-   while dragging (fixed after MS-11). */
+   while dragging (fixed in MS-17). */
 const DPK=8;
 function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=DPK,
   B=ctx.__dp&&ctx.__dp.Wd===Wd&&ctx.__dp.Hd===Hd?ctx.__dp:(ctx.__dp={Wd,Hd,img:ctx.createImageData(Wd,Hd),C:new Float32Array(Wd*Hd),r0:new Int32Array(Wd),r1:new Int32Array(Wd),off:document.createElement('canvas')});
@@ -533,9 +536,9 @@ function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=DPK,
       for(let yy=ja;yy<=jb;yy++){const o=Math.min(yy+1,yb)-Math.max(yy,ya);if(o>0)C[base+yy]+=o/K}}
     r0[px]=c0;r1[px]=c1;cols.push(colourAt((px+0.5)/Wd))}
   /* horizontal Gaussian low-pass (sd 0.7 px) on top of the box filter removes the box filter's sinc side-lobes, which are what still beat into moiré */
-  const KW=[0.0097,0.205,0.5706,0.205,0.0097];
+  const LP=[0.0097,0.205,0.5706,0.205,0.0097];
   for(let px=0;px<Wd;px++){const c=cols[px];let ja=Hd,jb=-1;for(let q=Math.max(0,px-2);q<=Math.min(Wd-1,px+2);q++){if(r0[q]<ja)ja=r0[q];if(r1[q]>jb)jb=r1[q]}
-    for(let yy=ja;yy<=jb;yy++){let v=0;for(let t=-2;t<=2;t++){const q=px+t;if(q>=0&&q<Wd)v+=KW[t+2]*C[q*Hd+yy]}if(v<=0.002)continue;
+    for(let yy=ja;yy<=jb;yy++){let v=0;for(let t=-2;t<=2;t++){const q=px+t;if(q>=0&&q<Wd)v+=LP[t+2]*C[q*Hd+yy]}if(v<=0.002)continue;
       const a=Math.pow(Math.min(1,v),0.45),o=4*(yy*Wd+px);D[o]=c[0];D[o+1]=c[1];D[o+2]=c[2];D[o+3]=255*a}}
   const off=B.off;if(off.width!==Wd||off.height!==Hd){off.width=Wd;off.height=Hd}off.getContext('2d').putImageData(img,0,0);
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(off,x0,y0);ctx.restore()}
@@ -556,11 +559,11 @@ function renderIfg(){
   for(const t of [-R,-R/2,0,R/2,R])h+=`<text x="${x(t)}" y="${H-pb+16}" font-size="12" fill="${mute}" text-anchor="${t===-R?'start':t===R?'end':'middle'}">${F(t,3)}</text>`;
   h+=`<text x="${(pl+W-pr)/2}" y="${H-4}" font-size="12" fill="${mute}" text-anchor="middle">δ (µm)</text><text transform="translate(12 ${(pt+H-pb)/2}) rotate(-90)" font-size="12" fill="${mute}" text-anchor="middle">I(δ) / I_tot</text>`;
   const cs=act();
-  if(cs.length){const SL=sublines(),PW=Math.round(W-pl-pr),col=2*R/PW,smax=Math.max(...cs.map(c=>c.s));
+  if(cs.length){const SL=sublines(),PW=Math.round(W-pl-pr),dpp=2*R/PW;  /* OPD per CSS px */
     if(fresh){let up='',lo='';
-    for(let p=0;p<=PW;p+=2){const d=-R+col*p,[re,im]=gamma(d,cs),m=Math.hypot(re,im),X=x(d).toFixed(1);up+=(up?'L':'M')+X+' '+y(0.5*(1+m)).toFixed(1);lo+=(lo?'L':'M')+X+' '+y(0.5*(1-m)).toFixed(1)}
+    for(let p=0;p<=PW;p+=2){const d=-R+dpp*p,[re,im]=gamma(d,cs),m=Math.hypot(re,im),X=x(d).toFixed(1);up+=(up?'L':'M')+X+' '+y(0.5*(1+m)).toFixed(1);lo+=(lo?'L':'M')+X+' '+y(0.5*(1-m)).toFixed(1)}
     ifgEnv=`<path d="${up}" fill="none" stroke="#e0115f" stroke-width="1.8"/><path d="${lo}" fill="none" stroke="#e0115f" stroke-width="1.8"/>`;
-    const dpr=window.devicePixelRatio||1,x0=Math.round(pl*dpr),y0=Math.round(pt*dpr),Wd=Math.round((W-pl-pr)*dpr),Hd=Math.round((H-pt-pb)*dpr),t2=(PIXSD*col)**2;
+    const x0=Math.round(pl*dpr),y0=Math.round(pt*dpr),Wd=Math.round((W-pl-pr)*dpr),Hd=Math.round((H-pt-pb)*dpr),t2=(PIXSD*dpp)**2;
       densityPlot(g,x0,y0,Wd,Hd,t=>-R+2*R*t,cs,t=>rgb8(hueOf(xyzAt(-R+2*R*t,t2,SL))))}
     if($('envOn').checked)h+=ifgEnv;
     const d0=D0();if(Math.abs(d0)<=R)h+=`<line x1="${x(d0)}" x2="${x(d0)}" y1="${pt}" y2="${y(0)}" stroke="#ff4d8d" stroke-dasharray="5 4" stroke-width="1.5"/><text x="${x(d0)+4}" y="${pt+28}" font-size="12" fill="#ff4d8d">δ₀</text>`}
@@ -578,18 +581,22 @@ const ring=$('ring'),rctx=ring.getContext('2d');let ringLive=false,Ibuf=null,Pbu
 const RCUT=3,rcut=(N,k)=>1+RCUT*2*k/N;
 const ringModel=()=>ringModelOf(+$('d').value,+$('fov').value,+$('tx').value,+$('ty').value);
 /* the model for any d (µm), field of view (degrees) and tilt (µrad); the startup speed test uses a fixed one */
-function ringModelOf(d,fov,tx,ty){const tm=fov*Math.PI/180,T=Math.tan(tm),aE=AMM*T/Math.tan(10*Math.PI/180),kx=2e-3*tx*aE,ky=2e-3*ty*aE;
-  return{d,T,kx,ky,
-    th:r=>Math.atan(r*T),
-    opd(u,v){const r=Math.hypot(u,v);return 2*d*Math.cos(Math.atan(r*T))+kx*u+ky*v},
-    ddr(r){const th=Math.atan(r*T);return -2*d*Math.sin(th)*T/(1+(r*T)**2)},
-    rad(r){const th=Math.atan(r*T),q=1+r*r*T*T,c=T/q,cp=-2*r*T**3/(q*q),f1=-2*d*Math.sin(th)*c,f2=-2*d*(Math.cos(th)*c*c+Math.sin(th)*cp);return[f1,f2,r>1e-12?f1/r:f2]},
-    grad(u,v){const r=Math.hypot(u,v);if(r<1e-12)return[kx,ky];const g=this.ddr(r);return[g*u/r+kx,g*v/r+ky]}}}
+function ringModelOf(d,fov,tx,ty){const tm=fov*Math.PI/180,T=Math.tan(tm),aE=AMM*T/Math.tan(10*Math.PI/180),kx=2e-3*tx*aE,ky=2e-3*ty*aE,M=opdModel(d,T,kx,ky);
+  M.th=r=>Math.atan(r*T);
+  M.ddr=r=>{const th=Math.atan(r*T);return -2*d*Math.sin(th)*T/(1+(r*T)**2)};
+  M.grad=(u,v)=>{const r=Math.hypot(u,v);if(r<1e-12)return[kx,ky];const g=M.ddr(r);return[g*u/r+kx,g*v/r+ky]};
+  return M}
+/* the OPD δ(u, v) and its radial derivatives (δ', δ'', δ'/r) for mirror distance d, T = tanθmax and tilt wedge kx, ky.
+   Self-contained: the workers run its source text, so they evaluate the same expressions as the main thread. */
+function opdModel(d,T,kx,ky){return{d,T,kx,ky,
+  opd(u,v){const r=Math.hypot(u,v);return 2*d*Math.cos(Math.atan(r*T))+kx*u+ky*v},
+  rad(r){const th=Math.atan(r*T),q=1+r*r*T*T,c=T/q,cp=-2*r*T**3/(q*q),f1=-2*d*Math.sin(th)*c,f2=-2*d*(Math.cos(th)*c*c+Math.sin(th)*cp);return[f1,f2,r>1e-12?f1/r:f2]}}}
 /* groups: one per parent component, with its constant (non-fringe) XYZ. A Gaussian's fringe term is skipped only when
    e^{-a_parent·δmin²} < e^{-30} for every OPD in the footprint (δmin = |δ̄| − 5τ), i.e. below 1e-13. */
 function prepSL(SL){const n=SL.length,o={n,P:new Float64Array(n),KA:new Float64Array(n),KB:new Float64Array(n),X:new Float64Array(n),Y:new Float64Array(n),Z:new Float64Array(n),G:[]};
   SL.forEach((s,k)=>{o.P[k]=0.5*s.p;o.KA[k]=s.ka;o.KB[k]=s.kb;o.X[k]=s.X[0];o.Y[k]=s.X[1];o.Z[k]=s.X[2];
     let g=o.G[o.G.length-1];if(!g||g.id!==s.g){g={id:s.g,a:k,b:k+1,pka:s.pka,cX:0,cY:0,cZ:0,cI:0};o.G.push(g)}g.b=k+1;g.cX+=o.P[k]*s.X[0];g.cY+=o.P[k]*s.X[1];g.cZ+=o.P[k]*s.X[2];g.cI+=o.P[k]});
+  o.kbm=0;for(let k=0;k<n;k++)o.kbm=Math.max(o.kbm,o.KB[k]);  /* the largest k_b, for the curvature test */
   /* lin: the k_b step of a group whose sub-bands share a and are evenly spaced in k_b (every split Gaussian), for pixVal's fast path */
   for(const g of o.G){g.lin=0;const n=g.b-g.a;if(n<3)continue;const D=(o.KB[g.b-1]-o.KB[g.a])/(n-1);let ok=D!==0;
     for(let k=g.a;k<g.b&&ok;k++)ok=o.KA[k]===o.KA[g.a]&&Math.abs(o.KB[k]-(o.KB[g.a]+(k-g.a)*D))<=1e-12*Math.abs(o.KB[k]);if(ok)g.lin=D}
@@ -618,7 +625,7 @@ const PV=[0,0,0,0];
    All sub-bands of one Gaussian share a, so the terms that depend only on a are computed once per run of equal a.
    First-order fast path for an evenly spaced group (gr.lin = Δk_b): along the group the exponent is quadratic and the phase linear in k,
    so e^{ex} and cos/sin of the phase are stepped by exact ratios (two multiplies and a rotation per sub-band) and re-evaluated
-   directly every 16 sub-bands. The drift between re-evaluations is a few ulp (< 1e-14 relative); the −40 cut-off is tested exactly. */
+   directly every 16 sub-bands. The drift between re-evaluations is a few ulp (< 1e-14 relative); the −40 cut-off stays exact. */
 function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2*(gx*gx+gy*gy),dmin=Math.max(0,Math.abs(dm)-5*Math.sqrt(t2));
   for(const gr of pr.G){if(gr.pka*dmin*dmin>30){X+=gr.cX;Y+=gr.cY;Z+=gr.cZ;I+=gr.cI;continue}
   if(!quad&&gr.lin){const D=gr.lin,ka=pr.KA[gr.a],q=1+2*ka*t2,sq=ka?Math.sqrt(q):1,e0=ka*dm*dm,ph1=D*dm/q,c1=Math.cos(ph1),s1=Math.sin(ph1),g2=Math.exp(-(t2*D*D)/q);
@@ -630,7 +637,7 @@ function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2
         const f=E*C/sq;E*=R;R*=g2;const c=C*c1-S*s1;S=S*c1+C*s1;C=c;j++;
         const v=pr.P[k]*(1+f);I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}
       continue}
-    if(!cL&&!cH){for(let k=gr.a;k<gr.b;k++){const v=pr.P[k]*(1+0);I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}continue}
+    if(!cL&&!cH){for(let k=gr.a;k<gr.b;k++){const v=pr.P[k];I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}continue}
     for(let k=gr.a;k<gr.b;k++){const kb=pr.KB[k],ex=-(e0+0.5*kb*kb*t2)/q;let f=0;
       if(ex>-40){if(j>=16){E=Math.exp(ex);const ph=kb*dm/q;C=Math.cos(ph);S=Math.sin(ph);R=Math.exp(-(t2*kb*D+0.5*t2*D*D)/q);j=0}
         f=E*C/sq;E*=R;R*=g2;const c=C*c1-S*s1;S=S*c1+C*s1;C=c;j++}else j=16;
@@ -642,7 +649,12 @@ function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2
     if(quad)f=avgQ(kb,dm,gx,gy,h11,h12,h22,s2);else{const ex=-(e0+0.5*kb*kb*t2)/q;f=ex>-40?Math.exp(ex)*Math.cos(kb*dm/q)/sq:0}
     const v=pr.P[k]*(1+f);I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}}
   PV[0]=X;PV[1]=Y;PV[2]=Z;PV[3]=I;return PV}
-
+/* one grid point's exact footprint average at (u, v): the OPD's gradient and Hessian there, then pixVal. Used by the main thread,
+   the workers (its source text, with opdModel) and the speed test. The same curvature test in previews: their footprint is k times
+   wider, so curvature matters more there. */
+function gridPix(M,pr,s2,u,v){const r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
+  const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=pr.kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;
+  return pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad)}
 /* ---------- ring renderers: WebGPU → WebGL2 → CPU workers → CPU main thread ----------
    Every backend evaluates the same per-pixel formula as pixVal() above: the exact Gaussian-footprint average of each sub-band,
    first-order or second-order (avgQ) by the same 3e-4 curvature test, with the same group skipping.
@@ -653,22 +665,19 @@ function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2
    directly every GSTEP sub-bands, as pixVal's CPU fast path does (MS-16).
    The verification table reads the active backend's pixels back and checks them against brute-force integration. */
 const RB={pref:'auto',active:'cpu',gpu:null,gl:null,workers:null,busy:false,dirty:false,done:null};
-/* always the automatic choice; tests force one with ?renderer=webgpu|webgl2|workers|cpu (no control on the page).
-   The old Renderer menu saved its choice here: clear it so nobody stays stuck on it. */
+/* always the automatic choice; tests force one with ?renderer=webgpu|webgl2|workers|cpu (no control on the page) */
 try{RB.pref=new URLSearchParams(location.search).get('renderer')||'auto'}catch(e){}
-try{localStorage.removeItem('mich-renderer')}catch(e){}
 const TAU=2*Math.PI,GSTEP=8;  /* GPU fast path: sub-bands between direct re-evaluations */
 /* pack sub-bands and groups for the GPU: per sub-band (KA, KB, phase0, 0), (P·X, P·Y, P·Z, P);
    per group (a, b, pka, cI), (cX, cY, cZ, Δk_b), (Δk_b·2d mod 2π, 0, 0, 0). Δk_b = g.lin (0 when the group is not evenly spaced). */
 function packRing(pr,M){const n=pr.n,sb=new Float32Array(Math.max(8,n*8)),G=pr.G,gr=new Float32Array(Math.max(12,G.length*12));
   for(let k=0;k<n;k++){const o=8*k,p=pr.P[k];sb[o]=pr.KA[k];sb[o+1]=pr.KB[k];sb[o+2]=(pr.KB[k]*2*M.d)%TAU;sb[o+4]=p*pr.X[k];sb[o+5]=p*pr.Y[k];sb[o+6]=p*pr.Z[k];sb[o+7]=p}
   G.forEach((g,i)=>{const o=12*i;gr[o]=g.a;gr[o+1]=g.b;gr[o+2]=g.pka;gr[o+3]=g.cI;gr[o+4]=g.cX;gr[o+5]=g.cY;gr[o+6]=g.cZ;gr[o+7]=g.lin;gr[o+8]=(g.lin*2*M.d)%TAU});
-  let kbm=0;for(let k=0;k<n;k++)kbm=Math.max(kbm,pr.KB[k]);return{sb,gr,n,ng:G.length,kbm}}
+  return{sb,gr,n,ng:G.length,kbm:pr.kbm}}
 
 /* shared pixel maths in GLSL (the WGSL version below repeats it line for line) */
 const PIX_GLSL=`
 const int GSTEP=${GSTEP};
-float gam(float v){v=clamp(v,0.,1.);return v<=0.0031308?12.92*v:1.055*pow(v,1./2.4)-0.055;}
 /* GPU sin/cos are only accurate to ~5e-4 (absolute), so fringe phases use this: reduce to [0, π], then a 16th-order Taylor series (error < 1e-9) */
 float cosA(float x){float y=abs(x-6.283185307*floor(x/6.283185307+0.5));float sg=1.;if(y>1.5707963){y=3.14159265-y;sg=-1.;}
   float z=y*y;return sg*(1.+z*(-0.5+z*(1./24.+z*(-1./720.+z*(1./40320.+z*(-1./3628800.+z*(1./479001600.+z*(-1./87178291200.))))))));}
@@ -706,6 +715,7 @@ vec4 pix(float u,float v){
       acc+=fetchS(2*k+1)*(1.+f);}}
   return acc;}`;
 const TONE_GLSL=`
+float gam(float v){v=clamp(v,0.,1.);return v<=0.0031308?12.92*v:1.055*pow(v,1./2.4)-0.055;}
 vec3 tone(vec4 x){vec3 c=vec3(dot(vec3(3.2406,-1.5372,-0.4986),x.xyz),dot(vec3(-0.9689,1.8758,0.0415),x.xyz),dot(vec3(0.0557,-0.2040,1.0570),x.xyz));
   float m=min(min(c.r,c.g),min(c.b,0.));c=(c-m)*uGain;return vec3(gam(c.r),gam(c.g),gam(c.b));}`;
 /* WGSL is different enough that it is written out separately (same expressions, line for line) */
@@ -774,8 +784,7 @@ uniform sampler2D uSB,uGR,uOut;uniform int uNG,uN,uNl;uniform float uD,uT,uKx,uK
 vec4 fetchS(int t){return texelFetch(uSB,ivec2(t&1023,t>>10),0);}vec4 fetchG(int t){return texelFetch(uGR,ivec2(t&1023,t>>10),0);}`;
 const GLSL_PIX=GLSL_HEAD+PIX_GLSL+`
 void main(){float h=float(uN)*0.5,k=float(uN)/float(uNl);vec2 p=(floor(gl_FragCoord.xy)+0.5)*k;float u=(p.x-h)/h,v=(p.y-h)/h,rc=1.+6.*k/float(uN);if(u*u+v*v>rc*rc){o=vec4(0.);return;}o=pix(u,v);}`;
-const GLSL_TONE=GLSL_HEAD+`
-float gam(float v){v=clamp(v,0.,1.);return v<=0.0031308?12.92*v:1.055*pow(v,1./2.4)-0.055;}`+TONE_GLSL+`
+const GLSL_TONE=GLSL_HEAD+TONE_GLSL+`
 void main(){if(uNl==uN){o=vec4(tone(texelFetch(uOut,ivec2(gl_FragCoord.xy),0)),1.);return;}
   /* a preview grid: bilinear between the 4 nearest grid points, in XYZ and I (linear light), then toned */
   float k=float(uN)/float(uNl),m=float(uNl-1);vec2 f=clamp(gl_FragCoord.xy/k-0.5,0.,m);ivec2 a=ivec2(f),b=min(a+1,uNl-1);vec2 t=f-vec2(a);
@@ -836,21 +845,17 @@ function glRead(L){const gl=L.gl,N=L.N,a=new Float32Array(N*N*4);gl.bindFramebuf
   /* GL rows run bottom-up: flip to top-down like the other backends */
   const o=new Float32Array(N*N*4);for(let j=0;j<N;j++)o.set(a.subarray((N-1-j)*N*4,(N-j)*N*4),j*N*4);return o}
 
-/* ---- CPU workers: the same pixVal()/avgQ() source, run on every core ---- */
+/* ---- CPU workers: the same gridPix()/pixVal()/avgQ() source, run on every core ---- */
 function initWorkers(){if(!window.Worker||!window.Blob)throw new Error('no workers');const n=clamp((navigator.hardwareConcurrency||4)-1,2,8);
-  const src=`const QS=${JSON.stringify(QS)};
-${avgQpre.toString()}
-${avgQ.toString()}
-${pixVal.toString()}
-const PV=[0,0,0,0];
-onmessage=e=>{const t0=performance.now(),m=e.data,{N,Nl,rc2,j0,j1,d,T,kx,ky,s2,kbm,pr}=m,h=N/2,k=N/Nl,out=new Float32Array((j1-j0)*Nl*4+8);let o=0;
-  const rad=r=>{const th=Math.atan(r*T),q=1+r*r*T*T,c=T/q,cp=-2*r*T**3/(q*q),f1=-2*d*Math.sin(th)*c,f2=-2*d*(Math.cos(th)*c*c+Math.sin(th)*cp);return[f1,f2,r>1e-12?f1/r:f2]};
-  for(let j=j0;j<j1;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2){out[o++]=0;out[o++]=0;out[o++]=0;out[o++]=0;continue}const r=Math.hypot(u,v),[f1,f2,fr]=rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
-    const gx=f1*ux+kx,gy=f1*uy+ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;
-    const p=pixVal(2*d*Math.cos(Math.atan(r*T))+kx*u+ky*v,gx,gy,h11,h12,h22,s2,pr,quad);out[o++]=p[0];out[o++]=p[1];out[o++]=p[2];out[o++]=p[3]}}
+  const src=`const QS=${JSON.stringify(QS)},PV=[0,0,0,0];
+${[avgQpre,avgQ,pixVal,opdModel,gridPix].join('\n')}
+onmessage=e=>{const t0=performance.now(),m=e.data,{N,Nl,rc2,j0,j1,d,T,kx,ky,s2,pr}=m,M=opdModel(d,T,kx,ky),h=N/2,k=N/Nl,out=new Float32Array((j1-j0)*Nl*4);let o=0;
+  for(let j=j0;j<j1;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2){o+=4;continue}
+    const p=gridPix(M,pr,s2,u,v);out[o++]=p[0];out[o++]=p[1];out[o++]=p[2];out[o++]=p[3]}}
   postMessage({id:m.id,j0,j1,out,ms:performance.now()-t0},[out.buffer])}`;
-  const url=URL.createObjectURL(new Blob([src],{type:'text/javascript'}));const W={pool:Array.from({length:n},()=>new Worker(url)),n,job:0};
-  return W}
+  const url=URL.createObjectURL(new Blob([src],{type:'text/javascript'}));return{pool:Array.from({length:n},()=>new Worker(url)),n,job:0}}
+/* the message for one block of grid rows (the sender adds id, j0, j1) */
+const wkMsg=(N,Nl,rc2,M,s2,pr)=>({N,Nl,rc2,d:M.d,T:M.T,kx:M.kx,ky:M.ky,s2,pr});
 
 /* ---- backend selection ----
    The automatic order below is only the starting guess. A speed test (ring-bench.js, MS-18) times every available renderer once
@@ -890,19 +895,19 @@ function benchNote(){const r=RB.benchRes;if(RB.pref!=='auto')return'Renderer for
   if(!r)return RB.rank||availBackends().length<2?'':'A quick speed test runs once on this device and switches to the fastest renderer.';
   return`Chosen by a speed test on this device (the same ${BENCH_N}² image on each): `+r.rank.map(k=>`${beName(k)}: ${isFinite(r.ms[k])?F(r.ms[k],2)+' ms':'failed'}`).join('; ')+'.'}
 /* the fixed workload */
-function benchWork(){const SL=splitBands(presets.led),pr=prepSL(SL),M=ringModelOf(3,10,40,25),N=BENCH_N,rc=rcut(N,1);let kbm=0;for(const o of SL)kbm=Math.max(kbm,o.kb);
-  return{pr,M,N,kbm,s2:(PIXSD*2/N)**2,rc2:rc*rc,pk:packRing(pr,M)}}
+function benchWork(){const SL=splitBands(presets.led),pr=prepSL(SL),M=ringModelOf(3,10,40,25),N=BENCH_N,rc=rcut(N,1);
+  return{pr,M,N,s2:(PIXSD*2/N)**2,rc2:rc*rc,pk:packRing(pr,M)}}
 /* one run of one renderer, in ms */
 const benchRun={
   webgpu:W=>gpuDraw(RB.gpu,W.N,W.M,W.pk,W.s2,1,W.N,true),
   webgl2:W=>glDraw(RB.gl,W.N,W.M,W.pk,W.s2,1,W.N,true),
   workers:W=>new Promise(res=>{const P=RB.workers,id=++P.job,N=W.N,blk=8;let next=0,pending=0;
-    const msg={N,Nl:N,rc2:W.rc2,d:W.M.d,T:W.M.T,kx:W.M.kx,ky:W.M.ky,s2:W.s2,kbm:W.kbm,pr:W.pr};
+    const msg=wkMsg(N,N,W.rc2,W.M,W.s2,W.pr);
     const send=w=>{if(next>=N)return;const j0=next,j1=Math.min(N,next+blk);next=j1;pending++;w.postMessage({...msg,id,j0,j1})};
     P.pool.forEach(w=>{w.onmessage=e=>{if(e.data.id!==id)return;pending--;send(w);if(!pending)res()};send(w)})}),
   /* the main thread in 8-row slices, so the page stays responsive; only the computing time counts */
   cpu:async W=>{const N=W.N,h=N/2;let ms=0;
-    for(let j0=0;j0<N;j0+=8){const t0=performance.now();for(let j=j0;j<j0+8;j++){const v=-((j+0.5)-h)/h;for(let i=0;i<N;i++){const u=((i+0.5)-h)/h;if(u*u+v*v<=W.rc2)gridPix(W.M,W.pr,W.kbm,W.s2,u,v)}}
+    for(let j0=0;j0<N;j0+=8){const t0=performance.now();for(let j=j0;j<j0+8;j++){const v=-((j+0.5)-h)/h;for(let i=0;i<N;i++){const u=((i+0.5)-h)/h;if(u*u+v*v<=W.rc2)gridPix(W.M,W.pr,W.s2,u,v)}}
       ms+=performance.now()-t0;await new Promise(r=>setTimeout(r,0))}return ms}};
 async function benchTime(be,W){const t0=performance.now();let to;
   const r=await Promise.race([benchRun[be](W),new Promise((_,rej)=>to=setTimeout(()=>rej(new Error('timed out')),3000))]);clearTimeout(to);
@@ -987,8 +992,7 @@ function renderRing(sync){
   const T0=performance.now();
   if(!ringLive)LQ.mv.M=null;  /* the next preview starts its motion measurement afresh */
   if(RB.active==='webgpu'||RB.active==='webgl2'){/* GPU */
-    const pr=cs.length?prepSL(sublines()):{n:0,G:[],KB:[]};let gain=1;
-    if(cs.length){let fX=0,fY=0,fZ=0;for(const o of sublines()){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}gain=1/Math.max(...desat(toLin([fX,fY,fZ])),1e-9)}
+    const pr=cs.length?prepSL(sublines()):{n:0,G:[],KB:[],kbm:0},gain=cs.length?ringGain(sublines()):1;
     /* one frame in flight at a time: a newer request waits and then draws the latest state. While moving, the grid size Nl
        comes from the adaptive preview; at rest Nl = N (every pixel). Each grid point is still an exact footprint average,
        over its whole block of k = N/Nl device pixels. */
@@ -1010,8 +1014,7 @@ function renderRing(sync){
   /* a moving preview is an Nl×Nl grid of exact block averages, drawn into a small image and scaled up smoothly, so its fixed cost shrinks with it */
   const small=Nl<N,img=ringImg(Nl),D=img.data;Ibuf=small?null:new Float32Array(N*N);Pbuf=small?new Float32Array(Nl*Nl):null;  /* Pbuf: a preview's grid as I/I_tot, for tests/antialias.js */
   const present=(jA,jB)=>{if(small){RB.off.getContext('2d').putImageData(img,0,0);rctx.imageSmoothingEnabled=true;rctx.imageSmoothingQuality='high';rctx.drawImage(RB.off,0,0,Nl,Nl,0,0,N,N)}else rctx.putImageData(img,0,0,0,jA,N,jB-jA)};
-  if(cs.length){const SL=sublines(),pr=prepSL(SL),A=cs.reduce((t,c)=>t+P(c),0);let fX=0,fY=0,fZ=0;for(const o of SL){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}
-    const fl=desat(toLin([fX,fY,fZ])),gain=1/Math.max(...fl,1e-9),h=N/2,px=2/N*k,sd=PIXSD*px,rc=rcut(N,k),rc2=rc*rc;
+  if(cs.length){const SL=sublines(),pr=prepSL(SL),A=Itot(cs),gain=ringGain(SL),h=N/2,px=2/N*k,sd=PIXSD*px,rc=rcut(N,k),rc2=rc*rc;
     /* grid point (j, i): one image pixel; at full resolution also the I/I_tot buffer */
     const put=(j,i,X,Y,Z,I)=>{if(j>=Nl)return;let r=MX[0][0]*X+MX[0][1]*Y+MX[0][2]*Z,g=MX[1][0]*X+MX[1][1]*Y+MX[1][2]*Z,b=MX[2][0]*X+MX[2][1]*Y+MX[2][2]*Z;const m=Math.min(r,g,b,0);
       const o=4*(j*Nl+i);D[o]=enc((r-m)*gain);D[o+1]=enc((g-m)*gain);D[o+2]=enc((b-m)*gain);D[o+3]=255;if(small)Pbuf[j*Nl+i]=I/A;else Ibuf[j*N+i]=I/A};
@@ -1021,9 +1024,9 @@ function renderRing(sync){
       for(let q=0;q<Nq;q++){const r=q*dr,dm=2*M.d*Math.cos(Math.atan(r*M.T)),[f1,f2,fr]=M.rad(r),v=pixVal(dm,f1,0,f2,0,fr,sd*sd,pr,true);RX[q]=v[0];RY[q]=v[1];RZ[q]=v[2];RI[q]=v[3]}
       for(let j=0;j<Nl;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2){put(j,i,0,0,0,0);continue}const t=Math.hypot(u,v)/dr,q=Math.min(Nr-2,t|0),f=t-q;
         put(j,i,RX[q]+(RX[q+1]-RX[q])*f,RY[q]+(RY[q+1]-RY[q])*f,RZ[q]+(RZ[q+1]-RZ[q])*f,RI[q]+(RI[q+1]-RI[q])*f)}}}
-    else{const kbm=Math.max(...SL.map(o=>o.kb)),s2=sd*sd;
+    else{const s2=sd*sd;
       /* grid point (j, i): the exact footprint average, or 0 beyond rcut (MS-13) */
-      const pix=(j,i)=>{const v=-((j+0.5)*k-h)/h,u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2)return put(j,i,0,0,0,0);const p=gridPix(M,pr,kbm,s2,u,v);put(j,i,p[0],p[1],p[2],p[3])};
+      const pix=(j,i)=>{const v=-((j+0.5)*k-h)/h,u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2)return put(j,i,0,0,0,0);const p=gridPix(M,pr,s2,u,v);put(j,i,p[0],p[1],p[2],p[3])};
       const rows=(j0,j1)=>{for(let j=j0;j<j1;j++)for(let i=0;i<Nl;i++)pix(j,i)};
       if(!tilted){/* at rest and untilted (MS-15): the pattern and the pixel grid share the square's 8 symmetries (u → −u, v → −v, u ↔ v),
           so only the octant 0 ≤ i ≤ j < N/2 is evaluated, exactly as above, and each value is copied to its 8 mirror pixels. */
@@ -1032,33 +1035,31 @@ function renderRing(sync){
         const oct=(j0,j1)=>{for(let j=j0;j<j1;j++)for(let i=0;i<=j;i++){pix(j,i);const o=4*(j*N+i),I=Ibuf[j*N+i];
           for(const m of [j*N+n-i,(n-j)*N+i,(n-j)*N+n-i,i*N+j,i*N+n-j,(n-i)*N+j,(n-i)*N+n-j]){cp(o,4*m);Ibuf[m]=I}}};
         if(sync)oct(0,H);
-        else{/* progressive, in 12 ms slices; RB.wDone resolves when done or superseded (the checks await it on the workers renderer) */
-          let j=0,done;RB.wDone=new Promise(r=>done=r);const slice=()=>{if(job!==ringJob)return done();const t0=performance.now();while(j<H&&performance.now()-t0<12){oct(j,j+1);j++}
-            present(0,N);if(j<H)setTimeout(slice,0);else done()};
-          slice();ringProfile(M);return}}
+        else{sliced(job,H,1,oct,()=>present(0,N));ringProfile(M);return}}
       else if(RB.active==='workers'&&!sync){/* split the grid rows over every worker. At rest, 8-row blocks painted as they arrive.
           A moving preview is split evenly, one block per worker, and painted once when complete; its cost for the preview
           controller is the workers' own compute time (the slowest worker's total), since they run in parallel with the main
           thread's plots. Wall time from posting would count the main thread's remaining draw and the canvas flushes between
           replies, and kept previews several times coarser than the single-threaded CPU's. */
         const W=RB.workers,id=++W.job,live=ringLive,blk=live?Math.ceil(Nl/W.n):8,wc=new Float64Array(W.n);let pending=0,next=0,done;RB.wDone=new Promise(r=>done=r);W.busy=true;
-        const msg={N,Nl,rc2,d:M.d,T:M.T,kx:M.kx,ky:M.ky,s2:sd*sd,kbm,pr:{n:pr.n,P:pr.P,KA:pr.KA,KB:pr.KB,X:pr.X,Y:pr.Y,Z:pr.Z,G:pr.G}};
+        const msg=wkMsg(N,Nl,rc2,M,s2,pr);
         const send=w=>{if(next>=Nl)return;const j0=next,j1=Math.min(Nl,next+blk);next=j1;pending++;w.postMessage({...msg,id,j0,j1})};
         W.pool.forEach((w,wi)=>{w.onmessage=e=>{const r=e.data;if(r.id!==W.job||job!==ringJob)return;pending--;wc[wi]+=r.ms;let o=0;
           for(let j=r.j0;j<r.j1;j++)for(let i=0;i<Nl;i++){put(j,i,r.out[o],r.out[o+1],r.out[o+2],r.out[o+3]);o+=4}
           if(!live)present(r.j0,r.j1);send(w);if(!pending){if(live){present(0,N);lqRecord('wk',Nl,Math.max(...wc))}W.busy=false;done();if(W.dirty){W.dirty=false;renderRing()}}};send(w)});
         ringProfile(M);return}
       else if(ringLive||sync)rows(0,Nl);
-      else{/* progressive full-resolution pass */
-        let j=0,done;RB.wDone=new Promise(r=>done=r);const slice=()=>{if(job!==ringJob)return done();const t0=performance.now(),jj=j;while(j<N&&performance.now()-t0<12){rows(j,j+4);j+=4}
-          present(jj,Math.min(j,N));if(j<N)setTimeout(slice,0);else done()};
-        slice();ringProfile(M);return}}
+      else{sliced(job,N,4,rows,present);ringProfile(M);return}}
   }else{D.fill(0);for(let o=3;o<D.length;o+=4)D[o]=255}
   present(0,N);ringProfile(M);if(ringLive&&cs.length)lqRecord(pathKey,Nl,performance.now()-T0);LQ.ms=performance.now()-T0}
-/* one grid point's exact footprint average at (u, v): the OPD's gradient and Hessian there, then pixVal (also used by the speed test) */
-function gridPix(M,pr,kbm,s2,u,v){const r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
-  const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;  /* the same curvature test in previews: their footprint is k times wider, so curvature matters more there */
-  return pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad)}
+/* the display gain: the brightest linear sRGB channel of the whole spectrum's colour maps to 1 */
+function ringGain(SL){let fX=0,fY=0,fZ=0;for(const o of SL){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}return 1/Math.max(...desat(toLin([fX,fY,fZ])),1e-9)}
+/* a progressive at-rest pass: work(j, j+step) over rows 0..n in ~12 ms slices between frames, paint(first, end) after each slice.
+   A newer render (job ≠ ringJob) cancels it. RB.wDone resolves when it finishes or is superseded (the checks and the speed test wait for it). */
+function sliced(job,n,step,work,paint){let j=0,done;RB.wDone=new Promise(r=>done=r);
+  const slice=()=>{if(job!==ringJob)return done();const t0=performance.now(),jj=j;while(j<n&&performance.now()-t0<12){work(j,j+step);j+=step}
+    paint(jj,Math.min(j,n));if(j<n)setTimeout(slice,0);else done()};
+  slice()}
 function ringProfile(M){const cs=act();
   /* profile cut: through the centre along the tilt direction n = (αx, αy)/|α| (along x when there is no tilt) */
   const ax=+$('tx').value,ay=+$('ty').value,an=Math.hypot(ax,ay),nx=an?ax/an:1,ny=an?ay/an:0,phi=Math.atan2(ny,nx)*180/Math.PI;
@@ -1077,7 +1078,7 @@ function quadSpec(fn,delta){/* ∫ S(σ)·fn(σ) dσ, lines exact, Gaussians by 
   let s=0;for(const c of act()){if(!c.f){s+=P(c)*fn(c.s);continue}const w=wOf(c),n=clamp(Math.ceil(16*w*Math.abs(delta)*40),4000,400000);s+=simpson(sg=>dens(c,sg)*fn(sg),c.s-8*w,c.s+8*w,n)}return s}
 async function verify(){
   const cs=act(),out=[];if(!cs.length){$('ver').innerHTML='<tr><td colspan="4" class="empty">Switch on at least one component.</td></tr>';return}
-  const A=cs.reduce((t,c)=>t+P(c),0),SL=sublines(),R=RANGE(),d0=D0(),M=ringModel(),fmt=v=>v===0?'0':v.toExponential(2);
+  const A=Itot(cs),SL=sublines(),R=RANGE(),d0=D0(),M=ringModel(),fmt=v=>v===0?'0':v.toExponential(2);
   const row=(name,what,err,tol)=>out.push(`<tr><td>${name}</td><td>${what}</td><td>${fmt(err)}</td><td>${fmt(tol)}</td><td style="color:${err<=tol?'#1a8f4a':'#e0115f'};font-weight:700">${err<=tol?'pass':'FAIL'}</td></tr>`);
   /* 1 interferogram closed form vs direct numerical integration of ½∫S(1+cos) */
   let e1=0;const Dm=Math.max(R,Math.abs(d0));for(let i=0;i<=24;i++){const d=Dm*i/24,Ia=0.5*(1+gamma(d,cs)[0]),Iq=quadSpec(sg=>0.5*(1+Math.cos(2*Math.PI*sg*d)),d)/A;e1=Math.max(e1,Math.abs(Ia-Iq))}
@@ -1100,7 +1101,7 @@ async function verify(){
     const gr=M.grad(u0,v0),fr=8*sd*Math.hypot(...gr)*Math.max(...SL.map(o=>o.s)),n=clamp(Math.ceil(fr*12)+21,21,801);
     let sw=0,si=0;for(let a=0;a<n;a++){const du=-4*sd+8*sd*a/(n-1),wa=Math.exp(-0.5*(du/sd)**2);for(let b=0;b<n;b++){const dv=-4*sd+8*sd*b/(n-1),wt=wa*Math.exp(-0.5*(dv/sd)**2);si+=wt*0.5*(1+gamma(M.opd(u0+du,v0+dv),cs)[0]);sw+=wt}}
     e5=Math.max(e5,Math.abs(Ibuf[j0*N+i0]-si/sw))}
-  row('Ring pixels',`rendered pixel intensity (${BACKENDS.find(b=>b[0]===RB.active)[1]}) vs brute-force 2-D integral of the exact pattern over its footprint, 8 pixels`,e5,1e-3);
+  row('Ring pixels',`rendered pixel intensity (${beName(RB.active)}) vs brute-force 2-D integral of the exact pattern over its footprint, 8 pixels`,e5,1e-3);
   /* 6 coherence */
   const C=coherence();
   if(isFinite(C.hw)){row('Coherence (HWHM)','|γ(l_c)| − ½ at the reported value',Math.abs(Math.hypot(...gamma(C.hw,cs))-0.5),1e-3)}
@@ -1109,7 +1110,7 @@ async function verify(){
   if(cs.length===1&&cs[0].f){row('Single Gaussian','numerical HWHM vs (2 ln2/π)/Δσ (relative)',Math.abs(C.hw-2*LN2/(Math.PI*cs[0].f))/(2*LN2/(Math.PI*cs[0].f)),1e-3)}
   /* 7 auto range follows its stated definition */
   const gs=cs.filter(c=>c.f);if(gs.length){const sOPD=settleOPD(),b=gs.reduce((t,c)=>t+P(c)*Math.exp(-((Math.PI*wOf(c)*sOPD)**2)),0)/A;
-    if(sOPD>3/(cs.reduce((t,c)=>t+c.s*P(c),0)/A)+1e-9&&b<0.02+1e-9&&gs.reduce((t,c)=>t+P(c),0)/A>0.02)row('Auto range','Σ I_g e^{−(πw_gδ_s)²}/I_tot − 0.02 at the settle point',Math.abs(b-0.02),1e-6)}
+    if(sOPD>3/(cs.reduce((t,c)=>t+c.s*P(c),0)/A)+1e-9&&b<0.02+1e-9&&Itot(gs)/A>0.02)row('Auto range','Σ I_g e^{−(πw_gδ_s)²}/I_tot − 0.02 at the settle point',Math.abs(b-0.02),1e-6)}
   /* 8 sweep (MS-14): step the mirror from −range with uneven frame times until it turns at +range; the pass, less the clipped
      last step cut at the turn, must take the set time, and the speed readout must equal the distance over that time */
   {const m=DMAX();let v=-m,dir=1,t=0,s=12345,dt=0;while(dir>0){s=s*16807%2147483647;dt=0.005+0.035*s/2147483647;const v0=v;[v,dir]=sweepStep(v,dir,dt,m,SWT);t+=dir>0?dt:(m-v0)/(2*m/SWT)}
@@ -1118,7 +1119,7 @@ async function verify(){
 
 /* ---------- coherence ---------- */
 function coherence(){
-  const cs=act(),A=cs.reduce((t,c)=>t+P(c),0);if(!A)return null;
+  const cs=act(),A=Itot(cs);if(!A)return null;
   const ss=cs.map(c=>c.s),spread=Math.max(...ss)-Math.min(...ss)+4*Math.max(...cs.map(wOf))+0.002;
   const step=Math.min(0.5,1/(30*spread)),LMAX=5000;let hw=Infinity,prev=1;
   for(let d=step;d<=LMAX;d+=step){const[re,im]=gamma(d,cs),m=Math.hypot(re,im);if(m<=0.5){hw=d-step*(0.5-m)/Math.max(1e-9,prev-m);break}prev=m}
@@ -1127,14 +1128,14 @@ function coherence(){
 const um=v=>!isFinite(v)?'∞':v>=1000?(v/1000).toPrecision(3)+' mm':v.toPrecision(3)+' µm';
 
 /* ---------- equations ---------- */
-/* live equations: one term per line (aligned), so nothing needs sideways scrolling */
+/* live equations: aligned rows of EQK() terms, 2 when the window is at least 900 px wide (it halves the height), otherwise 1,
+   so nothing needs sideways scrolling; at most ML terms, then "+ ⋯ (n more)" */
 const ML=8,more=n=>n>ML?`\\\\&\\quad+\\cdots\\ (\\text{${n-ML} more})`:'';
-/* two terms per line: the equation popups are wide enough, and it halves the height */
-const EQK=()=>window.innerWidth>=900?2:1;  /* terms per line: 2 when the popup is wide, 1 on narrow screens */
+const EQK=()=>window.innerWidth>=900?2:1;
 const rows=(lhs,first,terms,k=EQK())=>{const t=terms.slice(0,ML);let o=`\\begin{aligned}${lhs}&=${first}`,i=0;
   if(k>1&&t.length)o+=`+${t[i++]}`;for(;i<t.length;i+=k)o+=`\\\\&\\quad+`+t.slice(i,i+k).join('+');return o+more(terms.length)+'\\end{aligned}'};
 function eqs(){
-  const d=+$('d').value,d0=D0(),cs=act(),A=cs.reduce((t,c)=>t+P(c),0),ax=+$('tx').value,ay=+$('ty').value;
+  const d=+$('d').value,d0=D0(),cs=act(),A=Itot(cs),ax=+$('tx').value,ay=+$('ty').value;
   const ids=['eqS','eqI','eqP','eqO','eqC'];
   if(!cs.length){ids.filter(k=>$(k)).forEach(k=>$(k).innerHTML='<div class="empty">Add (or switch on) a wavelength to see the equations.</div>');$('coh').innerHTML='';return}
   const G=c=>`${F(c.a)}\\,e^{-(\\sigma-${F(c.s,4)})^2/${F(wOf(c))}^2}`;
@@ -1178,7 +1179,7 @@ const nice=x=>{if(!(x>0))return 1;const e=Math.pow(10,Math.floor(Math.log10(x)))
    The decaying part is the Gaussians: |gamma(delta)| differs from its long-run value by at most sum_g I_g e^{-(pi w_g delta)^2} / I_tot.
    The envelope has levelled out once that bound drops below 2% of the total power. With no Gaussians (or negligible ones):
    two or more lines -> one beat period 1/(smallest spacing); a single line -> about 30 fringes. */
-function settleOPD(){const cs=act();if(!cs.length)return 40;const A=cs.reduce((t,c)=>t+P(c),0),gs=cs.filter(c=>c.f),tgt=0.02*A;
+function settleOPD(){const cs=act();if(!cs.length)return 40;const A=Itot(cs),gs=cs.filter(c=>c.f),tgt=0.02*A;
   const bound=d=>gs.reduce((t,c)=>t+P(c)*Math.exp(-((Math.PI*wOf(c)*d)**2)),0);
   const smean=cs.reduce((t,c)=>t+c.s*P(c),0)/A;
   if(gs.length&&bound(0)>tgt){let lo=0,hi=1;while(bound(hi)>tgt&&hi<1e5)hi*=2;for(let k=0;k<50;k++){const m=(lo+hi)/2;if(bound(m)>tgt)lo=m;else hi=m}
@@ -1188,7 +1189,7 @@ function settleOPD(){const cs=act();if(!cs.length)return 40;const A=cs.reduce((t
   return Math.min(isFinite(dmin)?1/dmin:30/smean,10000)}
 const DMAX=()=>+$('d').max;
 const autoMax=()=>Math.min(5000,nice(1.2*settleOPD()/2));
-/* the slider moves the mirror by d; the optical path difference is twice that, so both are shown */
+/* the mirror range ±m: the auto range, widened (unless forced) to keep the current d inside it */
 function fitRange(force){const d=$('d'),cur=+d.value,a=autoMax(),m=force?a:Math.max(a,nice(Math.abs(cur)));
   d.min=-m;d.max=m;d.step='any';d.value=clamp(cur,-m,m)}
 function fitR(){Rauto=autoR()}
@@ -1203,6 +1204,7 @@ $('oAuto').addEventListener('change',()=>update(false));
 /* interferogram auto-fit: 8% past the settle point, rounded up to 2 significant figures (tight, unlike the mirror's 1–2–5 range) */
 const up2=x=>{const e=Math.pow(10,Math.floor(Math.log10(x))-1);return Math.ceil(x/e-1e-9)*e};
 const autoR=()=>clamp(up2(1.08*settleOPD()),0.5,5000);
+/* after a scroll: the at-rest frame once the wheel has been still for 200 ms */
 let stT=0;function settle(){clearTimeout(stT);stT=setTimeout(()=>update(false),200)}
 $('ifgBox').addEventListener('wheel',e=>{e.preventDefault();const R=RANGE(),nR=clamp(R*Math.pow(1.0015,e.deltaY),0.5,2*autoR());
   $('rAuto').checked=false;Rman=nR;update(true);settle()},{passive:false});
@@ -1211,7 +1213,8 @@ $('ifgBox').addEventListener('wheel',e=>{e.preventDefault();const R=RANGE(),nR=c
 document.querySelectorAll('[data-p]').forEach(b=>b.addEventListener('click',()=>{stopPlay();comps=presets[b.dataset.p].map(c=>({...c,on:true}));sel=-1;
   $('d').value=0;fitRange(true);$('d').value=b.dataset.p==='na'?145:0.4*DMAX();update(false)}));
 $('clear').addEventListener('click',()=>{comps=[];sel=-1;update(false)});
-['d','fov','tx','ty'].forEach(k=>{$(k).addEventListener('input',()=>{if(k==='d')stopPlay();update(true)});$(k).addEventListener('change',()=>update(false))});
+/* the state lives in hidden inputs; scripts (the tests) set them and send a change event */
+['d','fov','tx','ty'].forEach(k=>$(k).addEventListener('change',()=>update(false)));
 $('verBtn').addEventListener('click',()=>{$('verAt').textContent='Running…';setTimeout(verify,30)});
 $('tReset').addEventListener('click',()=>glideTilt(0,0));
 
@@ -1264,17 +1267,17 @@ ov.addEventListener('pointerleave',()=>{ovHover=null;if(!rdrag)renderOv()});
 ov.addEventListener('pointerdown',e=>{const g=ovGeom(e);if(g.rr>g.R+4)return;
   const[dx,dy]=dotPos(g.R),onDot=Math.hypot(g.x+g.R-dx,g.y+g.R-dy)<14;
   const m=onDot?'dot':onRim(g)?'rim':null;if(!m)return;
-  e.preventDefault();ov.setPointerCapture(e.pointerId);if(m==='dot')inSnap=!+$('tx').value&&!+$('ty').value;rdrag={m,r0:g.rr,f0:+$('fov').value,cx:e.clientX,cy:e.clientY,px0:dx-g.R,py0:dy-g.R};if(onDot)ov.style.cursor='grabbing';renderOv()});
+  e.preventDefault();ov.setPointerCapture(e.pointerId);if(m==='dot')inSnap=!+$('tx').value&&!+$('ty').value;rdrag={m,r0:g.rr,f0:+$('fov').value};if(onDot)ov.style.cursor='grabbing';renderOv()});
 const rend=()=>{if(rdrag){const wasDot=rdrag.m==='dot';rdrag=null;ov.style.cursor=wasDot?'grab':'default';renderOv();update(false)}};ov.addEventListener('pointerup',rend);ov.addEventListener('pointercancel',rend);
 ov.addEventListener('dblclick',()=>glideTilt(0,0));
 /* scrolling on the pattern zooms: scroll up narrows the field of view (zoom in), scroll down widens it */
-let wT=0;ov.addEventListener('wheel',e=>{e.preventDefault();setFov(+$('fov').value*Math.pow(1.0015,e.deltaY));update(true);clearTimeout(wT);wT=setTimeout(()=>update(false),200)},{passive:false});
+ov.addEventListener('wheel',e=>{e.preventDefault();setFov(+$('fov').value*Math.pow(1.0015,e.deltaY));update(true);settle()},{passive:false});
 ov.addEventListener('keydown',e=>{const st=e.shiftKey?1:10,k={ArrowLeft:[-st,0],ArrowRight:[st,0],ArrowUp:[0,st],ArrowDown:[0,-st]}[e.key];
   if(k){e.preventDefault();tGlide=null;setTilt(+$('tx').value+k[0],+$('ty').value+k[1]);update(false)}
   if(e.key==='+'||e.key==='-'){e.preventDefault();setFov(+$('fov').value*(e.key==='+'?1.1:1/1.1));update(false)}});
 /* mirror rail: a ruler spanning the current range ±m; drag (or click) the carriage, scroll to rescale the range */
 const rail=$('rail'),RPAD=16;let raildrag=false;
-function renderRail(){const [W,H]=box(rail);if(!W)return;const m=DMAX(),d=+$('d').value,X=v=>RPAD+(v+m)/(2*m)*(W-2*RPAD),st=nice(2*m/(W<360?4:8)),mute=css('--mute'),acc=css('--acc'),ink=css('--ink');
+function renderRail(){const [W]=box(rail);if(!W)return;const m=DMAX(),d=+$('d').value,X=v=>RPAD+(v+m)/(2*m)*(W-2*RPAD),st=nice(2*m/(W<360?4:8)),mute=css('--mute'),acc=css('--acc'),ink=css('--ink');
   let h=`<rect x="${RPAD}" y="10" width="${W-2*RPAD}" height="6" rx="3" fill="${mute}" fill-opacity=".18"/>`;const dec=Math.max(0,-Math.floor(Math.log10(st)+1e-9));
   for(let v=Math.ceil(-m/st)*st;v<=m+1e-9*m;v+=st){h+=`<line x1="${X(v)}" x2="${X(v)}" y1="7" y2="19" stroke="${mute}" stroke-opacity=".6"/><text x="${X(v)}" y="33" font-size="10.5" fill="${mute}" text-anchor="middle">${v.toFixed(dec)}</text>`}
   for(let v=Math.ceil(-m/(st/5))*(st/5);v<=m+1e-9*m;v+=st/5)h+=`<line x1="${X(v)}" x2="${X(v)}" y1="11" y2="15" stroke="${mute}" stroke-opacity=".35"/>`;
@@ -1285,7 +1288,7 @@ rail.addEventListener('pointerdown',e=>{stopPlay();raildrag=true;rail.setPointer
 rail.addEventListener('pointermove',e=>{if(raildrag){$('d').value=railV(e);update(true)}});
 const railEnd=()=>{if(raildrag){raildrag=false;update(false)}};rail.addEventListener('pointerup',railEnd);rail.addEventListener('pointercancel',railEnd);
 function setRange(m){const d=$('d');m=clamp(m,0.01,5000);d.min=-m;d.max=m;d.step='any';d.value=clamp(+d.value,-m,m)}
-let rwT=0;rail.addEventListener('wheel',e=>{e.preventDefault();$('dAuto').checked=false;setRange(DMAX()*Math.pow(1.0015,e.deltaY));update(true);clearTimeout(rwT);rwT=setTimeout(()=>update(false),200)},{passive:false});
+rail.addEventListener('wheel',e=>{e.preventDefault();$('dAuto').checked=false;setRange(DMAX()*Math.pow(1.0015,e.deltaY));update(true);settle()},{passive:false});
 rail.addEventListener('keydown',e=>{const m=DMAX(),st=(e.shiftKey?0.001:0.01)*m,k={ArrowLeft:-st,ArrowRight:st,ArrowDown:-st,ArrowUp:st}[e.key];if(k){e.preventDefault();stopPlay();$('d').value=clamp(+$('d').value+k,-m,m);update(false)}});
 $('dFit').addEventListener('click',()=>{fitRange(true);update(true)});
 $('dAuto').addEventListener('change',()=>{if($('dAuto').checked)fitRange(false);update(false)});
@@ -1322,7 +1325,7 @@ function tick(t){if(!playing)return;const dt=plast?Math.min(0.1,(t-plast)/1000):
 $('dPlay').addEventListener('click',()=>{if(playing){stopPlay();return}playing=true;plast=0;$('dPlay').setAttribute('aria-pressed','true');$('dPlay').textContent='❚❚ Pause';requestAnimationFrame(tick)});
 
 /* read the active renderer's pixels back as I/I_tot, for the verification table */
-async function ringReadback(){if(Ibuf)return;const A=act().reduce((t,c)=>t+P(c),0)||1;let a=null;
+async function ringReadback(){if(Ibuf)return;const A=Itot(act())||1;let a=null;
   if(RB.active==='webgpu')a=await gpuRead(RB.gpu);else if(RB.active==='webgl2')a=glRead(RB.gl);if(!a)return;
   Ibuf=new Float32Array(a.length/4);for(let k=0;k<Ibuf.length;k++)Ibuf[k]=a[4*k+3]/A}
 probeBackends();

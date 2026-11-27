@@ -10,8 +10,7 @@ function renderRing(sync){
   const T0=performance.now();
   if(!ringLive)LQ.mv.M=null;  /* the next preview starts its motion measurement afresh */
   if(RB.active==='webgpu'||RB.active==='webgl2'){/* GPU */
-    const pr=cs.length?prepSL(sublines()):{n:0,G:[],KB:[]};let gain=1;
-    if(cs.length){let fX=0,fY=0,fZ=0;for(const o of sublines()){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}gain=1/Math.max(...desat(toLin([fX,fY,fZ])),1e-9)}
+    const pr=cs.length?prepSL(sublines()):{n:0,G:[],KB:[],kbm:0},gain=cs.length?ringGain(sublines()):1;
     /* one frame in flight at a time: a newer request waits and then draws the latest state. While moving, the grid size Nl
        comes from the adaptive preview; at rest Nl = N (every pixel). Each grid point is still an exact footprint average,
        over its whole block of k = N/Nl device pixels. */
@@ -33,8 +32,7 @@ function renderRing(sync){
   /* a moving preview is an Nl×Nl grid of exact block averages, drawn into a small image and scaled up smoothly, so its fixed cost shrinks with it */
   const small=Nl<N,img=ringImg(Nl),D=img.data;Ibuf=small?null:new Float32Array(N*N);Pbuf=small?new Float32Array(Nl*Nl):null;  /* Pbuf: a preview's grid as I/I_tot, for tests/antialias.js */
   const present=(jA,jB)=>{if(small){RB.off.getContext('2d').putImageData(img,0,0);rctx.imageSmoothingEnabled=true;rctx.imageSmoothingQuality='high';rctx.drawImage(RB.off,0,0,Nl,Nl,0,0,N,N)}else rctx.putImageData(img,0,0,0,jA,N,jB-jA)};
-  if(cs.length){const SL=sublines(),pr=prepSL(SL),A=cs.reduce((t,c)=>t+P(c),0);let fX=0,fY=0,fZ=0;for(const o of SL){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}
-    const fl=desat(toLin([fX,fY,fZ])),gain=1/Math.max(...fl,1e-9),h=N/2,px=2/N*k,sd=PIXSD*px,rc=rcut(N,k),rc2=rc*rc;
+  if(cs.length){const SL=sublines(),pr=prepSL(SL),A=Itot(cs),gain=ringGain(SL),h=N/2,px=2/N*k,sd=PIXSD*px,rc=rcut(N,k),rc2=rc*rc;
     /* grid point (j, i): one image pixel; at full resolution also the I/I_tot buffer */
     const put=(j,i,X,Y,Z,I)=>{if(j>=Nl)return;let r=MX[0][0]*X+MX[0][1]*Y+MX[0][2]*Z,g=MX[1][0]*X+MX[1][1]*Y+MX[1][2]*Z,b=MX[2][0]*X+MX[2][1]*Y+MX[2][2]*Z;const m=Math.min(r,g,b,0);
       const o=4*(j*Nl+i);D[o]=enc((r-m)*gain);D[o+1]=enc((g-m)*gain);D[o+2]=enc((b-m)*gain);D[o+3]=255;if(small)Pbuf[j*Nl+i]=I/A;else Ibuf[j*N+i]=I/A};
@@ -44,9 +42,9 @@ function renderRing(sync){
       for(let q=0;q<Nq;q++){const r=q*dr,dm=2*M.d*Math.cos(Math.atan(r*M.T)),[f1,f2,fr]=M.rad(r),v=pixVal(dm,f1,0,f2,0,fr,sd*sd,pr,true);RX[q]=v[0];RY[q]=v[1];RZ[q]=v[2];RI[q]=v[3]}
       for(let j=0;j<Nl;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2){put(j,i,0,0,0,0);continue}const t=Math.hypot(u,v)/dr,q=Math.min(Nr-2,t|0),f=t-q;
         put(j,i,RX[q]+(RX[q+1]-RX[q])*f,RY[q]+(RY[q+1]-RY[q])*f,RZ[q]+(RZ[q+1]-RZ[q])*f,RI[q]+(RI[q+1]-RI[q])*f)}}}
-    else{const kbm=Math.max(...SL.map(o=>o.kb)),s2=sd*sd;
+    else{const s2=sd*sd;
       /* grid point (j, i): the exact footprint average, or 0 beyond rcut (MS-13) */
-      const pix=(j,i)=>{const v=-((j+0.5)*k-h)/h,u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2)return put(j,i,0,0,0,0);const p=gridPix(M,pr,kbm,s2,u,v);put(j,i,p[0],p[1],p[2],p[3])};
+      const pix=(j,i)=>{const v=-((j+0.5)*k-h)/h,u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2)return put(j,i,0,0,0,0);const p=gridPix(M,pr,s2,u,v);put(j,i,p[0],p[1],p[2],p[3])};
       const rows=(j0,j1)=>{for(let j=j0;j<j1;j++)for(let i=0;i<Nl;i++)pix(j,i)};
       if(!tilted){/* at rest and untilted (MS-15): the pattern and the pixel grid share the square's 8 symmetries (u → −u, v → −v, u ↔ v),
           so only the octant 0 ≤ i ≤ j < N/2 is evaluated, exactly as above, and each value is copied to its 8 mirror pixels. */
@@ -55,33 +53,31 @@ function renderRing(sync){
         const oct=(j0,j1)=>{for(let j=j0;j<j1;j++)for(let i=0;i<=j;i++){pix(j,i);const o=4*(j*N+i),I=Ibuf[j*N+i];
           for(const m of [j*N+n-i,(n-j)*N+i,(n-j)*N+n-i,i*N+j,i*N+n-j,(n-i)*N+j,(n-i)*N+n-j]){cp(o,4*m);Ibuf[m]=I}}};
         if(sync)oct(0,H);
-        else{/* progressive, in 12 ms slices; RB.wDone resolves when done or superseded (the checks await it on the workers renderer) */
-          let j=0,done;RB.wDone=new Promise(r=>done=r);const slice=()=>{if(job!==ringJob)return done();const t0=performance.now();while(j<H&&performance.now()-t0<12){oct(j,j+1);j++}
-            present(0,N);if(j<H)setTimeout(slice,0);else done()};
-          slice();ringProfile(M);return}}
+        else{sliced(job,H,1,oct,()=>present(0,N));ringProfile(M);return}}
       else if(RB.active==='workers'&&!sync){/* split the grid rows over every worker. At rest, 8-row blocks painted as they arrive.
           A moving preview is split evenly, one block per worker, and painted once when complete; its cost for the preview
           controller is the workers' own compute time (the slowest worker's total), since they run in parallel with the main
           thread's plots. Wall time from posting would count the main thread's remaining draw and the canvas flushes between
           replies, and kept previews several times coarser than the single-threaded CPU's. */
         const W=RB.workers,id=++W.job,live=ringLive,blk=live?Math.ceil(Nl/W.n):8,wc=new Float64Array(W.n);let pending=0,next=0,done;RB.wDone=new Promise(r=>done=r);W.busy=true;
-        const msg={N,Nl,rc2,d:M.d,T:M.T,kx:M.kx,ky:M.ky,s2:sd*sd,kbm,pr:{n:pr.n,P:pr.P,KA:pr.KA,KB:pr.KB,X:pr.X,Y:pr.Y,Z:pr.Z,G:pr.G}};
+        const msg=wkMsg(N,Nl,rc2,M,s2,pr);
         const send=w=>{if(next>=Nl)return;const j0=next,j1=Math.min(Nl,next+blk);next=j1;pending++;w.postMessage({...msg,id,j0,j1})};
         W.pool.forEach((w,wi)=>{w.onmessage=e=>{const r=e.data;if(r.id!==W.job||job!==ringJob)return;pending--;wc[wi]+=r.ms;let o=0;
           for(let j=r.j0;j<r.j1;j++)for(let i=0;i<Nl;i++){put(j,i,r.out[o],r.out[o+1],r.out[o+2],r.out[o+3]);o+=4}
           if(!live)present(r.j0,r.j1);send(w);if(!pending){if(live){present(0,N);lqRecord('wk',Nl,Math.max(...wc))}W.busy=false;done();if(W.dirty){W.dirty=false;renderRing()}}};send(w)});
         ringProfile(M);return}
       else if(ringLive||sync)rows(0,Nl);
-      else{/* progressive full-resolution pass */
-        let j=0,done;RB.wDone=new Promise(r=>done=r);const slice=()=>{if(job!==ringJob)return done();const t0=performance.now(),jj=j;while(j<N&&performance.now()-t0<12){rows(j,j+4);j+=4}
-          present(jj,Math.min(j,N));if(j<N)setTimeout(slice,0);else done()};
-        slice();ringProfile(M);return}}
+      else{sliced(job,N,4,rows,present);ringProfile(M);return}}
   }else{D.fill(0);for(let o=3;o<D.length;o+=4)D[o]=255}
   present(0,N);ringProfile(M);if(ringLive&&cs.length)lqRecord(pathKey,Nl,performance.now()-T0);LQ.ms=performance.now()-T0}
-/* one grid point's exact footprint average at (u, v): the OPD's gradient and Hessian there, then pixVal (also used by the speed test) */
-function gridPix(M,pr,kbm,s2,u,v){const r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
-  const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;  /* the same curvature test in previews: their footprint is k times wider, so curvature matters more there */
-  return pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad)}
+/* the display gain: the brightest linear sRGB channel of the whole spectrum's colour maps to 1 */
+function ringGain(SL){let fX=0,fY=0,fZ=0;for(const o of SL){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}return 1/Math.max(...desat(toLin([fX,fY,fZ])),1e-9)}
+/* a progressive at-rest pass: work(j, j+step) over rows 0..n in ~12 ms slices between frames, paint(first, end) after each slice.
+   A newer render (job ≠ ringJob) cancels it. RB.wDone resolves when it finishes or is superseded (the checks and the speed test wait for it). */
+function sliced(job,n,step,work,paint){let j=0,done;RB.wDone=new Promise(r=>done=r);
+  const slice=()=>{if(job!==ringJob)return done();const t0=performance.now(),jj=j;while(j<n&&performance.now()-t0<12){work(j,j+step);j+=step}
+    paint(jj,Math.min(j,n));if(j<n)setTimeout(slice,0);else done()};
+  slice()}
 function ringProfile(M){const cs=act();
   /* profile cut: through the centre along the tilt direction n = (αx, αy)/|α| (along x when there is no tilt) */
   const ax=+$('tx').value,ay=+$('ty').value,an=Math.hypot(ax,ay),nx=an?ax/an:1,ny=an?ay/an:0,phi=Math.atan2(ny,nx)*180/Math.PI;

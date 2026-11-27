@@ -1,18 +1,14 @@
-/* ---- CPU workers: the same pixVal()/avgQ() source, run on every core ---- */
+/* ---- CPU workers: the same gridPix()/pixVal()/avgQ() source, run on every core ---- */
 function initWorkers(){if(!window.Worker||!window.Blob)throw new Error('no workers');const n=clamp((navigator.hardwareConcurrency||4)-1,2,8);
-  const src=`const QS=${JSON.stringify(QS)};
-${avgQpre.toString()}
-${avgQ.toString()}
-${pixVal.toString()}
-const PV=[0,0,0,0];
-onmessage=e=>{const t0=performance.now(),m=e.data,{N,Nl,rc2,j0,j1,d,T,kx,ky,s2,kbm,pr}=m,h=N/2,k=N/Nl,out=new Float32Array((j1-j0)*Nl*4+8);let o=0;
-  const rad=r=>{const th=Math.atan(r*T),q=1+r*r*T*T,c=T/q,cp=-2*r*T**3/(q*q),f1=-2*d*Math.sin(th)*c,f2=-2*d*(Math.cos(th)*c*c+Math.sin(th)*cp);return[f1,f2,r>1e-12?f1/r:f2]};
-  for(let j=j0;j<j1;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2){out[o++]=0;out[o++]=0;out[o++]=0;out[o++]=0;continue}const r=Math.hypot(u,v),[f1,f2,fr]=rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
-    const gx=f1*ux+kx,gy=f1*uy+ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;
-    const p=pixVal(2*d*Math.cos(Math.atan(r*T))+kx*u+ky*v,gx,gy,h11,h12,h22,s2,pr,quad);out[o++]=p[0];out[o++]=p[1];out[o++]=p[2];out[o++]=p[3]}}
+  const src=`const QS=${JSON.stringify(QS)},PV=[0,0,0,0];
+${[avgQpre,avgQ,pixVal,opdModel,gridPix].join('\n')}
+onmessage=e=>{const t0=performance.now(),m=e.data,{N,Nl,rc2,j0,j1,d,T,kx,ky,s2,pr}=m,M=opdModel(d,T,kx,ky),h=N/2,k=N/Nl,out=new Float32Array((j1-j0)*Nl*4);let o=0;
+  for(let j=j0;j<j1;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h;if(u*u+v*v>rc2){o+=4;continue}
+    const p=gridPix(M,pr,s2,u,v);out[o++]=p[0];out[o++]=p[1];out[o++]=p[2];out[o++]=p[3]}}
   postMessage({id:m.id,j0,j1,out,ms:performance.now()-t0},[out.buffer])}`;
-  const url=URL.createObjectURL(new Blob([src],{type:'text/javascript'}));const W={pool:Array.from({length:n},()=>new Worker(url)),n,job:0};
-  return W}
+  const url=URL.createObjectURL(new Blob([src],{type:'text/javascript'}));return{pool:Array.from({length:n},()=>new Worker(url)),n,job:0}}
+/* the message for one block of grid rows (the sender adds id, j0, j1) */
+const wkMsg=(N,Nl,rc2,M,s2,pr)=>({N,Nl,rc2,d:M.d,T:M.T,kx:M.kx,ky:M.ky,s2,pr});
 
 /* ---- backend selection ----
    The automatic order below is only the starting guess. A speed test (ring-bench.js, MS-18) times every available renderer once

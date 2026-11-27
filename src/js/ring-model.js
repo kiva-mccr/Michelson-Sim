@@ -10,18 +10,22 @@ const ring=$('ring'),rctx=ring.getContext('2d');let ringLive=false,Ibuf=null,Pbu
 const RCUT=3,rcut=(N,k)=>1+RCUT*2*k/N;
 const ringModel=()=>ringModelOf(+$('d').value,+$('fov').value,+$('tx').value,+$('ty').value);
 /* the model for any d (µm), field of view (degrees) and tilt (µrad); the startup speed test uses a fixed one */
-function ringModelOf(d,fov,tx,ty){const tm=fov*Math.PI/180,T=Math.tan(tm),aE=AMM*T/Math.tan(10*Math.PI/180),kx=2e-3*tx*aE,ky=2e-3*ty*aE;
-  return{d,T,kx,ky,
-    th:r=>Math.atan(r*T),
-    opd(u,v){const r=Math.hypot(u,v);return 2*d*Math.cos(Math.atan(r*T))+kx*u+ky*v},
-    ddr(r){const th=Math.atan(r*T);return -2*d*Math.sin(th)*T/(1+(r*T)**2)},
-    rad(r){const th=Math.atan(r*T),q=1+r*r*T*T,c=T/q,cp=-2*r*T**3/(q*q),f1=-2*d*Math.sin(th)*c,f2=-2*d*(Math.cos(th)*c*c+Math.sin(th)*cp);return[f1,f2,r>1e-12?f1/r:f2]},
-    grad(u,v){const r=Math.hypot(u,v);if(r<1e-12)return[kx,ky];const g=this.ddr(r);return[g*u/r+kx,g*v/r+ky]}}}
+function ringModelOf(d,fov,tx,ty){const tm=fov*Math.PI/180,T=Math.tan(tm),aE=AMM*T/Math.tan(10*Math.PI/180),kx=2e-3*tx*aE,ky=2e-3*ty*aE,M=opdModel(d,T,kx,ky);
+  M.th=r=>Math.atan(r*T);
+  M.ddr=r=>{const th=Math.atan(r*T);return -2*d*Math.sin(th)*T/(1+(r*T)**2)};
+  M.grad=(u,v)=>{const r=Math.hypot(u,v);if(r<1e-12)return[kx,ky];const g=M.ddr(r);return[g*u/r+kx,g*v/r+ky]};
+  return M}
+/* the OPD δ(u, v) and its radial derivatives (δ', δ'', δ'/r) for mirror distance d, T = tanθmax and tilt wedge kx, ky.
+   Self-contained: the workers run its source text, so they evaluate the same expressions as the main thread. */
+function opdModel(d,T,kx,ky){return{d,T,kx,ky,
+  opd(u,v){const r=Math.hypot(u,v);return 2*d*Math.cos(Math.atan(r*T))+kx*u+ky*v},
+  rad(r){const th=Math.atan(r*T),q=1+r*r*T*T,c=T/q,cp=-2*r*T**3/(q*q),f1=-2*d*Math.sin(th)*c,f2=-2*d*(Math.cos(th)*c*c+Math.sin(th)*cp);return[f1,f2,r>1e-12?f1/r:f2]}}}
 /* groups: one per parent component, with its constant (non-fringe) XYZ. A Gaussian's fringe term is skipped only when
    e^{-a_parent·δmin²} < e^{-30} for every OPD in the footprint (δmin = |δ̄| − 5τ), i.e. below 1e-13. */
 function prepSL(SL){const n=SL.length,o={n,P:new Float64Array(n),KA:new Float64Array(n),KB:new Float64Array(n),X:new Float64Array(n),Y:new Float64Array(n),Z:new Float64Array(n),G:[]};
   SL.forEach((s,k)=>{o.P[k]=0.5*s.p;o.KA[k]=s.ka;o.KB[k]=s.kb;o.X[k]=s.X[0];o.Y[k]=s.X[1];o.Z[k]=s.X[2];
     let g=o.G[o.G.length-1];if(!g||g.id!==s.g){g={id:s.g,a:k,b:k+1,pka:s.pka,cX:0,cY:0,cZ:0,cI:0};o.G.push(g)}g.b=k+1;g.cX+=o.P[k]*s.X[0];g.cY+=o.P[k]*s.X[1];g.cZ+=o.P[k]*s.X[2];g.cI+=o.P[k]});
+  o.kbm=0;for(let k=0;k<n;k++)o.kbm=Math.max(o.kbm,o.KB[k]);  /* the largest k_b, for the curvature test */
   /* lin: the k_b step of a group whose sub-bands share a and are evenly spaced in k_b (every split Gaussian), for pixVal's fast path */
   for(const g of o.G){g.lin=0;const n=g.b-g.a;if(n<3)continue;const D=(o.KB[g.b-1]-o.KB[g.a])/(n-1);let ok=D!==0;
     for(let k=g.a;k<g.b&&ok;k++)ok=o.KA[k]===o.KA[g.a]&&Math.abs(o.KB[k]-(o.KB[g.a]+(k-g.a)*D))<=1e-12*Math.abs(o.KB[k]);if(ok)g.lin=D}
@@ -50,7 +54,7 @@ const PV=[0,0,0,0];
    All sub-bands of one Gaussian share a, so the terms that depend only on a are computed once per run of equal a.
    First-order fast path for an evenly spaced group (gr.lin = Δk_b): along the group the exponent is quadratic and the phase linear in k,
    so e^{ex} and cos/sin of the phase are stepped by exact ratios (two multiplies and a rotation per sub-band) and re-evaluated
-   directly every 16 sub-bands. The drift between re-evaluations is a few ulp (< 1e-14 relative); the −40 cut-off is tested exactly. */
+   directly every 16 sub-bands. The drift between re-evaluations is a few ulp (< 1e-14 relative); the −40 cut-off stays exact. */
 function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2*(gx*gx+gy*gy),dmin=Math.max(0,Math.abs(dm)-5*Math.sqrt(t2));
   for(const gr of pr.G){if(gr.pka*dmin*dmin>30){X+=gr.cX;Y+=gr.cY;Z+=gr.cZ;I+=gr.cI;continue}
   if(!quad&&gr.lin){const D=gr.lin,ka=pr.KA[gr.a],q=1+2*ka*t2,sq=ka?Math.sqrt(q):1,e0=ka*dm*dm,ph1=D*dm/q,c1=Math.cos(ph1),s1=Math.sin(ph1),g2=Math.exp(-(t2*D*D)/q);
@@ -62,7 +66,7 @@ function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2
         const f=E*C/sq;E*=R;R*=g2;const c=C*c1-S*s1;S=S*c1+C*s1;C=c;j++;
         const v=pr.P[k]*(1+f);I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}
       continue}
-    if(!cL&&!cH){for(let k=gr.a;k<gr.b;k++){const v=pr.P[k]*(1+0);I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}continue}
+    if(!cL&&!cH){for(let k=gr.a;k<gr.b;k++){const v=pr.P[k];I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}continue}
     for(let k=gr.a;k<gr.b;k++){const kb=pr.KB[k],ex=-(e0+0.5*kb*kb*t2)/q;let f=0;
       if(ex>-40){if(j>=16){E=Math.exp(ex);const ph=kb*dm/q;C=Math.cos(ph);S=Math.sin(ph);R=Math.exp(-(t2*kb*D+0.5*t2*D*D)/q);j=0}
         f=E*C/sq;E*=R;R*=g2;const c=C*c1-S*s1;S=S*c1+C*s1;C=c;j++}else j=16;
@@ -74,4 +78,9 @@ function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2
     if(quad)f=avgQ(kb,dm,gx,gy,h11,h12,h22,s2);else{const ex=-(e0+0.5*kb*kb*t2)/q;f=ex>-40?Math.exp(ex)*Math.cos(kb*dm/q)/sq:0}
     const v=pr.P[k]*(1+f);I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}}
   PV[0]=X;PV[1]=Y;PV[2]=Z;PV[3]=I;return PV}
-
+/* one grid point's exact footprint average at (u, v): the OPD's gradient and Hessian there, then pixVal. Used by the main thread,
+   the workers (its source text, with opdModel) and the speed test. The same curvature test in previews: their footprint is k times
+   wider, so curvature matters more there. */
+function gridPix(M,pr,s2,u,v){const r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
+  const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=pr.kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;
+  return pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad)}

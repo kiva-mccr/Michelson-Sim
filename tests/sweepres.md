@@ -4,6 +4,6 @@ Checks that the mirror sweep drives the same adaptive preview resolution as a dr
 
 ## Rules and pitfalls
 
-- It hooks in at the end of `ui-loop.js` like `snapshot.js` (see `src/js/ui-loop.md`) and reads `ringLive`, `LQ.mv.v` and the `resV` readout.
+- It hooks in at the end of `ui-loop.js` through `hookPage` in `_common.js` (see `src/js/ui-loop.md`) and reads `ringLive`, `LQ.mv.v` and the `resV` readout.
 - "Slow" has to be slow in screen pixels, not just in seconds: with the auto range a 120 s pass still moves the fringes about 0.35 px/ms, which leaves no extra budget (k/v is under a frame). That's why it uses 600 s.
 - The numbers come from headless Chromium on a cloud machine. Only the direction of the comparison is checked, not the grid sizes.

@@ -8,8 +8,7 @@
 //     (Gaussian, sd 3 px, which removes the real fringes there) and the spread of that local mean over 0.35 < r < 0.9 must stay small.
 //     Aliases show up there as ghost ring centres. With the old 0.4 px footprint it was about 5% of the mean; with 0.5 px about 1%.
 // Needs Node and `npm i playwright`. Set GPU_ARGS=0 to launch without the WebGPU flags (see tests/_common.py).
-const {chromium}=require('playwright');const fs=require('fs'),os=require('os'),path=require('path');
-const src=process.argv[2]||path.join(__dirname,'..','index.html');let html=fs.readFileSync(src,'utf8');
+const {chromium}=require('playwright');const {hookPage,routeMathJax,GPU}=require('./_common');
 const HOOK=`window.__A={
   /* render one frame at grid size Nl (Nl = N: at rest) through the page's own path, then return the grid as I/I_tot */
   frame:async Nl=>{const N=ring.width;if(Nl<N){lqPick=()=>Nl;ringLive=true}else ringLive=false;
@@ -37,10 +36,7 @@ const HOOK=`window.__A={
     const m=blur(blur(Y,1,0),0,1);let lo=Infinity,hi=-Infinity,sum=0,n=0;
     for(let y=0;y<N;y++)for(let x=0;x<N;x++){const r=Math.hypot(x-(N-1)/2,y-(N-1)/2)/(N/2);if(r<=0.35||r>=0.9)continue;const v=m[y*N+x];lo=Math.min(lo,v);hi=Math.max(hi,v);sum+=v;n++}
     return(hi-lo)/(sum/n)}};\n`;
-const tail='\nupdate(false);\n}\n</script>';if(!html.includes(tail))throw new Error('hook point not found');html=html.replace(tail,'\n'+HOOK+tail);
-const hooked=path.join(os.tmpdir(),`mich-antialias-${process.pid}.html`);fs.writeFileSync(hooked,html);
-const MJ=process.env.MATHJAX_DIR;
-const ARGS=process.env.GPU_ARGS==='0'?['--ignore-gpu-blocklist','--use-angle=swiftshader','--enable-unsafe-swiftshader']:['--enable-unsafe-webgpu','--enable-features=Vulkan','--ignore-gpu-blocklist','--use-angle=swiftshader','--enable-unsafe-swiftshader'];
+const PAGE=hookPage('antialias',HOOK);
 const HENE={s:1000/632.8,a:0.85,f:0,on:true},LED=[{s:1000/450,a:1.0,f:20*1000/450**2,on:true},{s:1000/555,a:0.58,f:100*1000/555**2,on:true},{s:1000/610,a:0.25,f:90*1000/610**2,on:true}];
 const scen=[
  {n:'hene-3mm',c:[HENE],d:3000,tx:0,ty:0,fov:10,moire:true},
@@ -51,16 +47,16 @@ const scen=[
 ];
 const FR=[[0.5,0.5],[0.62,0.41],[0.75,0.5],[0.3,0.2],[0.86,0.6],[0.5,0.88]];  /* sample points, as fractions of the grid; plus the centre */
 const TOL=1e-3,TOLR=1e-2,MOIRE=0.025;  /* 1e-3 as the at-rest "Ring pixels" check; 1e-2 for the untilted CPU preview, which interpolates a radial table */
-(async()=>{const br=await chromium.launch({args:ARGS});let fail=0;
+(async()=>{const br=await chromium.launch({args:GPU});let fail=0;
  for(const sc of scen){
   const ctx=await br.newContext({viewport:{width:1400,height:820},deviceScaleFactor:1});
-  if(MJ)await ctx.route('**/mathjax@3.2.2/**',r=>r.fulfill({path:path.join(MJ,r.request().url().split('mathjax@3.2.2/')[1])}));else await ctx.route(/cdn\.jsdelivr/,r=>r.abort());
+  await routeMathJax(ctx);
   await ctx.addInitScript(st=>localStorage.setItem('mich-sim-v2',JSON.stringify(st)),{c:sc.c,d:sc.d,r:420,fov:sc.fov,tx:sc.tx,ty:sc.ty,ra:true,rm:50,env:true});
   const pg=await ctx.newPage();const errs=[];pg.on('pageerror',e=>errs.push(e.message));
-  await pg.goto('file://'+hooked);await pg.waitForFunction(()=>window.__A&&document.documentElement.dataset.renderers);
+  await pg.goto(PAGE.url);await pg.waitForFunction(()=>window.__A&&document.documentElement.dataset.renderers);
   const avail=(await pg.evaluate(()=>document.documentElement.dataset.renderers)).split(',');
   for(const rend of avail){
-   await pg.goto('file://'+hooked+'?renderer='+rend);
+   await pg.goto(PAGE.url+'?renderer='+rend);
    const ok=await pg.waitForFunction(r=>window.__A&&document.documentElement.dataset.renderer===r,rend,{timeout:15000}).then(()=>true,()=>false);
    if(!ok){console.log(`${sc.n.padEnd(10)} ${rend.padEnd(8)} not active (lost context?), skipped`);continue}
    await pg.waitForTimeout(300);
@@ -74,4 +70,4 @@ const TOL=1e-3,TOLR=1e-2,MOIRE=0.025;  /* 1e-3 as the at-rest "Ring pixels" chec
     console.log(`${sc.n.padEnd(10)} ${rend.padEnd(8)} N=${N} Nl=${String(Nl).padEnd(4)} worst |pixel − brute force| ${worst.toExponential(2)} at ${at.padEnd(10)} (tol ${tol}) ${pass?'OK':'FAIL'}${mo}`)}}
   if(errs.length){fail++;console.log('page errors:',errs.join('; '))}
   await ctx.close()}
- await br.close();fs.unlinkSync(hooked);console.log(fail?`${fail} FAILED`:'all OK');process.exit(fail?1:0)})();
+ await br.close();PAGE.done();console.log(fail?`${fail} FAILED`:'all OK');process.exit(fail?1:0)})();
