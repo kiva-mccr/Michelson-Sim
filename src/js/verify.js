@@ -21,6 +21,7 @@ async function verify(){
     e4=Math.max(e4,Math.hypot(sb[0]-q[0],sb[1]-q[1],sb[2]-q[2])/Math.max(1e-12,Math.hypot(...q)))}
   row('Colour (XYZ)','sub-band XYZ vs ∫S·½(1+cos)·x̄ȳz̄ dσ at δ = 0, δ₀, δmax/2 (relative)',e4,1e-2);
   /* 5 rendered ring pixels vs brute-force 2-D integration of the exact pattern over each pixel's footprint */
+  if(RB.benchP)await RB.benchP;  /* a running speed test may still switch the renderer */
   ringLive=false;if(RB.active==='workers'){renderRing();if(RB.wDone)await RB.wDone}else{while(RB.busy)await RB.done;renderRing(true);if(RB.done)await RB.done}await ringReadback();let e5=0;const N=ring.width,hN=N/2,sd=PIXSD*2/N;
   for(const[fi,fj]of [[0.5,0.5],[0.503,0.497],[0.508,0.512],[0.75,0.5],[0.675,0.325],[0.15,0.3],[0.972,0.475],[0.6,0.95]]){const i0=Math.floor(fi*N),j0=Math.floor(fj*N);const u0=(i0+0.5-hN)/hN,v0=-(j0+0.5-hN)/hN;
     const gr=M.grad(u0,v0),fr=8*sd*Math.hypot(...gr)*Math.max(...SL.map(o=>o.s)),n=clamp(Math.ceil(fr*12)+21,21,801);

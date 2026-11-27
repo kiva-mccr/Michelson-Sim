@@ -8,7 +8,9 @@ const ring=$('ring'),rctx=ring.getContext('2d');let ringLive=false,Ibuf=null,Pbu
 /* The canvas is square but shown as a circle (CSS border-radius), so grid points with r > rcut are never seen and are not evaluated:
    they are stored as 0 (black). The margin is RCUT grid cells, wider than the CSS edge anti-aliasing and the preview upscaling filters. */
 const RCUT=3,rcut=(N,k)=>1+RCUT*2*k/N;
-function ringModel(){const d=+$('d').value,tm=(+$('fov').value)*Math.PI/180,T=Math.tan(tm),aE=AMM*T/Math.tan(10*Math.PI/180),kx=2e-3*(+$('tx').value)*aE,ky=2e-3*(+$('ty').value)*aE;
+const ringModel=()=>ringModelOf(+$('d').value,+$('fov').value,+$('tx').value,+$('ty').value);
+/* the model for any d (µm), field of view (degrees) and tilt (µrad); the startup speed test uses a fixed one */
+function ringModelOf(d,fov,tx,ty){const tm=fov*Math.PI/180,T=Math.tan(tm),aE=AMM*T/Math.tan(10*Math.PI/180),kx=2e-3*tx*aE,ky=2e-3*ty*aE;
   return{d,T,kx,ky,
     th:r=>Math.atan(r*T),
     opd(u,v){const r=Math.hypot(u,v);return 2*d*Math.cos(Math.atan(r*T))+kx*u+ky*v},

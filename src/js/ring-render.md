@@ -12,3 +12,6 @@ Drawing the ring: `ringInputs`/`renderRingIfNeeded` (re-render only on a change)
 - Keep the at-rest expressions exactly as they are, e.g. `((i+0.5)*k-h)/h` with k = 1: they are what the snapshots compare.
 - Corner skip (MS-13): pixels with r > `rcut` are `put` as 0. The radial table (moving previews only since MS-15) keeps its spacing `dr` (from r up to 1.42) but is only filled up to `Nq`, just past `rcut`, so visible pixels are bit-identical to the uncut version.
 - The profile canvas is resized only when its size changes (resizing reallocates it).
+- `gridPix` is the one grid-point evaluation for the main thread (and the speed test's CPU run); the worker source has its own copy of the same expressions, keep them identical.
+- Every progressive at-rest pass sets `RB.wDone`, resolved when it finishes or is superseded (the speed test waits for it).
+- `renderRingIfNeeded` does nothing while the speed test runs (`RB.benching`).

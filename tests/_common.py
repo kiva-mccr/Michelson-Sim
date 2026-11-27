@@ -36,3 +36,11 @@ async def use_renderer(pg, be):
     await pg.wait_for_function("window.MathJax && MathJax.startup && MathJax.startup.promise")
     await pg.wait_for_function(f"document.documentElement.dataset.renderer === '{be}'")
     await pg.wait_for_timeout(1000)
+
+async def run_checks(pg):
+    """Open Method and checks, press Run checks, and return the table rows."""
+    await pg.click("#openMethod"); await pg.click("#verBtn")
+    await pg.wait_for_function("document.getElementById('verAt').textContent.startsWith('Last run')", timeout=180000)
+    rows = await pg.evaluate("[...document.querySelectorAll('#ver tr')].map(t=>t.innerText.replace(/\\s+/g,' '))")
+    await pg.keyboard.press("Escape")
+    return rows

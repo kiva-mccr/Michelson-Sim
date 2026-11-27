@@ -14,19 +14,24 @@ onmessage=e=>{const m=e.data,{N,Nl,rc2,j0,j1,d,T,kx,ky,s2,kbm,pr}=m,h=N/2,k=N/Nl
   const url=URL.createObjectURL(new Blob([src],{type:'text/javascript'}));const W={pool:Array.from({length:n},()=>new Worker(url)),n,job:0};
   return W}
 
-/* ---- backend selection ---- */
+/* ---- backend selection ----
+   The automatic order below is only the starting guess. A speed test (ring-bench.js, MS-18) times every available renderer once
+   per device and ranks them (RB.rank, cached); pickBackend takes the fastest that still works, so a lost GPU falls back to the
+   next fastest. ?renderer= forces one (tests). */
 const BACKENDS=[['webgpu','WebGPU'],['webgl2','WebGL2'],['workers','CPU, all cores'],['cpu','CPU, one core']];
-async function probeBackends(){const ok=[];
-  try{RB.gpu=await initWebGPU($('ringGPU'));ok.push('webgpu')}catch(e){RB.gpuErr=e.message}
-  try{RB.gl=initWebGL2($('ringGL'));ok.push('webgl2')}catch(e){RB.glErr=e.message}
-  try{RB.workers=initWorkers();ok.push('workers')}catch(e){}
-  ok.push('cpu');pickBackend()}
-function pickBackend(why){RB.busy=false;RB.dirty=false;const avail=BACKENDS.map(b=>b[0]).filter(k=>(k==='webgpu'&&RB.gpu)||(k==='webgl2'&&RB.gl)||(k==='workers'&&RB.workers)||k==='cpu');
-  RB.active=RB.pref!=='auto'&&avail.includes(RB.pref)?RB.pref:avail[0];
+const beName=k=>BACKENDS.find(b=>b[0]===k)[1];
+const availBackends=()=>BACKENDS.map(b=>b[0]).filter(k=>(k==='webgpu'&&RB.gpu)||(k==='webgl2'&&RB.gl)||(k==='workers'&&RB.workers)||k==='cpu');
+async function probeBackends(){
+  try{RB.gpu=await initWebGPU($('ringGPU'))}catch(e){RB.gpuErr=e.message}
+  try{RB.gl=initWebGL2($('ringGL'))}catch(e){RB.glErr=e.message}
+  try{RB.workers=initWorkers()}catch(e){}
+  if(RB.pref==='auto')benchLoad();pickBackend();
+  if(RB.pref==='auto'&&!RB.rank&&availBackends().length>1)benchSchedule()}
+function pickBackend(why){RB.busy=false;RB.dirty=false;const avail=availBackends(),rank=(RB.rank||[]).filter(k=>avail.includes(k)),order=[...rank,...avail.filter(k=>!rank.includes(k))];
+  RB.active=RB.pref!=='auto'&&avail.includes(RB.pref)?RB.pref:order[0];
   $('ring').hidden=!['cpu','workers'].includes(RB.active);$('ringGL').hidden=RB.active!=='webgl2';$('ringGPU').hidden=RB.active!=='webgpu';
-  /* the available and active renderers, for the tests; the ? popup on the pattern panel names the active one */
+  /* the available (in the default order) and active renderers, for the tests; the ? popup on the pattern panel names the active one */
   document.documentElement.dataset.renderers=avail.join(',');document.documentElement.dataset.renderer=RB.active;
-  $('rendV').textContent=BACKENDS.find(b=>b[0]===RB.active)[1];
-  $('rendNote').textContent='Every renderer evaluates the same exact per-pixel formula, and the "Ring pixels" check reads back whichever one is active.'+(RB.gpuErr&&!RB.gpu?` WebGPU unavailable: ${RB.gpuErr}.`:'')+(RB.glErr&&!RB.gl?` WebGL2 unavailable: ${RB.glErr}.`:'');
+  $('rendV').textContent=beName(RB.active);
+  $('rendNote').textContent=benchNote()+' Every renderer evaluates the same exact per-pixel formula, and the "Ring pixels" check reads back whichever one is active.'+(RB.gpuErr&&!RB.gpu?` WebGPU unavailable: ${RB.gpuErr}.`:'')+(RB.glErr&&!RB.gl?` WebGL2 unavailable: ${RB.glErr}.`:'');
   if(why)console.info('renderer:',RB.active,why);update(false)}
-
