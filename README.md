@@ -11,6 +11,9 @@ While you drag, the ring and the range plots show a lower-resolution preview siz
 - `reference/michelson-table.html`: the sourced formula table (single line → N lines → Gaussian → N Gaussians → arbitrary spectrum)
 - `mockups/controls-mockups.html`: the drag-control mockups (A, B and C)
 - `tests/`: Playwright checks for correctness, layout and performance, plus `snapshot.js` / `compare_snapshots.py` (Node) to confirm that a change leaves every output identical
+- `ROADMAP.md`: the steps (by ID), done and next, and the settled and shelved decisions
+- `.claude/CHECKLIST.md`: what to check before handing a change over
+- `*.md` beside each code file: what the file does, and its rules and pitfalls
 - `CLAUDE.md`: requirements, architecture and conventions for working on this project with Claude Code
 
 ```
