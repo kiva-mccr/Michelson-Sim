@@ -6,3 +6,4 @@ Records every output (gamma, sub-bands, coherence, plot SVGs, canvas pixels, the
 
 - Two runs of the same build give identical files, so any difference is real. Run it on the old and the new build, then compare with `compare_snapshots.py`.
 - It hooks in by finding the end of `ui-loop.js` (the last JS file); see `src/js/ui-loop.md`.
+- Don't run two copies at once: both write the hooked page to the same temporary file (`mich-snapshot-page.html`), so one run can record the other build and the comparison wrongly says IDENTICAL.
