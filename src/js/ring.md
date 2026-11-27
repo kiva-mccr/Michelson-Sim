@@ -9,4 +9,5 @@ The ring image. `ringModel` (tanθ = r·tanθmax, δ = 2d cosθ + 2(αx·x + αy
 - The fast path in `pixVal` (evenly spaced groups, `g.lin`) steps the exponentials and phases by exact ratios and re-evaluates directly every 16 sub-bands. After any change, run `node tests/fastpath.js`. The −40 cut-off is still tested exactly per sub-band.
 - `avgQ` (the second-order correction) applies only when the fringe curvature matters (the 3e-4 test).
 - Only one GPU or worker frame is in flight at a time (busy/dirty). At rest, every pixel is rendered. On the CPU the work is cut into 12 ms slices.
+- The preview budget is `FR()`, the measured display refresh interval (`measureFrame`: 25th percentile of idle rAF steps, clamped to 16.7–33.4 ms, so 120 Hz screens still get 60 Hz-quality previews). Re-measured on resize and on becoming visible. Only the live preview may depend on the device; at rest every pixel is rendered, so snapshots stay identical.
 - The "Ring pixels" check reads back the active renderer (`ringReadback`), so every renderer must support readback.

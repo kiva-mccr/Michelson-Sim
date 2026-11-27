@@ -125,7 +125,7 @@ These were only checked in headless Chromium on a cloud machine without a GPU. K
 
 - The WebGPU ring has only been checked through its readback numbers. Headless Chrome shows WebGPU canvases as black, so nobody has looked at its image in a test.
 - WebGL2 was tested through SwiftShader (software rendering), not on a real GPU.
-- Frame times and the adaptive preview resolution (`tests/perf.py`) were measured on the cloud machine, not on Kiva's hardware.
+- Frame times and the adaptive preview resolution (`tests/perf.py`) were measured on the cloud machine, not on Kiva's hardware. That includes the device scaling (MS-10): the refresh-rate measurement only ever saw a 60 Hz headless display, and 30 Hz was simulated by forcing `FR()`.
 - The layout checks ran in headless Chromium only. Firefox and Safari have never been tested.
 
 ## Roadmap
