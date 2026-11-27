@@ -53,6 +53,14 @@ function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2
   for(const gr of pr.G){if(gr.pka*dmin*dmin>30){X+=gr.cX;Y+=gr.cY;Z+=gr.cZ;I+=gr.cI;continue}
   if(!quad&&gr.lin){const D=gr.lin,ka=pr.KA[gr.a],q=1+2*ka*t2,sq=ka?Math.sqrt(q):1,e0=ka*dm*dm,ph1=D*dm/q,c1=Math.cos(ph1),s1=Math.sin(ph1),g2=Math.exp(-(t2*D*D)/q);
     let E=0,R=0,C=0,S=0,j=16;
+    /* ex falls as k_b grows, also in floating point (every operation in it is monotonic), so testing both ends of the group
+       decides the −40 cut-off for all of it: then the per-sub-band test is dropped (or the whole fringe term), bit-identically */
+    const kL=pr.KB[gr.a],kH=pr.KB[gr.b-1],cL=-(e0+0.5*kL*kL*t2)/q>-40,cH=-(e0+0.5*kH*kH*t2)/q>-40;
+    if(cL&&cH){for(let k=gr.a;k<gr.b;k++){if(j>=16){const kb=pr.KB[k];E=Math.exp(-(e0+0.5*kb*kb*t2)/q);const ph=kb*dm/q;C=Math.cos(ph);S=Math.sin(ph);R=Math.exp(-(t2*kb*D+0.5*t2*D*D)/q);j=0}
+        const f=E*C/sq;E*=R;R*=g2;const c=C*c1-S*s1;S=S*c1+C*s1;C=c;j++;
+        const v=pr.P[k]*(1+f);I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}
+      continue}
+    if(!cL&&!cH){for(let k=gr.a;k<gr.b;k++){const v=pr.P[k]*(1+0);I+=v;X+=v*pr.X[k];Y+=v*pr.Y[k];Z+=v*pr.Z[k]}continue}
     for(let k=gr.a;k<gr.b;k++){const kb=pr.KB[k],ex=-(e0+0.5*kb*kb*t2)/q;let f=0;
       if(ex>-40){if(j>=16){E=Math.exp(ex);const ph=kb*dm/q;C=Math.cos(ph);S=Math.sin(ph);R=Math.exp(-(t2*kb*D+0.5*t2*D*D)/q);j=0}
         f=E*C/sq;E*=R;R*=g2;const c=C*c1-S*s1;S=S*c1+C*s1;C=c;j++}else j=16;

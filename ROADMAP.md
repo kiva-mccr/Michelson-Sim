@@ -24,6 +24,7 @@ Claude builds only the steps that Kiva has approved. To find a step, search for 
 Kiva added these on 2026-11-27. Add a step here only once Kiva has approved it.
 
 - [x] MS-13: A new optimization study: profile, find speed-ups, deliver them as verified PRs (bit-identical outputs where possible). Done: cached layout reads and colours, `renderOut` DOM reuse, fewer DOM writes, and skipping the hidden corners of the ring square. At-rest CPU renders 12–40% faster, main-thread overhead per frame about halved, and the freed time goes into sharper previews. Visible outputs bit-identical.
+- [x] MS-16: Literature-informed optimization pass (Kiva, 2026-11-27). GPU: the stepped exponential and trigonometric recurrences of the CPU fast path (re-anchored every 8 sub-bands), weights premultiplied so each sub-band is one fetch, and groups whose fringe terms are all below e^{−40} reduced to their constant part. At-rest WebGL2 frame on SwiftShader 941 → 467 ms (LED), 211 → 130 ms (two Gaussians, tilted); kernel error against float64 unchanged (9e-6 of I). CPU and workers: the −40 cut-off decided once per group (exact, by monotonicity), 10–15% faster on tilted LED, bit-identical. New test `tests/gpukernel.js`.
 - [ ] MS-14: Sweep duration controls: let the user set how long one mirror sweep takes (today fixed at 8 s per pass). Written down only; build once Kiva approves the design (Kiva, 2026-11-27).
 
 

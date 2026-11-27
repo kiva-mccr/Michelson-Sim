@@ -2,13 +2,14 @@
 
 Set MATHJAX_DIR to a local copy of the mathjax@3.2.2 npm package to run without the CDN
 (e.g. `npm i mathjax@3.2.2`, then MATHJAX_DIR=node_modules/mathjax).
-Set GPU_ARGS=0 to launch without the WebGPU/Vulkan flags (some headless hosts lose the GPU with them)."""
+Set GPU_ARGS=0 to launch without the WebGPU/Vulkan flags (some headless hosts lose both GPU contexts with them); WebGL2 then runs on
+SwiftShader. tests/gpukernel.js checks the WebGPU kernel on its own where the full page loses it."""
 import os, pathlib
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 URL = (ROOT / "index.html").as_uri()
-ARGS = ["--enable-unsafe-webgpu", "--enable-features=Vulkan", "--ignore-gpu-blocklist", "--use-angle=swiftshader"]
+ARGS = ["--enable-unsafe-webgpu", "--enable-features=Vulkan", "--ignore-gpu-blocklist", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
 if os.environ.get("GPU_ARGS") == "0":
-    ARGS = ["--ignore-gpu-blocklist", "--use-angle=swiftshader"]
+    ARGS = ["--ignore-gpu-blocklist", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
 MJ = os.environ.get("MATHJAX_DIR")
 
 async def open_page(p, w=1920, h=1080):
