@@ -17,6 +17,7 @@ Claude builds only the steps that Kiva has approved. To find a step, search for 
 - [x] MS-9: Animate the tilt snap. Entering the snap circle glides the tilt value itself to 0, 0 over 300 ms (ease-out; first 150 ms, doubled at Kiva's request), so every frame is the true pattern; leaving glides back to the cursor. Reset tilt and double-click glide too; reduced motion jumps.
 - [x] MS-11: Scale the live preview to how fast it is changing. Continuous resolution (any grid size N/16…N) from the last frame's measured time, k·(t/0.9B)^(1/p); the budget grows when the fringes move slowly (a frame may last as long as the motion takes to cross one preview pixel, up to 100 ms), so slow drags are sharp and fast ones keep the display rate; a pause with the button held shows the exact image (Kiva, 2026-11-27).
 - [x] MS-12: Split the source files so an LLM can work on one part without reading the rest: `ring.js` (40 KB) into six files, `ui.js` (24 KB) into four, `plots.js` (17 KB) into two, and the dialogs out of the template into `src/html/`. Every file is now under about 10 KB with its own note; `index.html` is unchanged byte for byte.
+- [x] MS-15: Use the fringe symmetry: with zero tilt, evaluate one octant of the pixels at rest and mirror it 8 ways (exact, replaces the interpolated radial grid, which was off by up to 1.1e-3 at d = 3 mm). Requested by Kiva (2026-11-27).
 
 ## Next
 

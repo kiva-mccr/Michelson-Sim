@@ -72,6 +72,7 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
 - Pixel averaging:
   - Each pixel is averaged over a Gaussian footprint with sd 0.4 px.
   - The first-order average has a closed form. A second-order correction (`avgQ`) is used when the fringe curvature matters (a 3e-4 test).
+  - Untilted, at rest, on the CPU (MS-15): the pattern and the pixel grid share the square's 8 symmetries, so only one octant of pixels is evaluated (exactly as every other pixel) and copied to its mirror pixels. The result is identical to evaluating every pixel. A moving untilted CPU preview still uses a radial grid (4 samples per grid pixel, linear interpolation). The GPU renderers evaluate every pixel.
   - In `pixVal` (CPU and workers), the terms that depend only on a sub-band's width are computed once per Gaussian (`avgQpre`), which is bit-identical.
   - First-order fast path: in an evenly spaced group (`g.lin`, set in `prepSL`), e^{ex} and the fringe cos/sin are stepped by exact ratios and re-evaluated directly every 16 sub-bands. It agrees with direct evaluation to < 1e-15 absolute (`tests/fastpath.js`). The −40 cut-off is still tested exactly per sub-band.
 - Colour: each Gaussian is split into K sub-band Gaussians.
@@ -117,6 +118,7 @@ node tests/snapshot.js index.html before.json     # on the old build
 node tests/snapshot.js index.html after.json      # on the new build
 python3 tests/compare_snapshots.py before.json after.json   # IDENTICAL, or the largest difference per output
 node tests/fastpath.js                            # pixVal's stepped fast path vs direct evaluation
+node tests/symmetry.js                            # untilted at-rest ring: octant mirrored 8 ways vs every pixel evaluated (MS-15)
 ```
 
 `snapshot.js` records every output for 7 spectra on the CPU, worker and WebGL2 renderers. Two runs of the same build are identical, so any difference is real. Only accept a difference at floating-point noise level, and say so.

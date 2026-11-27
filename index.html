@@ -549,7 +549,8 @@ function renderIfg(){
    Screen point (u,v) in [-1,1]^2 (r = 1 at the edge of the field). Lens mapping: tan(theta) = r tan(theta_max).
    Mirror-plane coordinates for the tilt wedge: x = a u, y = a v, a = L tan(theta_max), L = 28.4 mm (a = 5 mm at 10°).
    OPD: delta(u,v) = 2 d cos(theta) + 2 (alpha_x x + alpha_y y). Every pixel is the exact footprint average above.
-   With zero tilt the pattern is radial, so it is evaluated on a radial grid at 16 samples per pixel (4 while moving) and linearly interpolated. */
+   With zero tilt the pattern is radial. At rest only one octant of the pixels is evaluated and mirrored (exact, MS-15); a moving CPU
+   preview evaluates a radial grid at 4 samples per grid pixel and interpolates linearly. */
 const ring=$('ring'),rctx=ring.getContext('2d');let ringLive=false,Ibuf=null;
 function ringModel(){const d=+$('d').value,tm=(+$('fov').value)*Math.PI/180,T=Math.tan(tm),aE=AMM*T/Math.tan(10*Math.PI/180),kx=2e-3*(+$('tx').value)*aE,ky=2e-3*(+$('ty').value)*aE;
   return{d,T,kx,ky,
@@ -898,15 +899,29 @@ function renderRing(sync){
     /* grid point (j, i): one image pixel; at full resolution also the I/I_tot buffer */
     const put=(j,i,X,Y,Z,I)=>{if(j>=Nl)return;let r=MX[0][0]*X+MX[0][1]*Y+MX[0][2]*Z,g=MX[1][0]*X+MX[1][1]*Y+MX[1][2]*Z,b=MX[2][0]*X+MX[2][1]*Y+MX[2][2]*Z;const m=Math.min(r,g,b,0);
       const o=4*(j*Nl+i);D[o]=enc((r-m)*gain);D[o+1]=enc((g-m)*gain);D[o+2]=enc((b-m)*gain);D[o+3]=255;if(!small)Ibuf[j*N+i]=I/A};
-    if(M.kx===0&&M.ky===0){const Nr=Math.ceil(1.42*h/k*(ringLive?4:16))+2,dr=1.42/(Nr-1),RX=new Float64Array(Nr),RY=new Float64Array(Nr),RZ=new Float64Array(Nr),RI=new Float64Array(Nr);
+    if(!tilted&&ringLive){/* moving and untilted: a radial grid at 4 samples per grid pixel, linearly interpolated (preview only) */
+      const Nr=Math.ceil(1.42*h/k*4)+2,dr=1.42/(Nr-1),RX=new Float64Array(Nr),RY=new Float64Array(Nr),RZ=new Float64Array(Nr),RI=new Float64Array(Nr);
       for(let q=0;q<Nr;q++){const r=q*dr,dm=2*M.d*Math.cos(Math.atan(r*M.T)),[f1,f2,fr]=M.rad(r),v=pixVal(dm,f1,0,f2,0,fr,sd*sd,pr,true);RX[q]=v[0];RY[q]=v[1];RZ[q]=v[2];RI[q]=v[3]}
       for(let j=0;j<Nl;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h,t=Math.hypot(u,v)/dr,q=Math.min(Nr-2,t|0),f=t-q;
         put(j,i,RX[q]+(RX[q+1]-RX[q])*f,RY[q]+(RY[q+1]-RY[q])*f,RZ[q]+(RZ[q+1]-RZ[q])*f,RI[q]+(RI[q+1]-RI[q])*f)}}}
     else{const kbm=Math.max(...SL.map(o=>o.kb)),s2=sd*sd;
-      const rows=(j0,j1)=>{for(let j=j0;j<j1;j++){const v=-((j+0.5)*k-h)/h;for(let i=0;i<Nl;i++){const u=((i+0.5)*k-h)/h,r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
+      /* the exact footprint average of grid point (j, i) */
+      const pix=(j,i)=>{const v=-((j+0.5)*k-h)/h,u=((i+0.5)*k-h)/h,r=Math.hypot(u,v),[f1,f2,fr]=M.rad(r),ux=r>1e-12?u/r:1,uy=r>1e-12?v/r:0;
         const gx=f1*ux+M.kx,gy=f1*uy+M.ky,h11=f2*ux*ux+fr*(1-ux*ux),h22=f2*uy*uy+fr*(1-uy*uy),h12=(f2-fr)*ux*uy,quad=!ringLive&&kbm*s2*Math.max(Math.abs(f2),Math.abs(fr))>=3e-4;  /* the second-order correction only in the at-rest pass */
-        const p=pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad);put(j,i,p[0],p[1],p[2],p[3])}}};
-      if(RB.active==='workers'&&!sync){/* split the grid rows over every worker; each block is painted as it arrives */
+        return pixVal(M.opd(u,v),gx,gy,h11,h12,h22,s2,pr,quad)};
+      const rows=(j0,j1)=>{for(let j=j0;j<j1;j++)for(let i=0;i<Nl;i++){const p=pix(j,i);put(j,i,p[0],p[1],p[2],p[3])}};
+      if(!tilted){/* at rest and untilted (MS-15): the pattern and the pixel grid share the square's 8 symmetries (u → −u, v → −v, u ↔ v),
+          so only the octant 0 ≤ i ≤ j < N/2 is evaluated, exactly as above, and each value is copied to its 8 mirror pixels. */
+        const n=N-1,H=Math.ceil(N/2);
+        const cp=(o,a)=>{D[a]=D[o];D[a+1]=D[o+1];D[a+2]=D[o+2];D[a+3]=255};
+        const oct=(j0,j1)=>{for(let j=j0;j<j1;j++)for(let i=0;i<=j;i++){const p=pix(j,i);put(j,i,p[0],p[1],p[2],p[3]);const o=4*(j*N+i),I=Ibuf[j*N+i];
+          for(const m of [j*N+n-i,(n-j)*N+i,(n-j)*N+n-i,i*N+j,i*N+n-j,(n-i)*N+j,(n-i)*N+n-j]){cp(o,4*m);Ibuf[m]=I}}};
+        if(sync)oct(0,H);
+        else{/* progressive, in 12 ms slices; RB.wDone resolves when done or superseded (the checks await it on the workers renderer) */
+          let j=0,done;RB.wDone=new Promise(r=>done=r);const slice=()=>{if(job!==ringJob)return done();const t0=performance.now();while(j<H&&performance.now()-t0<12){oct(j,j+1);j++}
+            present(0,N);if(j<H)setTimeout(slice,0);else done()};
+          slice();ringProfile(M);return}}
+      else if(RB.active==='workers'&&!sync){/* split the grid rows over every worker; each block is painted as it arrives */
         const W=RB.workers,id=++W.job,blk=8,t0=performance.now(),live=ringLive;let pending=0,next=0,done;RB.wDone=new Promise(r=>done=r);W.busy=true;
         const msg={N,Nl,d:M.d,T:M.T,kx:M.kx,ky:M.ky,s2:sd*sd,kbm,pr:{n:pr.n,P:pr.P,KA:pr.KA,KB:pr.KB,X:pr.X,Y:pr.Y,Z:pr.Z,G:pr.G}};
         const send=w=>{if(next>=Nl)return;const j0=next,j1=Math.min(Nl,next+blk);next=j1;pending++;w.postMessage({...msg,id,j0,j1})};
@@ -914,7 +929,7 @@ function renderRing(sync){
           for(let j=r.j0;j<r.j1;j++)for(let i=0;i<Nl;i++){put(j,i,r.out[o],r.out[o+1],r.out[o+2],r.out[o+3]);o+=4}
           present(r.j0,r.j1);send(w);if(!pending){if(live)lqRecord('wk',Nl,performance.now()-t0);W.busy=false;done();if(W.dirty){W.dirty=false;renderRing()}}};send(w)});
         ringProfile(M);return}
-      if(ringLive||sync)rows(0,Nl);
+      else if(ringLive||sync)rows(0,Nl);
       else{/* progressive full-resolution pass */
         let j=0;const slice=()=>{if(job!==ringJob)return;const t0=performance.now(),jj=j;while(j<N&&performance.now()-t0<12){rows(j,j+4);j+=4}
           present(jj,Math.min(j,N));if(j<N)setTimeout(slice,0)};
