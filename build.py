@@ -1,0 +1,33 @@
+#!/usr/bin/env python3
+"""Build the single-file index.html from src/.
+
+  src/index.template.html   page markup, with /*@CSS@*/ and /*@JS@*/ placeholders
+  src/style.css             styles
+  src/js/*.js               script, concatenated in JS_ORDER inside one block scope { ... }
+                            (one shared scope, exactly as before the split: files may use each other's names)
+
+python3 build.py           writes index.html
+python3 build.py --check   exits 1 if index.html is out of date with src/ (for CI or before publishing)
+Uses only the standard library; no npm.
+"""
+import pathlib, sys
+
+ROOT = pathlib.Path(__file__).resolve().parent
+JS_ORDER = ["physics.js", "plots.js", "ring.js", "verify.js", "ui.js"]
+
+def build():
+    src = ROOT / "src"
+    tpl = (src / "index.template.html").read_text(encoding="utf-8")
+    css = (src / "style.css").read_text(encoding="utf-8").removesuffix("\n")
+    js = "".join((src / "js" / n).read_text(encoding="utf-8") for n in JS_ORDER).removesuffix("\n")
+    assert tpl.count("/*@CSS@*/") == 1 and tpl.count("/*@JS@*/") == 1, "template placeholders missing"
+    return tpl.replace("/*@CSS@*/", css).replace("/*@JS@*/", js)
+
+if __name__ == "__main__":
+    out, target = build(), ROOT / "index.html"
+    if "--check" in sys.argv:
+        ok = target.exists() and target.read_text(encoding="utf-8") == out
+        print("index.html is up to date" if ok else "index.html is out of date: run python3 build.py")
+        sys.exit(0 if ok else 1)
+    target.write_text(out, encoding="utf-8")
+    print(f"wrote {target.name} ({len(out.encode())} bytes)")
