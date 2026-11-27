@@ -12,7 +12,7 @@ While you drag, the ring shows a lower-resolution preview sized to what your dev
 - `mockups/controls-mockups.html`: the drag-control mockups (A, B and C)
 - `mockups/roadmap-mockups.html`: the mock-ups for MS-7, MS-8, MS-9 and MS-11
 - `mockups/sweep-duration-mockups.html`: the three sweep-time options for MS-14 (A was built)
-- `tests/`: Playwright checks for correctness, layout and performance, plus `snapshot.js` / `compare_snapshots.py` (Node) to confirm that a change leaves every output identical, `gpukernel.js` (Node) to check the GPU pixel kernels against the exact float64 formula, `antialias.js` (Node) to check moving previews against brute-force footprint integrals and the ring for moiré, and `plotstable.js` (Node) to check that the plots are identical moving and at rest
+- `tests/`: Playwright checks for correctness, layout and performance, plus `snapshot.js` / `compare_snapshots.py` (Node) to confirm that a change leaves every output identical, `gpukernel.js` (Node) to check the GPU pixel kernels against the exact float64 formula, `antialias.js` (Node) to check moving previews against brute-force footprint integrals and the ring for moiré, `plotstable.js` (Node) to check that the plots are identical moving and at rest, and `sweepres.js` (Node) to check that the sweep uses the same adaptive preview as a drag
 - `ROADMAP.md`: the steps (by ID), done and next, and the settled and shelved decisions
 - `.claude/CHECKLIST.md`: what to check before handing a change over
 - `*.md` beside each code file: what the file does, and its rules and pitfalls
