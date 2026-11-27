@@ -27,10 +27,10 @@ const presets={
   two:[{s:1.55,a:0.8,f:0.06},{s:1.85,a:0.6,f:0.06}]
 };
 let comps=[{s:1000/632.8,a:0.6,f:0,on:true},{s:1000/540,a:0.8,f:0.06,on:true}],sel=-1,drag=null;
-try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||localStorage.getItem('mich-sim-v1')||'null');
-  if(v&&Array.isArray(v.c)){comps=v.c;$('d').value=v.d;if(v.r!=null)$('r').value=v.r;if(v.fov)$('fov').value=v.fov;if(v.tx!=null){$('tx').value=v.tx;$('ty').value=v.ty}if(v.ra===false)$('rAuto').checked=false;if(v.env===false)$('envOn').checked=false}}catch(e){}
+try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');
+  if(v&&Array.isArray(v.c)){comps=v.c;$('d').value=v.d;if(v.fov)$('fov').value=v.fov;if(v.tx!=null){$('tx').value=v.tx;$('ty').value=v.ty}if(v.ra===false)$('rAuto').checked=false;if(v.env===false)$('envOn').checked=false}}catch(e){}
 comps.forEach(c=>{if(c.on===undefined)c.on=true});
-const save=()=>{try{localStorage.setItem('mich-sim-v2',JSON.stringify({c:comps,d:$('d').value,r:$('r').value,fov:$('fov').value,tx:$('tx').value,ty:$('ty').value,ra:$('rAuto').checked,rm:Rman,env:$('envOn').checked}))}catch(e){}};
+const save=()=>{try{localStorage.setItem('mich-sim-v2',JSON.stringify({c:comps,d:$('d').value,fov:$('fov').value,tx:$('tx').value,ty:$('ty').value,ra:$('rAuto').checked,rm:Rman,env:$('envOn').checked}))}catch(e){}};
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const F=(x,n=3)=>{if(!isFinite(x))return'\\infty';if(x===0)return'0';return String(Number(x.toPrecision(n)))};
 const wOf=c=>c.f/KW;
@@ -40,7 +40,7 @@ const wOf=c=>c.f/KW;
 const F0=0.008,W0=F0/KW,P=c=>c.a*Math.sqrt(Math.PI)*(c.f?wOf(c):W0);
 const act=()=>comps.filter(c=>c.on);
 const D0=()=>2*(+$('d').value);
-let Rauto=50,Rman=Math.round(5*Math.pow(1000,(+$('r').value)/1000));
+let Rauto=50,Rman=91;  /* interferogram half-range (µm): automatic, or manual once the user zooms */
 const RANGE=()=>$('rAuto').checked?Rauto:Rman;
 try{const v=JSON.parse(localStorage.getItem('mich-sim-v2')||'null');if(v&&v.rm)Rman=v.rm}catch(e){}
 const col=c=>markHex(1000/c.s);
@@ -53,7 +53,7 @@ function trueShape(){const g=act().filter(c=>c.f);if(!g.length)return null;retur
 /* vertical scale of the spectrum plots: 0–1, extended (in steps of 0.25, just above the combined peak) only when overlapping components add more than 5% above 1; frozen while dragging */
 let YM=1;function calcYM(){if(drag)return YM;const ts=trueShape();let m=Math.max(1,...act().map(c=>c.a));
   if(ts)for(let i=0;i<=1400;i++)m=Math.max(m,ts(1000/(LMIN+(LMAX-LMIN)*i/1400)));return YM=m>1.05?Math.ceil(m*1.04/0.25)*0.25:1}
-/* sub-bands: each Gaussian is split into 15 narrower Gaussians (width = their spacing) so colour mixing across its band is physical.
+/* sub-bands: each Gaussian is split into K narrower Gaussians (width = their spacing; 15 ≤ K ≤ 241, see below) so colour mixing across its band is physical.
    Giving each sub-band its own coherence envelope keeps the sum equal to the analytic Gaussian (error < 1e-4) at every OPD;
    bare delta-function sub-lines would falsely "revive" interference at delta ~ 1/spacing. */
 const SPAN=2.8;let slKey='',slVal=null;

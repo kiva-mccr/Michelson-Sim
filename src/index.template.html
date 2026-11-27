@@ -50,7 +50,7 @@
       </div>
       <div class="railhd" title="Drag M₂ or the rail to move the mirror"><span class="chip">Mirror $d$ <b id="dV"></b></span><span class="chip">$\delta_0=2d$ <b id="dV0"></b></span><span class="chip">range ± <b id="dRV"></b></span></div>
       <div id="railBox" title="Drag along the rail to move the mirror (µm) · scroll on it to rescale the range"><svg id="rail" role="slider" aria-label="Mirror separation rail" tabindex="0"></svg></div>
-      <div hidden><input type="range" id="d" min="-5000" max="5000" step="0.1" value="20"><input type="range" id="tx" min="-500" max="500" step="1" value="0"><input type="range" id="ty" min="-500" max="500" step="1" value="0"><input type="range" id="fov" min="1" max="25" step="0.5" value="10"><span id="dRange"></span></div>
+      <div hidden><input type="range" id="d" min="-5000" max="5000" step="0.1" value="20"><input type="range" id="tx" min="-500" max="500" step="1" value="0"><input type="range" id="ty" min="-500" max="500" step="1" value="0"><input type="range" id="fov" min="1" max="25" step="0.5" value="10"></div>
     </div>
   </section>
 
@@ -68,7 +68,7 @@
     <div class="panel">
       <div class="chead"><h2>Interferogram $I(\delta)$</h2><button class="mini eqbtn" data-dlg="eqdlg3" aria-haspopup="dialog">Equations and notes</button></div>
       <div class="fig plot" id="ifgBox" title="Scroll to zoom"><canvas id="ifgC"></canvas><svg id="ifg"></svg></div>
-      <div class="zrow"><span class="note">Scroll on the plot to zoom · range <b id="rV"></b></span><label class="chk"><input type="checkbox" id="rAuto" checked> Auto-fit</label><label class="chk"><input type="checkbox" id="envOn" checked> Envelope</label><input type="range" id="r" min="0" max="1000" step="1" value="420" hidden aria-hidden="true"></div>
+      <div class="zrow"><span class="note">Scroll on the plot to zoom · range <b id="rV"></b></span><label class="chk"><input type="checkbox" id="rAuto" checked> Auto-fit</label><label class="chk"><input type="checkbox" id="envOn" checked> Envelope</label></div>
     </div>
     <div class="panel">
       <div class="chead"><h2>Interfered spectrum $S_{\rm out}(\sigma;\delta_0)$</h2><button class="mini eqbtn" data-dlg="eqdlg4" aria-haspopup="dialog">Equations and notes</button></div>
@@ -108,7 +108,7 @@
 </dialog>
 <dialog class="dlg eqdlg" id="eqdlg3" aria-labelledby="eqdlg3t">
   <div class="dh"><h2 id="eqdlg3t">Interferogram $I(\delta)$: equations and notes</h2><button data-close>Close</button></div>
-  <div class="db"><div class="eq big">$$I(\delta)=\frac{I_{\rm tot}}{2}+\frac12\sum_n I_n\,e^{-(\pi w_n\delta)^2}\cos(2\pi\sigma_n\delta)$$</div><div class="eq big">$$w_n=\frac{\Delta\sigma_n}{2\sqrt{\ln2}}$$</div><p class="note">$w_n=0$ for a line.<sup><a href="#s4">[4]</a><a href="#s7">[7]</a><a href="#s9">[9]</a></sup></p><p class="lab">With your current settings:</p><div class="eq big" id="eqI"></div><div class="note">Scroll over the plot to zoom in or out. The trace is coloured by what the detector would see at each $\delta$. The magenta envelope is $\tfrac12[1\pm|\gamma(\delta)|]$ (untick Show envelope to hide it), and the dashed marker is $\delta_0=2d$. When the fringes are too dense to draw one by one, each pixel column shows their full swing ½(1 ± |γ|), coloured by the pixel-averaged colour.</div></div>
+  <div class="db"><div class="eq big">$$I(\delta)=\frac{I_{\rm tot}}{2}+\frac12\sum_n I_n\,e^{-(\pi w_n\delta)^2}\cos(2\pi\sigma_n\delta)$$</div><div class="eq big">$$w_n=\frac{\Delta\sigma_n}{2\sqrt{\ln2}}$$</div><p class="note">$w_n=0$ for a line.<sup><a href="#s4">[4]</a><a href="#s7">[7]</a><a href="#s9">[9]</a></sup></p><p class="lab">With your current settings:</p><div class="eq big" id="eqI"></div><div class="note">Scroll over the plot to zoom in or out. The trace is coloured by what the detector would see at each $\delta$. The magenta envelope is $\tfrac12[1\pm|\gamma(\delta)|]$ (untick Envelope to hide it), and the dashed marker is $\delta_0=2d$. When the fringes are too dense to draw one by one, each pixel column shows their full swing ½(1 ± |γ|), coloured by the pixel-averaged colour.</div></div>
 </dialog>
 <dialog class="dlg eqdlg" id="eqdlg4" aria-labelledby="eqdlg4t">
   <div class="dh"><h2 id="eqdlg4t">Interfered spectrum $S_{\rm out}(\sigma;\delta_0)$: equations and notes</h2><button data-close>Close</button></div>

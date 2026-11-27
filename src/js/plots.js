@@ -1,6 +1,6 @@
 /* ---------- spectrum axes ---------- */
 /* spectral axes are linear in wavelength (nm); the physics is still computed in wavenumber σ = 1000/λ (µm⁻¹) */
-function axes(W,H,pl,pr,pt,pb,top,ylab,l0=LMIN,l1=LMAX,ym=1){
+function axes(W,H,pl,pr,pt,pb,ylab,l0=LMIN,l1=LMAX,ym=1){
   /* wavelength runs right-to-left: red (long λ) on the left, blue on the right */
   const xl=l=>pl+(l1-l)/(l1-l0)*(W-pl-pr),x=s=>xl(1000/s),y=v=>pt+(1-Math.min(v,1.05*ym)/ym)*(H-pt-pb),mute=css('--mute');
   let h='';for(let px=pl;px<W-pr;px+=2)h+=`<rect x="${px}" y="${H-pb+4}" width="2.4" height="7" fill="${barHex(l1-(px+1-pl)/(W-pl-pr)*(l1-l0))}"/>`;
@@ -16,7 +16,7 @@ function gpath(x,y,W,pl,pr,f,l0=LMIN,l1=LMAX){let p='';const n=Math.max(200,Math
 const spec=$('spec');let G={};
 function renderSpec(){
   const W=spec.clientWidth,H=spec.clientHeight;if(!W)return;
-  const pl=40,pr=12,pt=20,pb=36,ym=calcYM(),A=axes(W,H,pl,pr,pt,pb,false,'Spectral density (rel.)',LMIN,LMAX,ym),{x,y}=A;G={x,y,W,H,pl,pr,pt,pb,ym};
+  const pl=40,pr=12,pt=20,pb=36,ym=calcYM(),A=axes(W,H,pl,pr,pt,pb,'Spectral density (rel.)',LMIN,LMAX,ym),{x,y}=A;G={x,y,W,H,pl,pr,pt,pb,ym};
   let h=A.h;const ts=trueShape();
   if(ts)h+=`<path d="${gpath(x,y,W,pl,pr,ts)}" fill="none" stroke="${css('--fr')}" stroke-width="1.5" stroke-dasharray="4 3"/>`;
   comps.forEach((c,i)=>{const cc=col(c),X=x(c.s),Y=y(c.a),on=i===sel,op=c.on?1:0.35;
@@ -68,7 +68,7 @@ function setOutMan(a,b){const span=clamp(b-a,0.05,LMAX-LMIN);let m=(a+b)/2;a=m-s
   outMan=[Math.max(LMIN,a),Math.min(LMAX,b)];$('oAuto').checked=false}
 function renderOut(){
   const svg=$('out'),W=svg.clientWidth,H=svg.clientHeight;if(!W)return;
-  const pl=40,pr=10,pt=8,pb=36,[l0,l1]=outWin(),A=axes(W,H,pl,pr,pt,pb,false,'S_out (rel.)',l0,l1,YM),{x,y}=A,fr=css('--fr'),fill=css('--fill');OG={W,pl,pr,l0,l1};
+  const pl=40,pr=10,pt=8,pb=36,[l0,l1]=outWin(),A=axes(W,H,pl,pr,pt,pb,'S_out (rel.)',l0,l1,YM),{x,y}=A,fr=css('--fr'),fill=css('--fill');OG={W,pl,pr,l0,l1};
   const gp=f=>gpath(x,y,W,pl,pr,f,l0,l1);
   let h=A.h;const d0=D0(),T=s=>0.5*(1+Math.cos(2*Math.PI*s*d0)),ts=trueShape();
   h+=`<path d="${gp(T)}" fill="none" stroke="${A.mute}" stroke-opacity=".55" stroke-width="1"/>`;
@@ -85,11 +85,9 @@ function renderOut(){
 const PIXSD=0.4;
 const avgTerm=(ka,kb,dm,t2)=>{const q=1+2*ka*t2;return Math.exp(-(ka*dm*dm+0.5*kb*kb*t2)/q)*Math.cos(kb*dm/q)/Math.sqrt(q)};
 function xyzAt(dm,t2,SL){let X=0,Y=0,Z=0;for(const o of SL){const v=0.5*o.p*(1+avgTerm(o.ka,o.kb,dm,t2));X+=v*o.X[0];Y+=v*o.X[1];Z+=v*o.X[2]}return[X,Y,Z]}
-function intAt(dm,t2,SL,A){let v=0;for(const o of SL)v+=0.5*o.p*(1+avgTerm(o.ka,o.kb,dm,t2));return v/A}
 const hueOf=xyz=>norm(desat(toLin(xyz)));
 const GL=new Float32Array(4097);for(let i=0;i<=4096;i++)GL[i]=255*gam(i/4096);
 const enc=v=>GL[v<=0?0:v>=1?4096:(v*4096+0.5)|0];
-const rgbStr=c=>`rgb(${enc(c[0])|0},${enc(c[1])|0},${enc(c[2])|0})`;
 
 /* ---------- anti-aliased range plot ----------
    Each device-pixel column is split into K = 8 sub-columns. Each sub-column contributes the exact min–max span of the signal over

@@ -13,8 +13,7 @@ body{background:var(--bg);color:var(--ink);font:15px/1.5 "Red Hat Text",system-u
 h1,h2{font-family:"Red Hat Display",system-ui,sans-serif;margin:0;line-height:1.15}
 a{color:inherit;text-decoration-color:var(--acc);text-underline-offset:3px}
 button{font:500 12.5px "Red Hat Text",sans-serif;min-height:28px;padding:0 10px;border-radius:6px;border:1px solid var(--line);background:var(--soft);color:var(--ink);cursor:pointer;white-space:nowrap}
-button:hover{border-color:var(--fr)}button:focus-visible,input:focus-visible,summary:focus-visible,.edit:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-input[type=range]{width:100%;accent-color:var(--acc);height:20px;margin:0}
+button:hover{border-color:var(--fr)}button:focus-visible,input:focus-visible,.edit:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 sup{line-height:0;vertical-align:super;margin-left:3px;white-space:nowrap}
 sup a{text-decoration:none;color:var(--acc);font-size:11px;font-weight:500}
 
@@ -37,25 +36,17 @@ sup a{text-decoration:none;color:var(--acc);font-size:11px;font-weight:500}
 .note{font-size:12.5px;color:var(--mute);line-height:1.6}
 .hint{font-size:12px;color:var(--mute);flex:none;margin:0 0 2px}
 
-/* dropdown overlays (equations and notes) */
-.more{margin:0}.more>summary{position:relative;z-index:5;cursor:pointer;font-size:12.5px;font-weight:500;color:var(--mute);list-style:none;display:inline-flex;align-items:center;gap:6px;min-height:24px}
-.more>summary::-webkit-details-marker{display:none}.more>summary::before{content:'▸';color:var(--acc);display:inline-block;transition:transform .15s}.more[open]>summary::before{transform:rotate(90deg)}
-.more>summary:hover{color:var(--ink)}
-.eqpanel{padding:4px 0 6px}.eqpanel .lab{font-size:12.5px;color:var(--mute);margin:8px 0 0}
+/* equations */
 .eq{overflow-x:auto;overflow-y:hidden}.eq.big{font-size:17px}
 .eq mjx-container{margin:4px 0!important}
 
 /* controls */
-.ctl label.top2{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:8px;font-size:12.5px;color:var(--mute);white-space:nowrap}
-.ctl label.top2>span{overflow:hidden;text-overflow:ellipsis}
-.ctl b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
 .chk{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;color:var(--mute);cursor:pointer;white-space:nowrap}
 .chk input{accent-color:var(--acc);width:15px;height:15px;margin:0}
 .edit{cursor:text;border-bottom:1px dashed currentColor;padding:0 2px;border-radius:2px}.edit:hover{background:var(--soft)}
 .vin{width:9ch;font:500 14px "Red Hat Text",sans-serif;padding:1px 4px;border:1px solid var(--acc);border-radius:4px;background:var(--panel);color:var(--ink);text-align:right}
 
 /* components table */
-.tbl{overflow:auto;flex:1 1 auto;min-height:0}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{padding:3px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 th{color:var(--mute);font-weight:500;position:sticky;top:0;background:var(--panel);z-index:1}th:first-child,td:first-child{text-align:left}
@@ -66,16 +57,9 @@ tr.off td{opacity:.45}tr.off td:first-child{opacity:1}
 .empty{color:var(--mute);font-size:13px;padding:8px 0}
 
 /* interferometer panel */
-.ifm{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:4px 12px;align-items:center;flex:none}
 #miniSvg{width:100%;height:auto;display:block;touch-action:none;color:var(--ink)}
-.read{display:grid;gap:2px}
-.read .big{font:700 18px/1.1 "Red Hat Display",sans-serif;font-variant-numeric:tabular-nums}
-.read .k{font-size:12px;color:var(--mute)}
-.btnrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px}
 #dV,#dV0{display:inline-block;text-align:right;min-width:10.5ch}
 #dPlay[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:#fff}
-.sl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 14px;flex:none;margin-top:4px}
-.sl .wide{grid-column:1/-1}
 
 /* ring, with a drag overlay; tilt/FOV readouts; mirror rail */
 #ringBox{flex:1 1 auto;min-height:0;display:grid;place-items:center}
@@ -86,13 +70,10 @@ tr.off td{opacity:.45}tr.off td:first-child{opacity:1}
 #ringOv:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
 #profBox{flex:0 0 24%;min-height:110px;margin-top:4px}
 .chips,.railhd{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;flex:none;margin-top:4px}
-.railhd .sp{flex:1}
 .chip{display:inline-flex;gap:6px;align-items:baseline;font-size:12.5px;color:var(--mute);white-space:nowrap}
 .chip b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
-#dPlay[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:#fff}
 #railBox{flex:none;height:36px;margin-top:2px}
-.ifm2{flex:none;display:grid;place-items:center}
-.ifm2{min-height:0}.ifm2 #miniSvg{width:100%;height:auto;max-height:min(36vh,400px)}
+.ifm2{flex:none;display:grid;place-items:center;min-height:0}.ifm2 #miniSvg{width:100%;height:auto;max-height:min(36vh,400px)}
 #rail{display:block;width:100%;height:100%;touch-action:none;user-select:none}
 #rail:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:4px}
 
@@ -131,24 +112,16 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
   .right{grid-template-rows:minmax(0,1fr) minmax(0,1fr) auto}
   #specBox{flex:1 1 auto;min-height:120px}
   .plot{flex:1 1 auto;min-height:90px}
-  .eqd[open] .eqpanel{position:absolute;left:0;right:0;top:36px;bottom:0;z-index:4;background:var(--panel);border-top:1px solid var(--line);border-radius:0 0 10px 10px;padding:10px 16px;overflow:auto}
 }
 @media (min-width:1100px) and (min-aspect-ratio:4/3) and (max-height:760px){
   .app{gap:8px;padding:8px}.col{gap:8px}.panel{padding:6px 10px 8px}
-  .chead h2{font-size:14.5px}.hint{display:none}
-  .read .big{font-size:17px}
-  input[type=range]{height:20px}
+  .hint{display:none}
   .plot{min-height:76px}#specBox{min-height:100px}
-  .ifm{grid-template-columns:minmax(0,.8fr) minmax(0,1fr)}#miniSvg{max-height:104px}
-  .read{gap:0}.btnrow{margin-top:2px}.btnrow button{min-height:28px;padding:0 8px}
   .coh{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.stat .v{font-size:16px}.stat .k{font-size:11px;line-height:1.3}
-  .ctl label.top2{font-size:12px}.sl{gap:2px 12px}
 }
 @media (min-width:1100px) and (min-aspect-ratio:4/3) and (max-height:680px){
   #profBox{flex-basis:22%;min-height:90px}
-  #miniSvg{max-height:84px}.read .k{font-size:11px}.read .big{font-size:16px}
   #specBox{min-height:90px}.chead{margin-bottom:2px}
-  .sl{gap:0 12px;margin-top:0}input[type=range]{height:18px}.ctl label.top2{font-size:11.5px}.btnrow button{min-height:26px}
 }
 /* narrower or portrait: stacked, scrolling page */
 @media not ((min-width:1100px) and (min-aspect-ratio:4/3)){
@@ -156,7 +129,4 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
   #specBox{height:300px}
   #ringBox{height:min(92vw,520px)}#profBox{flex:none;height:200px}
   .plot{height:240px}
-  .chead .eqd[open]{flex-basis:100%}
 }
-@media(max-width:600px){.ifm{grid-template-columns:minmax(0,1fr)}.sl{grid-template-columns:minmax(0,1fr)}.top h1{font-size:16px}}
-@media(prefers-reduced-motion:reduce){.more>summary::before{transition:none}}

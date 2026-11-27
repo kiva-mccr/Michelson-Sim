@@ -29,11 +29,9 @@ function settleOPD(){const cs=act();if(!cs.length)return 40;const A=cs.reduce((t
 const DMAX=()=>+$('d').max;
 const autoMax=()=>Math.min(5000,nice(1.2*settleOPD()/2));
 /* the slider moves the mirror by d; the optical path difference is twice that, so both are shown */
-const rangeTxt=m=>`Mirror separation · range ±${m} µm (δ₀ ±${2*m} µm)`;
 function fitRange(force){const d=$('d'),cur=+d.value,a=autoMax(),m=force?a:Math.max(a,nice(Math.abs(cur)));
-  d.min=-m;d.max=m;d.step='any';d.value=clamp(cur,-m,m);$('dRange').textContent=rangeTxt(m)}
-function fitR(){Rauto=autoR();$('r').value=1000*Math.log(Rauto/5)/Math.log(1000)}
-$('r').addEventListener('input',()=>{$('rAuto').checked=false;Rman=Math.round(5*Math.pow(1000,(+$('r').value)/1000))});
+  d.min=-m;d.max=m;d.step='any';d.value=clamp(cur,-m,m)}
+function fitR(){Rauto=autoR()}
 $('rAuto').addEventListener('change',()=>update(false));
 $('envOn').addEventListener('change',()=>update(false));
 $('oAuto').addEventListener('change',()=>update(false));
@@ -47,13 +45,13 @@ const up2=x=>{const e=Math.pow(10,Math.floor(Math.log10(x))-1);return Math.ceil(
 const autoR=()=>clamp(up2(1.08*settleOPD()),0.5,5000);
 let stT=0;function settle(){clearTimeout(stT);stT=setTimeout(()=>update(false),200)}
 $('ifgBox').addEventListener('wheel',e=>{e.preventDefault();const R=RANGE(),nR=clamp(R*Math.pow(1.0015,e.deltaY),0.5,2*autoR());
-  $('rAuto').checked=false;Rman=nR;$('r').value=1000*Math.log(nR/5)/Math.log(1000);update(true);settle()},{passive:false});
+  $('rAuto').checked=false;Rman=nR;update(true);settle()},{passive:false});
 
 /* ---------- presets ---------- */
 document.querySelectorAll('[data-p]').forEach(b=>b.addEventListener('click',()=>{stopPlay();comps=presets[b.dataset.p].map(c=>({...c,on:true}));sel=-1;
   $('d').value=0;fitRange(true);$('d').value=b.dataset.p==='na'?145:0.4*DMAX();update(false)}));
 $('clear').addEventListener('click',()=>{comps=[];sel=-1;update(false)});
-['d','r','fov','tx','ty'].forEach(k=>{$(k).addEventListener('input',()=>{if(k==='d')stopPlay();update(true)});$(k).addEventListener('change',()=>update(false))});
+['d','fov','tx','ty'].forEach(k=>{$(k).addEventListener('input',()=>{if(k==='d')stopPlay();update(true)});$(k).addEventListener('change',()=>update(false))});
 $('verBtn').addEventListener('click',()=>{$('verAt').textContent='Running…';setTimeout(verify,30)});
 $('tReset').addEventListener('click',()=>{$('tx').value=0;$('ty').value=0;update(false)});
 
@@ -111,7 +109,7 @@ const railV=e=>{const r=rail.getBoundingClientRect(),m=DMAX();return clamp(((e.c
 rail.addEventListener('pointerdown',e=>{stopPlay();raildrag=true;rail.setPointerCapture(e.pointerId);e.preventDefault();$('d').value=railV(e);update(true)});
 rail.addEventListener('pointermove',e=>{if(raildrag){$('d').value=railV(e);update(true)}});
 const railEnd=()=>{if(raildrag){raildrag=false;update(false)}};rail.addEventListener('pointerup',railEnd);rail.addEventListener('pointercancel',railEnd);
-function setRange(m){const d=$('d');m=clamp(m,0.01,5000);d.min=-m;d.max=m;d.step='any';d.value=clamp(+d.value,-m,m);$('dRange').textContent=rangeTxt(m)}
+function setRange(m){const d=$('d');m=clamp(m,0.01,5000);d.min=-m;d.max=m;d.step='any';d.value=clamp(+d.value,-m,m)}
 let rwT=0;rail.addEventListener('wheel',e=>{e.preventDefault();$('dAuto').checked=false;setRange(DMAX()*Math.pow(1.0015,e.deltaY));update(true);clearTimeout(rwT);rwT=setTimeout(()=>update(false),200)},{passive:false});
 rail.addEventListener('keydown',e=>{const m=DMAX(),st=(e.shiftKey?0.001:0.01)*m,k={ArrowLeft:-st,ArrowRight:st,ArrowDown:-st,ArrowUp:st}[e.key];if(k){e.preventDefault();stopPlay();$('d').value=clamp(+$('d').value+k,-m,m);update(false)}});
 $('dFit').addEventListener('click',()=>{fitRange(true);update(true)});
@@ -150,12 +148,12 @@ function editable(id,get,set){const el=$(id);el.classList.add('edit');el.title='
     inp.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){e.preventDefault();fin(true)}else if(e.key==='Escape'){e.preventDefault();fin(false)}});
     inp.addEventListener('blur',()=>fin(true));inp.addEventListener('click',e=>e.stopPropagation())};
   el.addEventListener('click',e=>{e.preventDefault();open()});el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}})}
-const setD=v=>{stopPlay();const d=$('d'),m=Math.max(+d.max,Math.abs(v));if(m>+d.max){const n=nice(m);d.min=-n;d.max=n;$('dRange').textContent=rangeTxt(n)}d.step='any';d.value=v};
+const setD=v=>{stopPlay();const d=$('d'),m=Math.max(+d.max,Math.abs(v));if(m>+d.max){const n=nice(m);d.min=-n;d.max=n}d.step='any';d.value=v};
 const widen=(id,v,sym)=>{const e=$(id);e.step='any';if(sym){const m=Math.ceil(Math.abs(v));if(m>+e.max){e.max=m;e.min=-m}}else{if(v>+e.max)e.max=Math.ceil(v);if(v<+e.min)e.min=v}e.value=v};
 editable('dV',()=>+$('d').value,v=>setD(v));
 editable('dV0',()=>D0(),v=>setD(v/2));
 editable('dRV',()=>DMAX(),v=>{if(!(Math.abs(v)>0))return;$('dAuto').checked=false;setRange(Math.abs(v))});
-editable('rV',()=>RANGE(),v=>{Rman=clamp(Math.abs(v),0.1,2*autoR());$('rAuto').checked=false;$('r').value=1000*Math.log(Math.max(Rman,5)/5)/Math.log(1000)});
+editable('rV',()=>RANGE(),v=>{Rman=clamp(Math.abs(v),0.1,2*autoR());$('rAuto').checked=false});
 editable('fV',()=>+$('fov').value,v=>widen('fov',clamp(v,0.01,85),false));
 editable('txV',()=>+$('tx').value,v=>widen('tx',v,true));
 editable('tyV',()=>+$('ty').value,v=>widen('ty',v,true));

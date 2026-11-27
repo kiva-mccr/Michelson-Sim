@@ -1,11 +1,11 @@
 /* ---------- ring pattern ----------
    Screen point (u,v) in [-1,1]^2 (r = 1 at the edge of the field). Lens mapping: tan(theta) = r tan(theta_max).
-   Mirror-plane coordinates for the tilt wedge: x = a u, y = a v, a = 5 mm.
+   Mirror-plane coordinates for the tilt wedge: x = a u, y = a v, a = L tan(theta_max), L = 28.4 mm (a = 5 mm at 10°).
    OPD: delta(u,v) = 2 d cos(theta) + 2 (alpha_x x + alpha_y y). Every pixel is the exact footprint average above.
-   With zero tilt the pattern is radial, so it is evaluated on a radial grid at 16 samples per pixel and linearly interpolated. */
+   With zero tilt the pattern is radial, so it is evaluated on a radial grid at 16 samples per pixel (4 while moving) and linearly interpolated. */
 const ring=$('ring'),rctx=ring.getContext('2d');let ringLive=false,Ibuf=null;
 function ringModel(){const d=+$('d').value,tm=(+$('fov').value)*Math.PI/180,T=Math.tan(tm),aE=AMM*T/Math.tan(10*Math.PI/180),kx=2e-3*(+$('tx').value)*aE,ky=2e-3*(+$('ty').value)*aE;
-  return{d,tm,T,kx,ky,aE,
+  return{d,T,kx,ky,
     th:r=>Math.atan(r*T),
     opd(u,v){const r=Math.hypot(u,v);return 2*d*Math.cos(Math.atan(r*T))+kx*u+ky*v},
     ddr(r){const th=Math.atan(r*T);return -2*d*Math.sin(th)*T/(1+(r*T)**2)},
@@ -45,7 +45,7 @@ function pixVal(dm,gx,gy,h11,h12,h22,s2,pr,quad){let X=0,Y=0,Z=0,I=0;const t2=s2
    k_b·δ̄ = [k_b·2d mod 2π] + k_b·Δ, with Δ = −4d sin²(θ/2) + k_x u + k_y v computed on the GPU.
    Where Δ is large the fringes are far finer than a pixel and the footprint average has already damped them to ~0.
    The verification table reads the active backend's pixels back and checks them against brute-force integration. */
-const RB={pref:'auto',active:'cpu',list:[],gpu:null,gl:null,workers:null,status:'',busy:false,dirty:false,gms:2e-5,done:null};
+const RB={pref:'auto',active:'cpu',gpu:null,gl:null,workers:null,busy:false,dirty:false,done:null};
 try{RB.pref=localStorage.getItem('mich-renderer')||'auto'}catch(e){}
 const TAU=2*Math.PI;
 /* pack sub-bands and groups for the GPU: per sub-band (P, KA, KB, phase0), (X, Y, Z, 0); per group (a, b, pka, cI), (cX, cY, cZ, 0) */
@@ -54,7 +54,7 @@ function packRing(pr,M){const n=pr.n,sb=new Float32Array(Math.max(8,n*8)),G=pr.G
   G.forEach((g,i)=>{const o=8*i;gr[o]=g.a;gr[o+1]=g.b;gr[o+2]=g.pka;gr[o+3]=g.cI;gr[o+4]=g.cX;gr[o+5]=g.cY;gr[o+6]=g.cZ});
   let kbm=0;for(let k=0;k<n;k++)kbm=Math.max(kbm,pr.KB[k]);return{sb,gr,n,ng:G.length,kbm}}
 
-/* shared pixel maths, written once in a C-like subset and specialised for GLSL and WGSL */
+/* shared pixel maths in GLSL (the WGSL version below repeats it line for line) */
 const PIX_GLSL=`
 float gam(float v){v=clamp(v,0.,1.);return v<=0.0031308?12.92*v:1.055*pow(v,1./2.4)-0.055;}
 /* GPU sin/cos are only accurate to ~5e-4 (absolute), so fringe phases use this: reduce to [0, π], then a 16th-order Taylor series (error < 1e-9) */
@@ -201,7 +201,7 @@ function glRead(L){const gl=L.gl,N=L.N,a=new Float32Array(N*N*4);gl.bindFramebuf
 /* ---- CPU workers: the same pixVal()/avgQ() source, run on every core ---- */
 function initWorkers(){if(!window.Worker||!window.Blob)throw new Error('no workers');const n=clamp((navigator.hardwareConcurrency||4)-1,2,8);
   const src=`const avgQ=${avgQ.toString()};
-${pixVal.toString().replace('function pixVal','function pixVal')}
+${pixVal.toString()}
 const PV=[0,0,0,0];
 onmessage=e=>{const m=e.data,{N,st,j0,j1,d,T,kx,ky,s2,kbm,pr}=m,h=N/2,out=new Float32Array(((j1-j0)/st|0)*Math.ceil(N/st)*4+8);let o=0;
   const rad=r=>{const th=Math.atan(r*T),q=1+r*r*T*T,c=T/q,cp=-2*r*T**3/(q*q),f1=-2*d*Math.sin(th)*c,f2=-2*d*(Math.cos(th)*c*c+Math.sin(th)*cp);return[f1,f2,r>1e-12?f1/r:f2]};
@@ -218,7 +218,7 @@ async function probeBackends(){const ok=[];
   try{RB.gpu=await initWebGPU($('ringGPU'));ok.push('webgpu')}catch(e){RB.gpuErr=e.message}
   try{RB.gl=initWebGL2($('ringGL'));ok.push('webgl2')}catch(e){RB.glErr=e.message}
   try{RB.workers=initWorkers();ok.push('workers')}catch(e){}
-  ok.push('cpu');RB.list=ok;pickBackend()}
+  ok.push('cpu');pickBackend()}
 function pickBackend(why){RB.busy=false;RB.dirty=false;const avail=BACKENDS.map(b=>b[0]).filter(k=>(k==='webgpu'&&RB.gpu)||(k==='webgl2'&&RB.gl)||(k==='workers'&&RB.workers)||k==='cpu');
   RB.active=RB.pref!=='auto'&&avail.includes(RB.pref)?RB.pref:avail[0];
   $('ring').hidden=!['cpu','workers'].includes(RB.active);$('ringGL').hidden=RB.active!=='webgl2';$('ringGPU').hidden=RB.active!=='webgpu';
@@ -226,16 +226,12 @@ function pickBackend(why){RB.busy=false;RB.dirty=false;const avail=BACKENDS.map(
   sel.title=`Rendering the pattern with ${BACKENDS.find(b=>b[0]===RB.active)[1]}`+(RB.gpuErr&&!RB.gpu?` · WebGPU unavailable: ${RB.gpuErr}`:'')+(RB.glErr&&!RB.gl?` · WebGL2 unavailable: ${RB.glErr}`:'');
   if(why)console.info('renderer:',RB.active,why);update(false)}
 
-/* Timing: the tilted (non-radial) image costs one exact pixel average per block. While dragging, the block size is picked from the
-   measured cost so each frame stays under ~30 ms. At rest, the full-resolution image is computed in ~12 ms slices between frames,
+/* Timing: the tilted (non-radial) image costs one exact pixel average per block. While moving, the block size comes from the
+   adaptive preview below. At rest, the full-resolution image is computed in ~12 ms slices between frames,
    sharpening top-down, so the page never blocks; a newer render cancels an unfinished one. Verification renders synchronously. */
 let ringJob=0;
-/* Adaptive preview resolution. While anything is moving (dragging, sweeping, scrolling) each frame must fit the display's
-   frame time. For each renderer path we keep a running estimate c of the cost per rendered block (ms), re-measured every frame,
-   and pick the smallest block size s (finest image) whose predicted cost c·(N/s)² fits the budget:
-   CPU: 16.7 ms minus the measured time of everything else drawn that frame (plots, overlay), at least 5 ms;
-   GPU: 14 ms of GPU time (it runs in parallel with the page). At rest the image is always rendered at every pixel. */
-/* Per path we keep the measured frame time (ms, running average) for every block size s that has been used. A size not yet
+/* Adaptive preview resolution, while anything is moving (dragging, sweeping, scrolling). At rest the image is always
+   rendered at every pixel. Per path we keep the measured frame time (ms, running average) for every block size s that has been used. A size not yet
    tried is predicted from the nearest measured one, scaling with the number of blocks, (N/s)^p (p = 1 radial, 2 otherwise).
    The finest size predicted to fit the budget is chosen; going finer needs a 15% margin, so the choice doesn't flicker.
    Budget: CPU — what is left of a 60 Hz frame after the plots, but at least 6 ms (or 60% of the plots' time on slow devices);
@@ -256,13 +252,13 @@ function renderRingIfNeeded(){const k=ringInputs();if(k===ringKey&&!(ringWasLive
 const ringImgs=new Map();function ringImg(n){let im=ringImgs.get(n);if(!im){if(ringImgs.size>6)ringImgs.clear();im=rctx.createImageData(n,n);ringImgs.set(n,im)}
   if(!RB.off)RB.off=document.createElement('canvas');if(RB.off.width!==n){RB.off.width=n;RB.off.height=n}return im}
 function renderRing(sync){
-  const N=ring.width,M=ringModel(),cs=act(),nsub=sublines().length,tilted=!!(M.kx||M.ky),job=ringJob+1;RB.wDone=null;  /* job is claimed only once this call really renders */
-  let st=1;const T0=performance.now();RB.tC=0;
-  if(RB.active==='webgpu'||RB.active==='webgl2'){/* GPU: always full resolution, even while dragging */
+  const N=ring.width,M=ringModel(),cs=act(),tilted=!!(M.kx||M.ky),job=ringJob+1;RB.wDone=null;  /* job is claimed only once this call really renders */
+  let st=1;const T0=performance.now();
+  if(RB.active==='webgpu'||RB.active==='webgl2'){/* GPU */
     const pr=cs.length?prepSL(sublines()):{n:0,G:[],KB:[]};let gain=1;
     if(cs.length){let fX=0,fY=0,fZ=0;for(const o of sublines()){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}gain=1/Math.max(...desat(toLin([fX,fY,fZ])),1e-9)}
     /* one frame in flight at a time: a newer request waits and then draws the latest state. While dragging, the block size k is
-       chosen from the measured GPU time so a frame takes ≤ ~25 ms; at rest k = 1 (every pixel). Each block is still an exact
+       chosen by the adaptive preview (14 ms of GPU time); at rest k = 1 (every pixel). Each block is still an exact
        footprint average, over the whole block. */
     ringProfile(M);if(RB.busy&&!sync){RB.dirty=true;return}
     ringJob=job;
@@ -288,7 +284,7 @@ function renderRing(sync){
       if(small){const o=4*((j0/st)*W2+i0/st);D[o]=r8;D[o+1]=g8;D[o+2]=b8;D[o+3]=255;return}
       for(let jj=j0;jj<Math.min(N,j0+st);jj++)for(let ii=i0;ii<Math.min(N,i0+st);ii++){const o=4*(jj*N+ii);D[o]=r8;D[o+1]=g8;D[o+2]=b8;D[o+3]=255;Ibuf[jj*N+ii]=In}};
     if(M.kx===0&&M.ky===0){const Nr=Math.ceil(1.42*h/st*(ringLive?4:16))+2,dr=1.42/(Nr-1),RX=new Float64Array(Nr),RY=new Float64Array(Nr),RZ=new Float64Array(Nr),RI=new Float64Array(Nr);
-      const tS=performance.now();for(let k=0;k<Nr;k++){const r=k*dr,dm=2*M.d*Math.cos(Math.atan(r*M.T)),[f1,f2,fr]=M.rad(r),v=pixVal(dm,f1,0,f2,0,fr,sd*sd,pr,true);RX[k]=v[0];RY[k]=v[1];RZ[k]=v[2];RI[k]=v[3]}RB.tC=performance.now()-tS;
+      for(let k=0;k<Nr;k++){const r=k*dr,dm=2*M.d*Math.cos(Math.atan(r*M.T)),[f1,f2,fr]=M.rad(r),v=pixVal(dm,f1,0,f2,0,fr,sd*sd,pr,true);RX[k]=v[0];RY[k]=v[1];RZ[k]=v[2];RI[k]=v[3]}
       for(let j=0;j<N;j+=st){const v=-(j+st/2-h)/h;for(let i=0;i<N;i+=st){const u=(i+st/2-h)/h,t=Math.hypot(u,v)/dr,k=Math.min(Nr-2,t|0),f=t-k;
         put(j,i,RX[k]+(RX[k+1]-RX[k])*f,RY[k]+(RY[k+1]-RY[k])*f,RZ[k]+(RZ[k+1]-RZ[k])*f,RI[k]+(RI[k+1]-RI[k])*f)}}}
     else{const kbm=Math.max(...SL.map(o=>o.kb)),s2=sd*sd;
@@ -303,7 +299,7 @@ function renderRing(sync){
           for(let j=r.j0;j<r.j1;j+=r.st)for(let i=0;i<N;i+=r.st){put(j,i,r.out[o],r.out[o+1],r.out[o+2],r.out[o+3]);o+=4}
           present(r.j0,r.j1);send(w);if(!pending){if(live)lqRecord('wk',st,performance.now()-t0);W.busy=false;done();if(W.dirty){W.dirty=false;renderRing()}}};send(w)});
         ringProfile(M);return}
-      if(ringLive||sync){const t0=performance.now();rows(0,N);RB.tC=performance.now()-t0}
+      if(ringLive||sync)rows(0,N);
       else{/* progressive full-resolution pass */
         let j=0;const slice=()=>{if(job!==ringJob)return;const t0=performance.now(),jj=j;while(j<N&&performance.now()-t0<12){rows(j,j+4);j+=4}
           present(jj,j);if(j<N)setTimeout(slice,0)};

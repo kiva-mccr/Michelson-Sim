@@ -49,7 +49,6 @@ function coherence(){
 const um=v=>!isFinite(v)?'∞':v>=1000?(v/1000).toPrecision(3)+' mm':v.toPrecision(3)+' µm';
 
 /* ---------- equations ---------- */
-const lim=(arr,k=4)=>arr.length>k?arr.slice(0,k).join('+')+`+\\cdots\\ (\\text{${arr.length-k} more})`:arr.join('+');
 /* live equations: one term per line (aligned), so nothing needs sideways scrolling */
 const ML=8,more=n=>n>ML?`\\\\&\\quad+\\cdots\\ (\\text{${n-ML} more})`:'';
 /* two terms per line: the equation popups are wide enough, and it halves the height */
