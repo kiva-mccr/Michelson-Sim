@@ -96,6 +96,7 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - A preview is an Nl×Nl grid of exact footprint averages, Nl any whole number from N/16 to N, each over a block of k = N/Nl device pixels, scaled up (bilinear in XYZ/I on the GPUs, smooth canvas scaling on the CPU).
   - Resolution is continuous and driven by the last frame's measured time: cost t ≈ a·(N/k)^p (p = 1 radial, 2 otherwise), a updated after every preview frame, and the next k is the one predicted to take 90% of the budget, i.e. k·(t/0.9B)^(1/p). It goes coarser at once and finer half the way (log space) per frame.
   - The budget follows how fast the picture moves (Kiva: keep the *apparent* refresh rate, at the highest resolution). The fringe speed v (device px/ms) is the largest |Δδ|/|∇δ| between preview frames at 32 points; a frame may take as long as the motion needs to cross one preview pixel, T = k/v (capped at 100 ms, or 50 ms on the main-thread CPU), so B = base + max(0, T − FR). Slow drags get sharp previews; fast ones keep the display rate. A spectrum change or no recent frame counts as fast.
+  - The sweep is a live input like a drag: each step calls `update(true)`, so the same fringe-speed budget sets its preview resolution, and stopping it renders the exact image (`tests/sweepres.js`).
   - When the inputs stop changing for 150 ms (`IDLE`) with the button still held, the exact at-rest image is rendered (`goIdle` in `ui-loop.js`).
   - Measurements expire after 3 s and reset when the number of sub-bands changes.
   - The budget follows the device: the display's refresh interval is measured from idle `requestAnimationFrame` steps (`measureFrame`, `FR()`, 25th percentile, clamped to 16.7–33.4 ms) and re-measured on resize and when the page becomes visible. CPU paths get what is left of that frame after the plots; GPU paths get 85% of it.
@@ -126,6 +127,7 @@ node tests/symmetry.js                            # untilted at-rest ring: octan
 node tests/gpukernel.js                           # WGSL and GLSL pixel kernels alone vs pixVal in float64 (MS-16)
 node tests/antialias.js                           # previews at several grid sizes vs brute-force footprint integrals, and moiré on a dense ring, every renderer (MS-17)
 node tests/plotstable.js                          # profile and interferogram pixels identical moving and at rest (MS-17)
+node tests/sweepres.js                            # the sweep drives the adaptive preview like a drag: live frames, measured fringe speed, finer when slower, exact when stopped
 ```
 
 `snapshot.js` records every output for 7 spectra on the CPU, worker and WebGL2 renderers. Two runs of the same build are identical, so any difference is real. Only accept a difference at floating-point noise level, and say so. Since MS-13, `ring` and `Ib` differ from pre-MS-13 builds in the hidden corners (r > rcut) only. Since MS-17 (footprint sd 0.4 → 0.5 px), `ring`, `Ib`, `ifgC` (the interferogram colours) and the check table differ from pre-MS-17 builds on purpose; everything else (γ, sub-bands, coherence, plot SVGs, `profC`, equations, readouts) must stay identical.
