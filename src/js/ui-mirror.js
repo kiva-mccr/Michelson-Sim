@@ -36,11 +36,13 @@ const mset=e=>{const pt=msvg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;cons
 $('m2').addEventListener('pointerdown',e=>{stopPlay();mdrag=true;msvg.setPointerCapture(e.pointerId);e.preventDefault()});
 msvg.addEventListener('pointermove',e=>{if(mdrag)mset(e)});
 const mend=()=>{if(mdrag){mdrag=false;update(false)}};msvg.addEventListener('pointerup',mend);msvg.addEventListener('pointercancel',mend);
-/* sweep: one full pass from -max to +max takes 8 s, then it turns around */
+/* sweep: one full pass from −range to +range takes SWT seconds (8 s by default, MS-14), then it turns around.
+   sweepStep moves d by the mirror speed 2·range/SWT for dt seconds; the verification table checks it. */
 let playing=false,pdir=1,plast=0;
+const sweepV=()=>2*DMAX()/SWT;
+function sweepStep(v,dir,dt,m,T){v+=dir*dt*2*m/T;if(v>=m){v=m;dir=-1}if(v<=-m){v=-m;dir=1}return[v,dir]}
 function stopPlay(){if(!playing)return;playing=false;$('dPlay').setAttribute('aria-pressed','false');$('dPlay').textContent='▶ Sweep';update(false)}
-function tick(t){if(!playing)return;const dt=plast?Math.min(0.1,(t-plast)/1000):0;plast=t;const m=DMAX();let v=+$('d').value+pdir*dt*2*m/8;
-  if(v>=m){v=m;pdir=-1}if(v<=-m){v=-m;pdir=1}$('d').value=v;update(true);requestAnimationFrame(tick)}
+function tick(t){if(!playing)return;const dt=plast?Math.min(0.1,(t-plast)/1000):0;plast=t;const r=sweepStep(+$('d').value,pdir,dt,DMAX(),SWT);pdir=r[1];$('d').value=r[0];update(true);requestAnimationFrame(tick)}
 $('dPlay').addEventListener('click',()=>{if(playing){stopPlay();return}playing=true;plast=0;$('dPlay').setAttribute('aria-pressed','true');$('dPlay').textContent='❚❚ Pause';requestAnimationFrame(tick)});
 
 /* read the active renderer's pixels back as I/I_tot, for the verification table */

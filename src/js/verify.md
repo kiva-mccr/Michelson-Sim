@@ -7,3 +7,4 @@ The verification table (`verify`, Method and checks → Run checks), Simpson qua
 - Every rendered number or image needs a row here that compares it against an independent computation (quadrature or a brute-force 2-D pixel integral), never against the same code path.
 - Tolerances are part of the spec: 1e-6 for the interferogram, 1e-3 for the sub-bands and ring pixels, 1e-2 for XYZ, 1e-4 for Mandel. Never loosen one to make a check pass.
 - The live equations put 2 terms per line when the window is at least 900 px wide, otherwise 1.
+- The Sweep row (MS-14) steps the mirror with `sweepStep` from −range at uneven frame times (seeded, 5–40 ms) until it turns at +range, cutting the last step at the turn, and compares the elapsed time with `SWT` and the speed readout with 2·range over that time (tolerance 1e-9, relative).
