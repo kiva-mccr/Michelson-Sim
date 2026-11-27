@@ -72,12 +72,14 @@ let YM=1;function calcYM(){if(drag)return YM;const ts=trueShape();let m=Math.max
    Giving each sub-band its own coherence envelope keeps the sum equal to the analytic Gaussian (error < 1e-4) at every OPD;
    bare delta-function sub-lines would falsely "revive" interference at delta ~ 1/spacing. */
 const SPAN=2.8;let slKey='',slVal=null;
-function sublines(){const key=JSON.stringify(act().map(c=>[c.s,c.a,c.f]));if(key===slKey)return slVal;slKey=key;const out=[];let gi=0;for(const c of act()){gi++;if(!c.f){out.push({s:c.s,p:P(c),w:0,g:gi,pka:0});continue}
+function sublines(){const key=JSON.stringify(act().map(c=>[c.s,c.a,c.f]));if(key===slKey)return slVal;slKey=key;return slVal=splitBands(act())}
+/* the sub-bands of any component list (the startup speed test uses a fixed one) */
+function splitBands(cs){const out=[];let gi=0;for(const c of cs){gi++;if(!c.f){out.push({s:c.s,p:P(c),w:0,g:gi,pka:0});continue}
   /* sub-band count: at least 15, and fine enough that each sub-band is ≤ 0.012 µm⁻¹ wide (≈ 3.5 nm at 550 nm), max 241; spans ±2.8w */
   const w=wOf(c),K=clamp(Math.ceil(2*SPAN*w/0.012)+1,15,241),dx=2*SPAN/(K-1),wc=Math.sqrt(1-dx*dx),pka=(Math.PI*w)**2;let ws=[],t=0;
   for(let k=0;k<K;k++){const x=-SPAN+dx*k,g=Math.exp(-((x/wc)**2));ws.push([c.s+x*w,g]);t+=g}
   for(const[s,g]of ws)out.push({s,p:P(c)*g/t,w:dx*w,g:gi,pka})}
-  for(const o of out){o.X=bandXYZ(o.s,o.w);o.ka=(Math.PI*o.w)**2;o.kb=2*Math.PI*o.s}slVal=out;return out}
+  for(const o of out){o.X=bandXYZ(o.s,o.w);o.ka=(Math.PI*o.w)**2;o.kb=2*Math.PI*o.s}return out}
 /* XYZ of one sub-band: its own Gaussian shape integrated against the CVRL functions (Simpson, 41 points over ±3.5 w_s) */
 function bandXYZ(s,ws){if(!ws)return visXYZ(1000/s);const n=40,a=s-3.5*ws,h=7*ws/n,X=[0,0,0];let tw=0;
   for(let i=0;i<=n;i++){const sg=a+i*h,wt=(i===0||i===n?1:(i%2?4:2))*Math.exp(-(((sg-s)/ws)**2)),x=visXYZ(1000/sg);X[0]+=wt*x[0];X[1]+=wt*x[1];X[2]+=wt*x[2];tw+=wt}return X.map(v=>v/tw)}
