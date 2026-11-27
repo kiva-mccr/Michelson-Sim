@@ -20,6 +20,7 @@ Kiva added these on 2026-11-27. Add a step here only once Kiva has approved it.
 - [ ] MS-7: Tilt on the fixed arm. Show the tilt on M₁, the mirror that doesn't move, instead of on the moving M₂. Draw the tilt as the total magnitude √(αx² + αy²) of both components. Today the schematic rotates M₂ by αx alone.
 - [ ] MS-8: Remove the renderer controls. Drop the Renderer menu under the pattern and always use the automatic choice (WebGPU → WebGL2 → workers → CPU).
 - [ ] MS-9: Animate the tilt snap. When the tilt dot snaps to 0, 0 near the centre, it should glide there smoothly instead of jumping in one frame.
+- [ ] MS-11: Scale the live preview to how fast it is changing, not only to the device. The preview should always show the highest resolution that still holds the frame rate. Builds on MS-10 (Kiva, 2026-11-27).
 
 ## Decisions
 
