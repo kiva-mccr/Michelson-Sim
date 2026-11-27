@@ -45,7 +45,7 @@ A single-page, dependency-free simulator. You edit a source spectrum. The page t
   - The mirror rail sets d; scroll on it to rescale the range.
   - The white dot on the ring sets the tilt. Only the dot can be dragged. It snaps to 0, 0 near the centre, and at 0, 0 it appears on hover.
   - Dragging the ring's rim, or scrolling on the ring, sets the field of view.
-  - The Michelson schematic stays as a visual of what is happening. M₂ slides with d; the fixed mirror M₁ shows the tilt, turned by |α| = √(αx²+αy²) (MS-7).
+  - The Michelson schematic stays as a visual of what is happening. M₂ slides with d; the fixed mirror M₁ shows the tilt (MS-7): αx turns it either way in the drawing's plane, and αy leans it, drawn as a shaded strip of its face (+αy) or back (−αy).
 - **Equations, notes, method and sources open as centred modal popups.**
   - Exception: the Components list is a non-modal popup at the bottom left.
 

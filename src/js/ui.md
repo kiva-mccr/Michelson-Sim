@@ -9,4 +9,4 @@ Last in the build order. The component table, auto ranges (`settleOPD`, `fitRang
 - Keep the file ending `update(false);` followed by `}` and `</script>`: `tests/snapshot.js` and `tests/fastpath.js` insert their hooks there.
 - `draw()` keeps `LQ.other` (plot time outside the ring) and `LQ.tot` (the whole main-thread frame) as running averages while moving; the preview budgets use them.
 - The CPU ring is capped at 480² pixels. The GPUs render at device resolution, up to 1024².
-- The Michelson schematic shows the tilt on the fixed mirror M₁, turned by |α| = √(αx²+αy²) (500 µrad draws as 10°). M₂ only slides with d. The physics is unchanged: δ depends only on the tilt between the two mirror images.
+- The Michelson schematic shows the tilt on the fixed mirror M₁ (500 µrad draws as 10°): αx turns it in the drawing's plane, either way; αy leans it, drawn as a shaded strip of its silvered face below the bar (+αy) or of its dark back above it (−αy), as deep as |αy|. M₂ only slides with d. The physics is unchanged: δ depends only on the tilt between the two mirror images.
