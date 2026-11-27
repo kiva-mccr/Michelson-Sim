@@ -215,7 +215,9 @@ function draw(){raf=0;/* d and δ0 to the nearest nm (3 decimals in µm), with a
   const t0=performance.now();LQ.ms=0;fitRing();renderSpec();renderOut();renderIfg();renderRingIfNeeded();renderOv();renderRail();renderMini();
   if(ringLive){const t=performance.now()-t0;LQ.other=0.7*LQ.other+0.3*Math.max(0,t-LQ.ms);LQ.tot=0.7*LQ.tot+0.3*t}}
 function runEq(){eqT=0;eqs();table();save()}
-function update(live){ringLive=!!live;if(!live){if($('dAuto').checked)fitRange(false);if($('rAuto').checked)fitR()}
+/* MS-11: a live input that stops changing for IDLE ms (the button still held) gets the exact at-rest image; the next change goes live again */
+let idleT=0;const goIdle=()=>{if(ringLive){ringLive=false;if(!raf)raf=requestAnimationFrame(draw)}};
+function update(live){ringLive=!!live;clearTimeout(idleT);if(live)idleT=setTimeout(goIdle,IDLE);if(!live){if($('dAuto').checked)fitRange(false);if($('rAuto').checked)fitR()}
   if(!raf)raf=requestAnimationFrame(draw);
   if(live){if(!eqT)eqT=setTimeout(runEq,350)}else{clearTimeout(eqT);eqT=setTimeout(runEq,40)}  /* let the released frame paint first */
   $('verAt').textContent='Settings changed since the last run. Press Run checks to verify the current state.'}

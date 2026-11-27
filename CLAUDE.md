@@ -78,12 +78,15 @@ A single-page, dependency-free simulator. You edit a source spectrum. The page t
   - The fringe cosine is `cosA`: range-reduced, then a Taylor series. GPU `cos` is only good to about 5e-4.
   - Do not "simplify" any of this back to built-ins. The tolerance is 1e-3, and builtin GPU trig failed it at d = 5 mm.
 - **Verification:** the "Ring pixels" check reads back the **active** renderer's pixels (`ringReadback`) and compares them with brute-force integration.
-- **Adaptive preview resolution while moving** (`LQ`, `lqPick`, `lqRecord`):
-  - Each path keeps measured frame times per block size. The finest size that fits the frame budget is chosen, with a 15% margin before going finer.
-  - Measurements expire after 3 s and reset when the spectrum changes.
+- **Adaptive preview resolution while moving** (`LQ`, `lqPick`, `lqRecord`, `lqMotion`, `lqBudget`; MS-10, MS-11):
+  - A preview is an Nl×Nl grid of exact footprint averages, Nl any whole number from N/16 to N, each over a block of k = N/Nl device pixels, scaled up (bilinear in XYZ/I on the GPUs, smooth canvas scaling on the CPU).
+  - Resolution is continuous and driven by the last frame's measured time: cost t ≈ a·(N/k)^p (p = 1 radial, 2 otherwise), a updated after every preview frame, and the next k is the one predicted to take 90% of the budget, i.e. k·(t/0.9B)^(1/p). It goes coarser at once and finer half the way (log space) per frame.
+  - The budget follows how fast the picture moves (Kiva: keep the *apparent* refresh rate, at the highest resolution). The fringe speed v (device px/ms) is the largest |Δδ|/|∇δ| between preview frames at 32 points; a frame may take as long as the motion needs to cross one preview pixel, T = k/v (capped at 100 ms, or 50 ms on the main-thread CPU), so B = base + max(0, T − FR). Slow drags get sharp previews; fast ones keep the display rate. A spectrum change or no recent frame counts as fast.
+  - When the inputs stop changing for 150 ms (`IDLE`) with the button still held, the exact at-rest image is rendered (`goIdle` in `ui.js`).
+  - Measurements expire after 3 s and reset when the number of sub-bands changes.
   - The budget follows the device: the display's refresh interval is measured from idle `requestAnimationFrame` steps (`measureFrame`, `FR()`, 25th percentile, clamped to 16.7–33.4 ms) and re-measured on resize and when the page becomes visible. CPU paths get what is left of that frame after the plots; GPU paths get 85% of it.
   - The profile and interferogram range plots adapt too (`DPQ`, `dpK`, `dpRecord`): 8 sub-columns per pixel at rest; while moving, they stay at 2 until the ring preview is at full resolution (the ring has priority), then use only spare frame time: the most of 2, 3, 4, 6, 8 whose extra cost (measured cost per sub-column) fits the budget minus the last frame's main-thread time (`LQ.tot`), capped at a fifth of the budget. So they never push the ring back to a coarser preview.
-  - At rest, the image is always rendered at every pixel. On the CPU this is time-sliced into 12 ms slices so the page never blocks.
+  - At rest, the image is always rendered at every pixel (Nl = N, the same code path and bit-identical outputs as before MS-11). On the CPU this is time-sliced into 12 ms slices so the page never blocks.
 - Only one GPU or worker frame is in flight at a time (busy/dirty).
 - The ring re-renders only when its inputs change (`ringInputs`, `renderRingIfNeeded`).
 
@@ -125,7 +128,7 @@ These were only checked in headless Chromium on a cloud machine without a GPU. K
 
 - The WebGPU ring has only been checked through its readback numbers. Headless Chrome shows WebGPU canvases as black, so nobody has looked at its image in a test.
 - WebGL2 was tested through SwiftShader (software rendering), not on a real GPU.
-- Frame times and the adaptive preview resolution (`tests/perf.py`) were measured on the cloud machine, not on Kiva's hardware. That includes the device scaling (MS-10): the refresh-rate measurement only ever saw a 60 Hz headless display, and 30 Hz was simulated by forcing `FR()`.
+- Frame times and the adaptive preview resolution (`tests/perf.py`) were measured on the cloud machine, not on Kiva's hardware. That includes the device scaling (MS-10): the refresh-rate measurement only ever saw a 60 Hz headless display, and 30 Hz was simulated by forcing `FR()`. The motion-driven budget (MS-11) was checked only with scripted rail drags at fixed speeds in headless Chromium (SwiftShader WebGL2, workers, CPU); how smooth slow drags look on a real screen has not been seen.
 - The layout checks ran in headless Chromium only. Firefox and Safari have never been tested.
 
 ## Roadmap

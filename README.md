@@ -2,7 +2,7 @@
 
 Open `index.html` in a browser. It needs no server (MathJax comes from a CDN).
 
-While you drag, the ring and the range plots show a lower-resolution preview sized to what your device can draw at its display's refresh rate. At rest every pixel is computed exactly, so the results never depend on how fast the device is. The ? in the corner of the pattern panel shows which renderer is drawing it (WebGPU, WebGL2 or the CPU, chosen automatically) and at what resolution.
+While you drag, the ring and the range plots show a lower-resolution preview sized to what your device can draw. The slower the picture is changing, the sharper the preview, because a frame can then take longer without the motion looking less smooth; when you stop moving, even with the button held, the exact image appears. At rest every pixel is computed exactly, so the results never depend on how fast the device is. The ? in the corner of the pattern panel shows which renderer is drawing it (WebGPU, WebGL2 or the CPU, chosen automatically) and at what resolution.
 
 `index.html` is built from `src/` with `python3 build.py` (standard library only). Edit the files in `src/`, then rebuild.
 
