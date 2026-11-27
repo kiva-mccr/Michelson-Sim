@@ -26,7 +26,7 @@ function renderOv(){const s=ov.clientWidth;if(!s)return;const c=s/2,[ex,ey]=dotP
    GLIDE ms (ease-out cubic), and leaving the circle glides back out to the cursor. The tilt value glides, not just the dot,
    so every frame of the glide is the true pattern for that tilt (as a live preview; the exact image follows when it lands).
    A target that moves during a glide (the cursor) is followed. With reduced motion, it jumps. */
-const GLIDE=150;let tGlide=null,inSnap=false;
+const GLIDE=300;let tGlide=null,inSnap=false;
 const noMotion=()=>window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 function glideTilt(x,y){if(noMotion()){setTilt(x,y);update(!!rdrag);return}
   if(tGlide){tGlide.x1=x;tGlide.y1=y;return}

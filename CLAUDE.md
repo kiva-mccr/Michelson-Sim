@@ -54,7 +54,7 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - A line's power is `I = √π·a·w₀`, where w₀ corresponds to FWHM 0.008 µm⁻¹ (the width at which a dragged Gaussian snaps back to a line).
 - **Controls are dragged, not slid.**
   - The mirror rail sets d; scroll on it to rescale the range.
-  - The white dot on the ring sets the tilt. Only the dot can be dragged. It snaps to 0, 0 near the centre, and at 0, 0 it appears on hover. The snap glides over 150 ms (MS-9): the tilt value itself moves, so each frame shows the true pattern. Reset tilt and double-click glide too; with reduced motion it jumps.
+  - The white dot on the ring sets the tilt. Only the dot can be dragged. It snaps to 0, 0 near the centre, and at 0, 0 it appears on hover. The snap glides over 300 ms (MS-9): the tilt value itself moves, so each frame shows the true pattern. Reset tilt and double-click glide too; with reduced motion it jumps.
   - Dragging the ring's rim, or scrolling on the ring, sets the field of view.
   - The Michelson schematic stays as a visual of what is happening. M₂ slides with d; the fixed mirror M₁ shows the tilt (MS-7): αx turns it either way in the drawing's plane, and αy leans it, drawn as a shaded strip of its face (+αy) or back (−αy).
 - **Equations, notes, method and sources open as centred modal popups.**
