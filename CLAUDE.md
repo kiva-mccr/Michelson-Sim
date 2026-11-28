@@ -20,6 +20,7 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
 - `src/style.css`: styles.
 - `src/js/`, concatenated in this order inside one block scope, so the files share names freely:
   - `physics.js`: constants, CMFs and colour, presets and state, `gamma`, `sublines`.
+  - `ui-touch.js`: touch support shared by the controls: `TOUCH`, `fat(e)`, the touch wording of the hints, and `pinch` (MS-22).
   - `plots-spectrum.js`: axes, the spectrum editor and the interfered spectrum. Moving d redraws only what depends on it: the editor is skipped when its inputs are unchanged (`specKey`), and the interfered spectrum keeps its axes, grid and S(σ) (`outC`) and re-evaluates only T(σ;δ₀).
   - `plots-range.js`: shared pixel maths, the anti-aliased range plots and the interferogram (trace cached, so only the δ₀ marker moves).
   - `ring-model.js`: ring model (`opdModel`), `prepSL`, `pixVal`/`avgQ`, `gridPix` (one grid point; the workers run this same source).
@@ -59,6 +60,13 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - Dragging the ring's rim, or scrolling on the ring, sets the field of view.
   - The sweep's pass time (−range to +range, default 8 s) and the mirror speed it implies sit in the rail header (MS-14). Both can be typed into or scrolled; the pass time stays the same when the range changes.
   - The Michelson schematic stays as a visual of what is happening. M₂ slides with d; the fixed mirror M₁ shows the tilt (MS-7): αx turns it either way in the drawing's plane, and αy leans it, drawn as a shaded strip of its face (+αy) or back (−αy).
+- **Controls work by touch on phones** (MS-22, Kiva):
+  - Every drag area tells the browser it handles its own touches (`touch-action`), or a finger drag turns into a page scroll and is cancelled.
+  - Hit tests scale with the event's pointer (`fat(e)`, 2 for a finger); handles are drawn larger on touch devices (`TOUCH`).
+  - Spectrum editor: tap to add (a swipe or a long-press adds nothing), and a selection bar under it (λ, height, FWHM to type into, Delete). The bar shows in the stacked layout and on touch, never in the one-screen layout with a mouse.
+  - Two-finger pinch does what scroll does: ring field of view, rail range, interferogram range, interfered-spectrum zoom. The tilt dot shows at 0, 0 on touch (no hover), and a double-tap resets the tilt.
+  - A long-press is left free for a context menu: it must not add a line or start a drag on empty plot.
+  - No sideways page scroll at phone widths (320, 390, 750 px); `tests/touch.js` checks all of this.
 - **Equations, notes, method and sources open as centred modal popups.**
   - Exception: the Components list is a non-modal popup at the bottom left.
 
@@ -132,6 +140,7 @@ node tests/gpukernel.js                           # WGSL and GLSL pixel kernels 
 node tests/antialias.js                           # previews at several grid sizes vs brute-force footprint integrals, and moiré on a dense ring, every renderer (MS-17)
 node tests/plotstable.js                          # profile and interferogram pixels identical moving and at rest (MS-17)
 node tests/sweepres.js                            # the sweep drives the adaptive preview like a drag: live frames, measured fringe speed, finer when slower, exact when stopped
+node tests/touch.js                               # touch controls in an emulated phone: drags, tap to add, the selection bar, pinches, no sideways scroll (MS-22)
 ```
 
 `snapshot.js` records every output for 7 spectra on the CPU, worker and WebGL2 renderers. Two runs of the same build are identical, so any difference is real. Only accept a difference at floating-point noise level, and say so. Since MS-13, `ring` and `Ib` differ from pre-MS-13 builds in the hidden corners (r > rcut) only. Since MS-17 (footprint sd 0.4 → 0.5 px), `ring`, `Ib`, `ifgC` (the interferogram colours) and the check table differ from pre-MS-17 builds on purpose; everything else (γ, sub-bands, coherence, plot SVGs, `profC`, equations, readouts) must stay identical.
@@ -162,6 +171,7 @@ These were only checked in headless Chromium on a cloud machine without a GPU. K
 - The startup speed test (MS-18) has only run here, comparing SwiftShader WebGL2 with the CPU workers and the main thread. It has never timed WebGPU (the full page loses its WebGPU context on this host) or a real GPU, so whether it picks the GPU on Kiva's machine, and the times it shows in the ? popup there, have not been seen.
 - The lobing fix (MS-20) was checked in headless Chromium at device pixel ratios 1 and 2 (screenshots against the exact pattern). Its at-rest render times on the CPU paths at high resolution (tilted LED at dpr 2: about 1.1 s on 3 workers, 3.5 s on the main thread) were measured on the cloud machine only.
 - The layout checks ran in headless Chromium only. Firefox and Safari have never been tested.
+- The touch controls (MS-22) were checked only in headless Chromium emulating phones (iPhone 13, a 320 px Android, landscape), with synthetic touch events. They have not been used on a real phone, and iOS Safari, where `dblclick` and long-press behave differently, has never been tested.
 - MS-17 (plot flicker, moiré) was reproduced and checked in headless Chromium on CPU, workers and SwiftShader WebGL2, by pixel comparisons and brute-force integrals. Kiva saw both problems on a real machine; whether the fix looks right there has not been seen. The WebGPU preview path was checked only through `tests/gpukernel.js` here, since the full page loses its WebGPU context on this host.
 
 ## Roadmap
