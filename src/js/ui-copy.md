@@ -1,6 +1,6 @@
 # ui-copy.js
 
-The copy / save menu on every plot (MS-23): `xOpen`/`xClose` (a popup at the pointer, or a bottom sheet on touch screens and narrow windows), `xDo` (Copy image, Download PNG, Download SVG, Download MP4), the size buttons (2×, 4×, 8×, remembered per browser), the long-press wiring for each plot, and `exportCheck` (the Exported plots row).
+The copy / save menu on every plot (MS-23): `xOpen`/`xClose` (a popup at the pointer, or a bottom sheet on touch screens and narrow windows), `xDo` (Copy image, Download PNG, Download SVG, Download MP4), the size buttons (2×, 4×, 8×, remembered per browser), the long-press wiring for each plot, and `exportCheck` (the Exported plots row). While an MP4 renders, `mp4Eta` shows "Rendering frame i of n (x%) · about … left"; the time left is the mean time per frame since frame 1 times the frames left (frame 1 is excluded, since it includes setup), shown from frame 2 until the last frame.
 
 ## Rules and pitfalls
 
