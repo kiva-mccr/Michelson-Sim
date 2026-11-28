@@ -188,7 +188,7 @@ dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;h
     <div class="panel">
       <div class="chead"><h2>Source spectrum $S(\sigma)$</h2><span class="hbtns"><button id="openComp" class="mini" aria-haspopup="dialog">Components (<span id="nComp">0</span>)</button><button class="mini eqbtn" data-dlg="eqdlg1" aria-haspopup="dialog">Equations and notes</button></span></div>
       <p class="hint" data-touch="Tap to add · drag a dot to move · drag its width handles to widen · tap a dot to edit or delete it below">Click to add · drag a dot to move · drag its line or width handles to widen · double-click to delete</p>
-      <div class="fig" id="specBox"><svg id="spec" role="img" aria-label="Editable source spectrum"></svg></div>
+      <div class="fig" id="specBox"><canvas id="specC"></canvas><svg id="spec" role="img" aria-label="Editable source spectrum"></svg></div>
       <div class="selbar" id="selBar" hidden><span class="sw" id="sbSw"></span><span class="chip">λ <b id="sbL"></b> nm</span><span class="chip">height <b id="sbA"></b></span><span class="chip">FWHM <b id="sbF"></b></span><button id="sbDel" class="mini">Delete</button></div>
     </div>
     <div class="panel" id="mich">
@@ -237,7 +237,7 @@ dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;h
     </div>
     <div class="panel">
       <div class="chead"><h2>Interfered spectrum $S_{\rm out}(\sigma;\delta_0)$</h2><button class="mini eqbtn" data-dlg="eqdlg4" aria-haspopup="dialog">Equations and notes</button></div>
-      <div class="fig plot" id="outBox" title="Scroll to zoom, drag to pan" style="cursor:grab;touch-action:none"><svg id="out"></svg></div>
+      <div class="fig plot" id="outBox" title="Scroll to zoom, drag to pan" style="cursor:grab;touch-action:none"><canvas id="outCv"></canvas><svg id="out"></svg></div>
       <div class="zrow"><span class="note"><span data-touch="Pinch to zoom · drag to pan">Scroll to zoom · drag to pan</span> · <b id="oV"></b></span><label class="chk"><input type="checkbox" id="oAuto" checked> Auto-fit to the components</label></div>
     </div>
     <div class="panel">
@@ -269,7 +269,7 @@ dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;h
 <li>Each pixel is the exact average of the pattern over its footprint, so rings finer than a pixel blend smoothly instead of forming false moiré.</li>
 <li>The pattern is drawn by the fastest renderer on your device. The page starts with the first one available in the order WebGPU, WebGL2, the CPU on all cores (Web Workers), the CPU on one core. Once the first image is done, a short speed test has each of them compute the same image, then switches to the fastest and remembers it for this device. The ? in the corner of this panel shows which one is in use, the test's times, and the resolution it is drawing at. All four evaluate the same per-pixel formula. On the GPU, the large part of each fringe phase, $k_b\cdot 2d \bmod 2\pi$, is computed in 64-bit on the CPU, and the cosine is taken with an accurate series, because GPU arithmetic is 32-bit. The "Ring pixels" check reads the active renderer's pixels back and compares them with brute-force integration.</li>
 <li>The profile below is a cut through the centre along the dashed line: the tilt direction $(\alpha_x,\alpha_y)$, or $x$ with no tilt.</li>
-<li>The profile and the interferogram are anti-aliased range plots: each pixel is shaded by how much of it the true signal covers, using 8 sub-columns per pixel. Fringes near the pixel pitch blend into an even tone instead of forming moiré, and where they are finer than a pixel the fill spans the full swing $\tfrac12(1\pm|\gamma|)$.</li>
+<li>The profile, the interferogram and both spectra are drawn the same anti-aliased way: each pixel is shaded by how much of it the true curve covers, using 8 sub-columns per pixel, or the coverage averaged over the fringe phase once a pixel holds a whole fringe. Fringes near the pixel pitch blend into an even tone instead of forming moiré, and where they are finer than a pixel the fill spans the full swing $\tfrac12(1\pm|\gamma|)$.</li>
 </ul></div>
 </dialog>
 <dialog class="dlg eqdlg" id="eqdlg3" aria-labelledby="eqdlg3t">
@@ -278,7 +278,7 @@ dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;h
 </dialog>
 <dialog class="dlg eqdlg" id="eqdlg4" aria-labelledby="eqdlg4t">
   <div class="dh"><h2 id="eqdlg4t">Interfered spectrum $S_{\rm out}(\sigma;\delta_0)$: equations and notes</h2><button data-close>Close</button></div>
-  <div class="db"><div class="eq big">$$S_{\rm out}(\sigma;\delta_0)=S(\sigma)\cdot\tfrac12\left[1+\cos(2\pi\sigma\delta_0)\right]$$</div><div class="eq big">$$\delta_0=2d$$</div><p class="note">The channel spacing is $\Delta\sigma=1/\delta_0$.<sup><a href="#s3">[3]</a></sup></p><p class="note">The dashed outline is the true shape of $S(\sigma)$ and the thin grey curve is $T(\sigma,\delta_0)$.</p><p class="lab">With your current settings:</p><div class="eq big" id="eqO"></div></div>
+  <div class="db"><div class="eq big">$$S_{\rm out}(\sigma;\delta_0)=S(\sigma)\cdot\tfrac12\left[1+\cos(2\pi\sigma\delta_0)\right]$$</div><div class="eq big">$$\delta_0=2d$$</div><p class="note">The channel spacing is $\Delta\sigma=1/\delta_0$.<sup><a href="#s3">[3]</a></sup></p><p class="note">The dashed outline is the true shape of $S(\sigma)$ and the thin grey curve is $T(\sigma,\delta_0)$. When the channels are finer than a pixel, the curve fills the band from 0 to $S(\sigma)$ that it really covers, instead of being sampled into false fringes, and the shaded area is the exact average over each pixel, which tends to $S/2$. Zoom in to see the channels again.</p><p class="lab">With your current settings:</p><div class="eq big" id="eqO"></div></div>
 </dialog>
 <dialog class="dlg eqdlg" id="eqdlg5" aria-labelledby="eqdlg5t">
   <div class="dh"><h2 id="eqdlg5t">Coherence length $l_c$: equations and notes</h2><button data-close>Close</button></div>
@@ -307,6 +307,8 @@ dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;h
         <p class="mh3">3 · Pixel averaging (no aliasing)</p>
         <div class="eq">$$\big\langle e^{-a\delta^2+ib\delta}\big\rangle_{\Delta\sim\mathcal N(0,s^2I)}=\frac{e^{X}}{\sqrt{\det(I-s^2B)}}$$</div><div class="eq">$$X=-a\bar\delta^2+ib\bar\delta+\tfrac12\kappa^2s^2\,g^{\mathsf T}(I-s^2B)^{-1}g$$</div><div class="eq">$$\kappa=-2a\bar\delta+ib$$</div><div class="eq">$$B=\kappa H-2a\,gg^{\mathsf T}$$</div>
         <p class="note">Each pixel is a Gaussian footprint with a standard deviation of $s=0.5$ px (a fringe at the pixel pitch keeps $e^{-2\pi^2s^2}<1\%$ of its contrast, so it can't alias into moiré); a moving preview uses the same footprint scaled to its own, larger pixels. Across it the OPD is expanded to second order, $\delta=\bar\delta+g^{\mathsf T}\Delta+\tfrac12\Delta^{\mathsf T}H\Delta$, with the gradient $g$ and the Hessian $H$ computed analytically. The sub-band envelope is expanded to first order. Here $a=\pi^2w^2$ and $b=2\pi\sigma$. The result is a closed-form Gaussian integral; for lines ($a=0$) it is exact for any quadratic OPD. With $H=0$ it reduces to $q^{-1/2}e^{-(a\bar\delta^2+b^2\tau^2/2)/q}\cos(b\bar\delta/q)$, where $q=1+2a\tau^2$ and $\tau=s|g|$. That first-order form is used where the curvature phase $b\,s^2|H|<3\times10^{-4}$, and also for the interferogram's dense-mode colours.</p>
+        <p class="note">The 1-D plots (both spectra, the profile and the interferogram) share one drawing method. Where a pixel column holds less than one fringe, 8 sub-columns each cover the exact span of the curve over their slice (32 samples per fringe). Where it holds $N\ge1$ fringes, the sinusoid meets a row at position $u\in[-1,1]$ in the band at the phases $\pm a$, $a=\arccos u$, and the row gets the coverage of one sub-column averaged over the fringe phase:</p><div class="eq">$$c(u)=\min\!\Big(1,\tfrac{2L-\max(0,L-2a)-\max(0,L-2\pi+2a)}{2\pi}\Big)$$</div><div class="eq">$$L=2\pi N/8$$</div>
+        <p class="note">In the interfered spectrum the band is $[0,\max_k S(\sigma_k)]$ over the peaks $\sigma_k=k/|\delta_0|$ of $T$ in the pixel, and the shaded area is the footprint average in closed form, with $s_\sigma$ the 0.5 px footprint in $\sigma$ at the pixel centre $\sigma_c$:</p><div class="eq">$$\begin{aligned}\langle S\,T\rangle&=\sum_n\frac{a_n w_n}{2\sqrt{q_n}}\,e^{-(\sigma_c-\sigma_n)^2/q_n}\\&\quad\times\big[1+e^{-\pi^2\delta_0^2/p_n}\cos 2\pi\delta_0\mu_n\big]\end{aligned}$$</div><div class="eq">$$q_n=w_n^2+2s_\sigma^2$$</div><div class="eq">$$p_n=\frac{1}{w_n^2}+\frac{1}{2s_\sigma^2}$$</div><div class="eq">$$\mu_n=\frac{\sigma_n/w_n^2+\sigma_c/(2s_\sigma^2)}{p_n}$$</div>
         <p class="mh3">4 · Colour</p>
         <div class="eq">$$\begin{aligned}(X,Y,Z)&=\sum_k p_k\,\tfrac12\big[1+\langle e^{-a_k\delta^2}\cos b_k\delta\rangle\big]\\&\qquad\times\big(\bar x,\bar y,\bar z\big)(\lambda_k)\end{aligned}$$</div>
         <p class="note">Each Gaussian is split into $K$ sub-Gaussians spanning $\pm2.8w$, spaced $\Delta x\,w$ apart with $\Delta x=5.6/(K-1)$, each with width $w_s=\Delta x\,w$. $K$ is at least 15 and large enough that $w_s\le0.012\ \mu\text{m}^{-1}$, with a maximum of 241. The whole Gaussian is always computed, including any part outside the plotted 380–800 nm window: that light carries power (it counts in $I_{\rm tot}$, the interferogram and the ring's brightness profile) but outside 390–780 nm it adds no colour. Each sub-band's colour is its own shape integrated against the colour-matching functions. Their weights are $\propto e^{-(x_k/w_c)^2}$ with $w_c=\sqrt{1-\Delta x^2}\,w$, chosen so the convolution reproduces the parent Gaussian. The colour-matching functions $\bar x\bar y\bar z$ are CVRL CIE 2006 2°.<sup><a href="#s13">[13]</a></sup> XYZ is converted to linear sRGB with the IEC 61966-2-1 matrix. Out-of-gamut colours are desaturated by $c\to c-\min(c,0)$. Each ring image is scaled so its brightest possible state (fully constructive) maps to 1, then sRGB-encoded.</p>
@@ -477,6 +479,109 @@ function longPress(el,open,onHandle=()=>false){let x0=0,y0=0,id=-1,fired=0;
     lpT=setTimeout(()=>{lpT=null;fired=performance.now();open(x0,y0)},500)});
   el.addEventListener('pointermove',e=>{if(lpT&&e.pointerId===id&&Math.hypot(e.clientX-x0,e.clientY-y0)>10)lpCancel()});
   for(const ev of ['pointerup','pointercancel'])el.addEventListener(ev,e=>{if(e.pointerId===id)lpCancel()})}
+/* ---------- the one helper behind every 1-D plot (MS-25) ----------
+   The source spectrum, the interfered spectrum, the profile and the interferogram all draw their curves through this file, on
+   screen (traceRaster) and in exports (tracesSVG), so the anti-aliasing is the same everywhere.
+   A trace is a signal over t ∈ [0,1] across the plot area, left to right, in plot units (0 at the bottom, 1 at the top):
+     val(t)     the exact value of the curve
+     fr(a,b)    how many fringes the slice [a,b] holds (0 for a smooth curve)
+     band(a,b)  [lo, hi], the band the fringes cover over [a,b], used once it holds a whole fringe
+   A curve is never just sampled at a fixed step: a slice finer than a fringe is sampled at 32 points per fringe (the sampled max then misses the true one by at most ½(1 − cos π/32) = 0.24% of the band), and a slice
+   holding a whole fringe or more spans its envelope, so fringes finer than a pixel fill the band they really cover instead of
+   beating into a false pattern (aliasing). */
+
+/* the exact min–max span of a signal over [t0,t1] (the shared array SPAN2: read it before the next call) */
+function spanOf(t0,t1,s){const fr=s.fr(t0,t1);let lo=Infinity,hi=-Infinity;
+  if(fr>=1)return s.band(t0,t1);
+  else{const k=Math.max(2,Math.ceil(32*fr)+1);for(let q=0;q<=k;q++){const v=s.val(t0+(t1-t0)*q/k);lo=Math.min(lo,v);hi=Math.max(hi,v)}}SPAN2[0]=lo;SPAN2[1]=hi;return SPAN2}
+const SPAN2=[0,0];
+
+/* signals */
+/* the interferogram and the profile: I = ½(1 + Re γ(δ(t))), between ½(1 ± |γ|) */
+function fringeSig(dAt,cs){const g=gammaOf(cs),smax=Math.max(...cs.map(c=>c.s)),E=[0,0];
+  return{fr:(a,b)=>Math.abs(dAt(b)-dAt(a))*smax,val:t=>0.5*(1+g.re(dAt(t))),
+    band:(a,b)=>{let lo=1,hi=0;for(let q=0;q<=4;q++){const m=g.mag(dAt(a+(b-a)*q/4));lo=Math.min(lo,0.5*(1-m));hi=Math.max(hi,0.5*(1+m))}E[0]=lo;E[1]=hi;return E}}}
+/* a spectral curve f(σ) on a wavelength axis running from l1 (t = 0, left) to l0 (t = 1), divided by ym; with mod, times
+   T(σ;δ₀) = ½(1 + cos 2πσδ₀), which swings between 0 and 1 once per Δσ = 1/δ₀. Over a span holding a whole fringe, f·T reaches 0
+   at a trough of T and f(σ_k) at each peak σ_k = k/|δ₀| (T = 1 there), so the band is [0, max_k f(σ_k)] */
+function specSig(f,l0,l1,ym,d0,mod){const sg=t=>1000/(l1-(l1-l0)*t),E=[0,0],ad=Math.abs(d0);
+  return mod?{fr:(a,b)=>Math.abs(sg(b)-sg(a))*ad,val:t=>{const s=sg(t);return f(s)*0.5*(1+Math.cos(2*Math.PI*s*d0))/ym},
+      band:(a,b)=>{const sa=sg(a)*ad,sb=sg(b)*ad;let hi=0;for(let k=Math.ceil(Math.min(sa,sb));k<=Math.max(sa,sb);k++)hi=Math.max(hi,f(k/ad));E[0]=0;E[1]=hi/ym;return E}}
+    :{fr:()=>0,val:t=>f(sg(t))/ym}}
+const hexRGB=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+
+/* ---------- raster trace ----------
+   Each device-pixel column is split into K = 8 sub-columns. Each sub-column contributes the exact min–max span of the signal over
+   its own slice (spanOf), drawn at least 1.25 px tall, with 1/K coverage and fractional coverage at its ends (shown with a 0.45
+   display gamma, like scope persistence). Summing coverage is a box filter: proper anti-aliasing, so fringes near the pixel pitch
+   blend into an even tone instead of beating into moiré. A small horizontal Gaussian (sd 0.7 px) then suppresses the box
+   filter's own side-lobes. Options: alpha (opacity), dash ([on, off] in CSS px, along x). */
+/* Sub-columns per pixel: always 8, moving or at rest. Never adapt this to the frame time: dense fringes look very different at
+   2 and at 8 sub-columns (a solid band against the true crowding at ½(1 ± |γ|)), so switching between them made the plots flicker
+   while dragging (fixed in MS-17). */
+const DPK=8;
+/* 2·acos(u) from a 4,096-step table, linearly interpolated (it sets a row's shading only, not a plotted value; a direct acos per row
+   cost 5–10 ms a frame on the interfered spectrum's full-height bands) */
+const ACT=new Float64Array(4098);for(let i=0;i<=4097;i++)ACT[i]=2*Math.acos(Math.max(-1,Math.min(1,-1+i/2048)));
+const ACOS2=u=>{const x=(u+1)*2048,i=Math.min(4095,x|0),f=x-i;return ACT[i]+(ACT[i+1]-ACT[i])*f};
+/* buffers are reused between calls, one set per target canvas; only the rows a column (or its filter neighbours) touched are visited */
+function traceRaster(ctx,x0,y0,Wd,Hd,sig,colourAt,o={}){const K=DPK,
+  B=ctx.__dp&&ctx.__dp.Wd===Wd&&ctx.__dp.Hd===Hd?ctx.__dp:(ctx.__dp={Wd,Hd,img:ctx.createImageData(Wd,Hd),C:new Float32Array(Wd*Hd),r0:new Int32Array(Wd),r1:new Int32Array(Wd),off:document.createElement('canvas')});
+  const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],MINH=1.25*DPR(),al=o.alpha??1,dash=o.dash&&o.dash.map(v=>v*DPR());
+  D.fill(0);C.fill(0);
+  for(let px=0;px<Wd;px++){const base=px*Hd;let c0=Hd,c1=-1;
+    const N=sig.fr(px/Wd,(px+1)/Wd),on=!dash||(px%(dash[0]+dash[1]))<dash[0];
+    if(on&&N>=1){
+      /* a pixel holding a whole fringe or more: its sub-columns sweep the fringe phase evenly, so the pattern of spans they cover
+         carries no information, and deciding it per sub-column beat into faint streaks whenever 1–8 fringes fell in a pixel (MS-25).
+         Each row instead gets the coverage one sub-column of the fringe fraction f = N/K gives it on average over the phase:
+         a sinusoid of band [lo,hi] meets the value of a row at the two phases ±a, a = acos(u), u its position in the band, and an
+         arc of L = 2πf meets one of them for 2L − max(0, L−2a) − max(0, L−2π+2a) of the 2π starting phases (1 once f ≥ 1).
+         At N = 1 this is the same mean the sub-columns give, so the change of rule is continuous. */
+      const[lo,hi]=sig.band(px/Wd,(px+1)/Wd);let ya=(1-hi)*(Hd-1),yb=(1-lo)*(Hd-1);const L=2*Math.PI*Math.min(1,N/K),thin=yb-ya<MINH;
+      if(thin){const m=(ya+yb)/2;ya=m-MINH/2;yb=m+MINH/2}
+      const ja=Math.max(0,Math.floor(ya)),jb=Math.min(Hd-1,Math.ceil(yb));c0=ja;c1=jb;
+      for(let yy=ja;yy<=jb;yy++){const y1=Math.max(yy,ya),y2=Math.min(yy+1,yb),v=y2-y1;if(v<=0)continue;
+        const g=ACOS2(clamp((y1+y2-ya-yb)/(yb-ya),-1,1));C[base+yy]+=thin?v:v*Math.min(1,(2*L-Math.max(0,L-g)-Math.max(0,L-2*Math.PI+g))/(2*Math.PI))}}
+    else if(on)for(let k=0;k<K;k++){const[lo,hi]=spanOf((px+k/K)/Wd,(px+(k+1)/K)/Wd,sig);let ya=(1-hi)*(Hd-1),yb=(1-lo)*(Hd-1);
+      if(yb-ya<MINH){const m=(ya+yb)/2;ya=m-MINH/2;yb=m+MINH/2}
+      const ja=Math.max(0,Math.floor(ya)),jb=Math.min(Hd-1,Math.ceil(yb));if(ja<c0)c0=ja;if(jb>c1)c1=jb;
+      for(let yy=ja;yy<=jb;yy++){const v=Math.min(yy+1,yb)-Math.max(yy,ya);if(v>0)C[base+yy]+=v/K}}
+    r0[px]=c0;r1[px]=c1;cols.push(colourAt((px+0.5)/Wd))}
+  /* horizontal Gaussian low-pass (sd 0.7 px) on top of the box filter removes the box filter's sinc side-lobes, which are what still beat into moiré */
+  const LP=[0.0097,0.205,0.5706,0.205,0.0097];
+  for(let px=0;px<Wd;px++){const c=cols[px];let ja=Hd,jb=-1;for(let q=Math.max(0,px-2);q<=Math.min(Wd-1,px+2);q++){if(r0[q]<ja)ja=r0[q];if(r1[q]>jb)jb=r1[q]}
+    for(let yy=ja;yy<=jb;yy++){let v=0;for(let t=-2;t<=2;t++){const q=px+t;if(q>=0&&q<Wd)v+=LP[t+2]*C[q*Hd+yy]}if(v<=0.002)continue;
+      const a=Math.pow(Math.min(1,v),0.45),p=4*(yy*Wd+px);D[p]=c[0];D[p+1]=c[1];D[p+2]=c[2];D[p+3]=255*a*al}}
+  const off=B.off;if(off.width!==Wd||off.height!==Hd){off.width=Wd;off.height=Hd}off.getContext('2d').putImageData(img,0,0);
+  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(off,x0,y0);ctx.restore()}
+/* a plot's canvas sized to its box at DPR, cleared; returns the context and the plot area in device px */
+function plotCanvas(cv,W,H,pl,pr,pt,pb){const dpr=DPR(),cw=Math.round(W*dpr),ch=Math.round(H*dpr);if(cv.width!==cw||cv.height!==ch){cv.width=cw;cv.height=ch}  /* resizing a canvas reallocates it: only when the size changes */
+  const g=cv.getContext('2d');g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,cw,ch);return{g,x0:Math.round(pl*dpr),y0:Math.round(pt*dpr),Wd:Math.round((W-pl-pr)*dpr),Hd:Math.round((H-pt-pb)*dpr)}}
+/* every trace of a plot: tr = [{sig, col: t → [r,g,b], alpha, dash}] */
+function drawTraces(P,tr){for(const t of tr)traceRaster(P.g,P.x0,P.y0,P.Wd,P.Hd,t.sig,t.col,t)}
+
+/* ---------- vector traces (SVG export) ----------
+   The true curve val(t) as a path with at least 16 points per fringe; a colour that varies along t (vary) becomes a linear gradient. */
+function fringeN(sig){let n=0;for(let i=0;i<2000;i++)n+=sig.fr(i/2000,(i+1)/2000);return clamp(Math.ceil(n*16),2000,400000)}
+function curvePath(n,xy){let p='';for(let i=0;i<=n;i++){const[x,y]=xy(i/n);p+=(i?'L':'M')+x.toFixed(2)+' '+y.toFixed(2)}return p}
+function tracesSVG(W,H,pl,pr,pt,pb,tr){const X=t=>pl+t*(W-pl-pr),Y=v=>pt+(1-v)*(H-pt-pb);let s='';
+  tr.forEach((t,i)=>{const n=fringeN(t.sig);let stroke=`rgb(${t.col(0.5)})`;
+    if(t.vary){const m=clamp(Math.ceil(n/2),256,20000);let st='';for(let j=0;j<=m;j++)st+=`<stop offset="${(j/m).toFixed(6)}" stop-color="rgb(${t.col(j/m)})"/>`;
+      s+=`<defs><linearGradient id="${t.id||"tr"+i}" gradientUnits="userSpaceOnUse" x1="${pl}" x2="${W-pr}" y1="0" y2="0">${st}</linearGradient></defs>`;stroke=`url(#${t.id||"tr"+i})`}
+    s+=`<path d="${curvePath(n,u=>[X(u),Y(t.sig.val(u))])}" fill="none" stroke="${stroke}" stroke-width="${t.w??1.5}"${t.alpha!=null?` stroke-opacity="${t.alpha}"`:''}${t.dash?` stroke-dasharray="${t.dash.join(' ')}"`:''} stroke-linejoin="round"/>`});
+  return s}
+
+/* largest error, in plot heights, of the spans the 1-D plots draw (spanOf, or the band of a pixel holding a whole fringe, as in
+   traceRaster) against the min/max of densely sampled exact values, on a 800-pixel plot */
+function traceCheck(M){let e=0;const Wd=800,K=DPK;
+  for(const t of [...ifgTraces(0),...profTraces(M),...specTraces(),...outTraces()]){const s=t.sig;
+    for(let i=0;i<48;i++){const px=Math.floor((i+0.37)/48*Wd),N=s.fr(px/Wd,(px+1)/Wd);let a,b,lo=Infinity,hi=-Infinity;
+      if(N>=1){a=px/Wd;b=(px+1)/Wd;[lo,hi]=s.band(a,b)}
+      else{a=(px+3/K)/Wd;b=(px+4/K)/Wd;[lo,hi]=spanOf(a,b,s)}
+      let bl=Infinity,bh=-Infinity;const n=Math.max(2000,Math.ceil(s.fr(a,b)*400));for(let q=0;q<=n;q++){const v=s.val(a+(b-a)*q/n);bl=Math.min(bl,v);bh=Math.max(bh,v)}
+      e=Math.max(e,Math.abs(lo-bl),Math.abs(hi-bh))}}
+  return e}
 /* ---------- spectrum axes ---------- */
 /* spectral axes are linear in wavelength (nm); the physics is still computed in wavenumber σ = 1000/λ (µm⁻¹) */
 function axes(W,H,pl,pr,pt,pb,ylab,l0=LMIN,l1=LMAX,ym=1){
@@ -496,13 +601,12 @@ const spec=$('spec');let G={},specKey='';
 function renderSpec(){
   const [W,H]=box(spec);if(!W)return;
   /* the editor depends only on the components, the selection, drag state, size and theme colours, not on d: skip identical redraws */
-  const key=JSON.stringify([comps,sel,!!drag,W,H,css('--fr'),css('--ink'),css('--mute')]);if(key===specKey)return;specKey=key;selBar();
+  const key=JSON.stringify([comps,sel,!!drag,W,H,DPR(),css('--fr'),css('--ink'),css('--mute')]);if(key===specKey)return;specKey=key;selBar();
   const pl=40,pr=12,pt=20,pb=36,ym=calcYM(),A=axes(W,H,pl,pr,pt,pb,'Spectral density (rel.)',LMIN,LMAX,ym),{x,y}=A;G={x,y,W,H,pl,pr,pt,pb,ym};
-  let h=A.h;const ts=trueShape();
-  if(ts)h+=`<path d="${gpath(x,y,W,pl,pr,ts)}" fill="none" stroke="${css('--fr')}" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  let h=A.h;
   comps.forEach((c,i)=>{const cc=col(c),X=x(c.s),Y=y(c.a),on=i===sel,op=c.on?1:0.35;
     h+=`<g opacity="${op}">`;
-    if(c.f){h+=`<path d="${gpath(x,y,W,pl,pr,s=>shape(c,s))}L${x(SMIN)} ${y(0)}L${x(SMAX)} ${y(0)}Z" fill="${cc}" fill-opacity=".18" stroke="${cc}" stroke-width="1.5"/>`;
+    if(c.f){h+=`<path d="${gpath(x,y,W,pl,pr,s=>shape(c,s))}L${x(SMIN)} ${y(0)}L${x(SMAX)} ${y(0)}Z" fill="${cc}" fill-opacity=".18" stroke="none"/>`;
       /* width bar between the half-maximum points; an end that falls outside the plotted 380–800 nm window is clipped and loses its handle */
       const xa=x(c.s+c.f/2),xb=c.s-c.f/2>0?x(c.s-c.f/2):Infinity,yh=y(c.a/2),cl=v=>clamp(v,pl,W-pr);
       h+=`<line x1="${cl(xa)}" x2="${cl(xb)}" y1="${yh}" y2="${yh}" stroke="${cc}" stroke-width="1.2"/>`;
@@ -514,7 +618,10 @@ function renderSpec(){
     h+=side?`<text x="${X+(X>W-60?-lo:lo)}" y="${Y+4}" font-size="11" fill="${A.mute}" text-anchor="${X>W-60?'end':'start'}">${lab}</text>`:`<text x="${X}" y="${Y-lo}" font-size="11" fill="${A.mute}" text-anchor="middle">${lab}</text>`;
     h+='</g>'});
   if(!comps.length)h+=`<text x="${W/2}" y="${H/2}" font-size="15" fill="${A.mute}" text-anchor="middle">Click anywhere here to place a wavelength</text>`;
-  spec.innerHTML=h}
+  spec.innerHTML=h;drawTraces(plotCanvas($('specC'),W,H,pl,pr,pt,pb),specTraces())}
+/* the editor's curves (the shared 1-D helper): the combined Gaussian shape dashed, then each Gaussian in its colour */
+function specTraces(){const ts=trueShape(),tr=[];if(ts){const fr=cssRGB('--fr');tr.push({sig:specSig(ts,LMIN,LMAX,G.ym,0,false),col:()=>fr,dash:[4,3]})}
+  for(const c of comps)if(c.f){const cc=hexRGB(col(c));tr.push({sig:specSig(s=>shape(c,s),LMIN,LMAX,G.ym,0,false),col:()=>cc,alpha:c.on?1:0.35})}return tr}
 /* on touch devices the handles are drawn larger (TOUCH) */
 const SDOT=TOUCH?1.45:1,HW=TOUCH?3.5:2,HH=TOUCH?10:6;
 const toS=px=>1000/clamp(LMAX-(px-G.pl)/(G.W-G.pl-G.pr)*(LMAX-LMIN),LMIN*0.6,LMAX*1.6),toA=py=>(1-(py-G.pt)/(G.H-G.pt-G.pb))*G.ym;
@@ -560,32 +667,42 @@ function outAutoWin(){const cs=act();if(!cs.length)return[LMIN,LMAX];let lo=1e9,
 const outWin=()=>(!$('oAuto').checked&&outMan)?outMan:outAutoWin();
 function setOutMan(a,b){const span=clamp(b-a,0.05,LMAX-LMIN);let m=(a+b)/2;a=m-span/2;b=m+span/2;if(a<LMIN){b+=LMIN-a;a=LMIN}if(b>LMAX){a-=b-LMAX;b=LMAX}
   outMan=[Math.max(LMIN,a),Math.min(LMAX,b)];$('oAuto').checked=false}
-/* the axes, the sample grid and S(σ) do not depend on d, so they are cached; moving the mirror only re-evaluates T(σ;δ₀) */
+/* The axes do not depend on d, so they are cached (outC); moving the mirror redraws the canvas (the traces and the fill) and the line stems.
+   Every curve goes through the shared 1-D helper (plot1d.js), so fringes finer than a pixel fill the band they cover instead of
+   aliasing into a false pattern (MS-25: it used to sample 2 points per pixel). The fill under S_out is its exact footprint average. */
 let outC={key:''};
+const OUTPAD=[40,10,8,36];
+function outTraces(){const[l0,l1]=outWin(),ts=trueShape(),d0=D0(),mute=cssRGB('--mute'),fr=cssRGB('--fr'),tr=[{sig:specSig(()=>1,l0,l1,YM,d0,true),col:()=>mute,alpha:.55,w:1}];
+  if(ts)tr.push({sig:specSig(ts,l0,l1,YM,0,false),col:()=>fr,dash:[4,3],w:1},{sig:specSig(ts,l0,l1,YM,d0,true),col:()=>fr});return tr}
+/* footprint average of S_gauss(σ)·T(σ;δ₀) over a Gaussian of sd sg (in σ) about σc, in closed form: for each Gaussian a·e^{−(σ−σn)²/w²},
+   with q = w² + 2sg² and p = 1/w² + 1/(2sg²), μ = (σn/w² + σc/(2sg²))/p:
+   ⟨S·T⟩ = Σ ½·a·(w/√q)·e^{−(σc−σn)²/q}·[1 + e^{−π²δ₀²/p}·cos 2πδ₀μ] */
+function avgST(cs,sc,sg,d0){let v=0;for(const c of cs){if(!c.f)continue;const w=wOf(c),w2=w*w,s2=2*sg*sg,q=w2+s2,p=1/w2+1/s2,mu=(c.s/w2+sc/s2)/p;
+  v+=0.5*c.a*w/Math.sqrt(q)*Math.exp(-((sc-c.s)**2)/q)*(1+Math.exp(-((Math.PI*d0)**2)/p)*Math.cos(2*Math.PI*d0*mu))}return v}
+/* the fill's top edge at n+1 points across the plot area (t = i/n), each the footprint average over sd PIXSD of a device pixel (Wd of them) */
+function outFill(n,Wd){const[l0,l1]=outWin(),cs=act(),d0=D0(),v=new Float64Array(n+1);
+  for(let i=0;i<=n;i++){const l=l1-(l1-l0)*i/n,s=1000/l;v[i]=avgST(cs,s,1000/(l*l)*(l1-l0)*PIXSD/Wd,d0)/YM}return v}
+function outVec(){const[W,H]=box($('out')),[pl,pr,pt,pb]=OUTPAD,X=t=>pl+t*(W-pl-pr),Y=v=>pt+(1-v)*(H-pt-pb),n=Math.round((W-pl-pr)*2),f=outFill(n,(W-pl-pr)*DPR());
+  let fp='';if(trueShape()){for(let i=0;i<=n;i++)fp+=(i?'L':'M')+X(i/n).toFixed(2)+' '+Y(f[i]).toFixed(2);fp=`<path d="${fp}L${X(1)} ${Y(0)}L${X(0)} ${Y(0)}Z" fill="${rgbOf('--fill')}" fill-opacity=".85"/>`}
+  return fp+tracesSVG(W,H,pl,pr,pt,pb,outTraces())}
 function renderOut(){
   const svg=$('out'),[W,H]=box(svg);if(!W)return;
-  const pl=40,pr=10,pt=8,pb=36,[l0,l1]=outWin(),fr=css('--fr'),fill=css('--fill'),ts=trueShape();OG={W,pl,pr,l0,l1};
-  const key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),l0,l1,W,H,YM,fr,fill,css('--mute')]);
-  if(key!==outC.key){const A=axes(W,H,pl,pr,pt,pb,'S_out (rel.)',l0,l1,YM),{x,y}=A,n=Math.max(200,Math.round((W-pl-pr)*2)),S=new Float64Array(n+1),TS=ts?new Float64Array(n+1):null,XS=[];
-    /* the same grid and strings as gpath() */
-    for(let i=0;i<=n;i++){const s=1000/(l0+(l1-l0)*i/n);S[i]=s;XS.push((i?'L':'M')+x(s).toFixed(1)+' ');if(ts)TS[i]=ts(s)}
-    let tp='';if(ts)for(let i=0;i<=n;i++)tp+=XS[i]+y(TS[i]).toFixed(1);
-    outC={key,A,S,TS,XS,n,tp}}
-  const {A,S,TS,XS,n,tp}=outC,{x,y}=A;
-  const d0=D0(),T=s=>0.5*(1+Math.cos(2*Math.PI*s*d0));
-  let pT='',pP='';for(let i=0;i<=n;i++){const t=T(S[i]);pT+=XS[i]+y(t).toFixed(1);if(TS)pP+=XS[i]+y(TS[i]*t).toFixed(1)}
-  const pPd=`${pP}L${x(1000/l1)} ${y(0)}L${x(1000/l0)} ${y(0)}Z`,lines=act().filter(c=>!c.f&&1000/c.s>=l0&&1000/c.s<=l1);
-  /* while only d moves, the axes and S(σ) stay in the DOM and only the d-dependent attributes are updated (the same markup as a rebuild) */
-  const ch=svg.children,ns=outC.ns;
-  if(outC.dom===svg&&ch.length===ns+1+(ts?2:0)+3*lines.length){ch[ns].setAttribute('d',pT);if(ts)ch[ns+2].setAttribute('d',pPd);
-    lines.forEach((c,j)=>{const v=y(c.a*T(c.s)),o=ns+1+(ts?2:0)+3*j;ch[o+1].setAttribute('y2',v);ch[o+2].setAttribute('cy',v)});return}
-  let h=`<path d="${pT}" fill="none" stroke="${A.mute}" stroke-opacity=".55" stroke-width="1"/>`;
-  if(ts){h+=`<path d="${tp}" fill="none" stroke="${fr}" stroke-dasharray="4 3"/>`;
-    h+=`<path d="${pPd}" fill="${fill}" fill-opacity=".85" stroke="${fr}" stroke-width="1.5"/>`}
-  for(const c of lines){const v=c.a*T(c.s);
+  const[pl,pr,pt,pb]=OUTPAD,[l0,l1]=outWin(),fr=css('--fr'),ts=trueShape(),cs=act();OG={W,pl,pr,l0,l1};
+  const key=JSON.stringify([l0,l1,W,H,YM,css('--mute')]);if(key!==outC.key)outC={key,A:axes(W,H,pl,pr,pt,pb,'S_out (rel.)',l0,l1,YM)};
+  const{A}=outC,{x,y}=A,T=s=>0.5*(1+Math.cos(2*Math.PI*s*D0()));
+  const P=plotCanvas($('outCv'),W,H,pl,pr,pt,pb);
+  if(ts){const f=outFill(P.Wd,P.Wd),g=P.g;g.beginPath();g.moveTo(P.x0,P.y0+P.Hd);for(let i=0;i<=P.Wd;i++)g.lineTo(P.x0+i,P.y0+(1-f[i])*P.Hd);g.lineTo(P.x0+P.Wd,P.y0+P.Hd);g.closePath();
+    g.fillStyle=`rgb(${cssRGB('--fill')})`;g.globalAlpha=.85;g.fill();g.globalAlpha=1}
+  /* the dashed S(σ) does not depend on d: drawn once per spectrum, window, size and scale into a layer of its own, then copied */
+  const tr=outTraces(),tk=JSON.stringify([key,act().map(c=>[c.s,c.a,c.f]),DPR(),fr]);
+  if(tr.length>1&&outC.tk!==tk){const L=outC.ts||(outC.ts=document.createElement('canvas'));L.width=P.g.canvas.width;L.height=P.g.canvas.height;
+    drawTraces({...P,g:L.getContext('2d')},[tr[1]]);outC.tk=tk}
+  drawTraces(P,[tr[0]]);if(tr.length>1){P.g.drawImage(outC.ts,0,0);drawTraces(P,[tr[2]])}
+  /* lines: a stem from 0 to a·T(σn) (a delta line has no width, so its value is exact at any zoom) */
+  let h='';for(const c of cs.filter(c=>!c.f&&1000/c.s>=l0&&1000/c.s<=l1)){const v=c.a*T(c.s);
     h+=`<line x1="${x(c.s)}" x2="${x(c.s)}" y1="${y(0)}" y2="${y(c.a)}" stroke="${fr}" stroke-dasharray="3 3"/><line x1="${x(c.s)}" x2="${x(c.s)}" y1="${y(0)}" y2="${y(v)}" stroke="${col(c)}" stroke-width="3"/><circle cx="${x(c.s)}" cy="${y(v)}" r="3.5" fill="${col(c)}"/>`}
-  svg.innerHTML=A.h;outC.ns=svg.children.length;outC.dom=svg;svg.insertAdjacentHTML('beforeend',h)}
-
+  /* the axes stay in the DOM while only d moves; the stems go in the last group */
+  if(outC.dom!==svg){svg.innerHTML=A.h+'<g></g>';outC.dom=svg}svg.lastChild.innerHTML=h}
 /* ---------- shared exact maths for rendering ----------
    Pixel footprint: each displayed pixel averages the pattern over a 2-D Gaussian footprint (sd PIXSD px). A fringe at the pixel
    pitch (1 cycle/px, which samples to a flat tone and shows as ghost ring centres) keeps e^{-2π²·PIXSD²} of its contrast:
@@ -599,38 +716,6 @@ const hueOf=xyz=>norm(desat(toLin(xyz)));
 const GL=new Float32Array(4097);for(let i=0;i<=4096;i++)GL[i]=255*gam(i/4096);
 const enc=v=>GL[v<=0?0:v>=1?4096:(v*4096+0.5)|0];
 
-/* ---------- anti-aliased range plot ----------
-   Each device-pixel column is split into K = 8 sub-columns. Each sub-column contributes the exact min–max span of the signal over
-   its own slice (from samples fine enough to resolve every fringe, or ½(1 ± max|γ|) once a slice holds a whole fringe),
-   drawn at least 1.25 px tall, with 1/K coverage and fractional coverage at its ends (shown with a 0.45 display gamma, like scope persistence). Summing coverage is a box filter:
-   proper anti-aliasing, so fringes near the pixel pitch blend into an even tone instead of beating into moiré.
-   A small horizontal Gaussian (sd 0.7 px) then suppresses the box filter's own side-lobes. */
-function spanOf(t0,t1,dAt,g,smax){const fr=Math.abs(dAt(t1)-dAt(t0))*smax;let lo=1,hi=0;  /* g = gammaOf(cs) */
-  if(fr>=1){for(let q=0;q<=4;q++){const m=g.mag(dAt(t0+(t1-t0)*q/4));lo=Math.min(lo,0.5*(1-m));hi=Math.max(hi,0.5*(1+m))}}
-  else{const k=Math.max(2,Math.ceil(16*fr)+1);for(let q=0;q<=k;q++){const v=0.5*(1+g.re(dAt(t0+(t1-t0)*q/k)));lo=Math.min(lo,v);hi=Math.max(hi,v)}}SPAN2[0]=lo;SPAN2[1]=hi;return SPAN2}
-const SPAN2=[0,0];
-/* buffers are reused between calls, one set per target canvas; only the rows a column (or its filter neighbours) touched are visited */
-/* Sub-columns per pixel: always 8, moving or at rest. Never adapt this to the frame time: dense fringes look very different at
-   2 and at 8 sub-columns (a solid band against the true crowding at ½(1 ± |γ|)), so switching between them made the plots flicker
-   while dragging (fixed in MS-17). */
-const DPK=8;
-function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=DPK,
-  B=ctx.__dp&&ctx.__dp.Wd===Wd&&ctx.__dp.Hd===Hd?ctx.__dp:(ctx.__dp={Wd,Hd,img:ctx.createImageData(Wd,Hd),C:new Float32Array(Wd*Hd),r0:new Int32Array(Wd),r1:new Int32Array(Wd),off:document.createElement('canvas')});
-  const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],smax=Math.max(...cs.map(c=>c.s)),g=gammaOf(cs),MINH=1.25*DPR();
-  D.fill(0);C.fill(0);
-  for(let px=0;px<Wd;px++){const base=px*Hd;let c0=Hd,c1=-1;
-    for(let k=0;k<K;k++){const[lo,hi]=spanOf((px+k/K)/Wd,(px+(k+1)/K)/Wd,dAt,g,smax);let ya=(1-hi)*(Hd-1),yb=(1-lo)*(Hd-1);
-      if(yb-ya<MINH){const m=(ya+yb)/2;ya=m-MINH/2;yb=m+MINH/2}
-      const ja=Math.max(0,Math.floor(ya)),jb=Math.min(Hd-1,Math.ceil(yb));if(ja<c0)c0=ja;if(jb>c1)c1=jb;
-      for(let yy=ja;yy<=jb;yy++){const o=Math.min(yy+1,yb)-Math.max(yy,ya);if(o>0)C[base+yy]+=o/K}}
-    r0[px]=c0;r1[px]=c1;cols.push(colourAt((px+0.5)/Wd))}
-  /* horizontal Gaussian low-pass (sd 0.7 px) on top of the box filter removes the box filter's sinc side-lobes, which are what still beat into moiré */
-  const LP=[0.0097,0.205,0.5706,0.205,0.0097];
-  for(let px=0;px<Wd;px++){const c=cols[px];let ja=Hd,jb=-1;for(let q=Math.max(0,px-2);q<=Math.min(Wd-1,px+2);q++){if(r0[q]<ja)ja=r0[q];if(r1[q]>jb)jb=r1[q]}
-    for(let yy=ja;yy<=jb;yy++){let v=0;for(let t=-2;t<=2;t++){const q=px+t;if(q>=0&&q<Wd)v+=LP[t+2]*C[q*Hd+yy]}if(v<=0.002)continue;
-      const a=Math.pow(Math.min(1,v),0.45),o=4*(yy*Wd+px);D[o]=c[0];D[o+1]=c[1];D[o+2]=c[2];D[o+3]=255*a}}
-  const off=B.off;if(off.width!==Wd||off.height!==Hd){off.width=Wd;off.height=Hd}off.getContext('2d').putImageData(img,0,0);
-  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(off,x0,y0);ctx.restore()}
 const rgb8=c=>c.map(v=>enc(v)|0);
 let _probe=null;function cssRGB(v){const c=CSSC.get('rgb'+v);if(c)return c;if(!_probe){_probe=document.createElement('span');_probe.style.display='none';document.body.appendChild(_probe)}_probe.style.color=`var(${v})`;const r=getComputedStyle(_probe).color.match(/\d+/g).slice(0,3).map(Number);CSSC.set('rgb'+v,r);return r}
 
@@ -638,6 +723,8 @@ let _probe=null;function cssRGB(v){const c=CSSC.get('rgb'+v);if(c)return c;if(!_
 /* The trace and its envelope depend only on the spectrum, the range and the plot size, not on d, so they are cached:
    moving the mirror only redraws the δ₀ marker. */
 let ifgKey='',ifgEnv='';
+/* the trace: I(δ), coloured by the perceived colour of each column (its footprint average, t2 = its OPD variance; 0 in the SVG gradient) */
+function ifgTraces(t2){const cs=act(),R=RANGE(),SL=sublines(),dAt=t=>-R+2*R*t;return[{sig:fringeSig(dAt,cs),col:t=>rgb8(hueOf(xyzAt(dAt(t),t2,SL))),vary:true,w:0.6,id:'ifgHue'}]}
 function renderIfg(){
   const svg=$('ifg'),cv=$('ifgC'),[W,H]=box(svg);if(!W)return;
   const dpr=DPR(),key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr]),fresh=key!==ifgKey;ifgKey=key;
@@ -652,8 +739,8 @@ function renderIfg(){
     if(fresh){let up='',lo='';
     for(let p=0;p<=PW;p+=2){const d=-R+dpp*p,[re,im]=gamma(d,cs),m=Math.hypot(re,im),X=x(d).toFixed(1);up+=(up?'L':'M')+X+' '+y(0.5*(1+m)).toFixed(1);lo+=(lo?'L':'M')+X+' '+y(0.5*(1-m)).toFixed(1)}
     ifgEnv=`<path d="${up}" fill="none" stroke="#e0115f" stroke-width="1.8"/><path d="${lo}" fill="none" stroke="#e0115f" stroke-width="1.8"/>`;
-    const x0=Math.round(pl*dpr),y0=Math.round(pt*dpr),Wd=Math.round((W-pl-pr)*dpr),Hd=Math.round((H-pt-pb)*dpr),t2=(PIXSD*dpp)**2;
-      densityPlot(g,x0,y0,Wd,Hd,t=>-R+2*R*t,cs,t=>rgb8(hueOf(xyzAt(-R+2*R*t,t2,SL))))}
+    const t2=(PIXSD*dpp)**2;
+      drawTraces({g,x0:Math.round(pl*dpr),y0:Math.round(pt*dpr),Wd:Math.round((W-pl-pr)*dpr),Hd:Math.round((H-pt-pb)*dpr)},ifgTraces(t2))}
     if($('envOn').checked)h+=ifgEnv;
     const d0=D0();if(Math.abs(d0)<=R)h+=`<line x1="${x(d0)}" x2="${x(d0)}" y1="${pt}" y2="${y(0)}" stroke="#ff4d8d" stroke-dasharray="5 4" stroke-width="1.5"/><text x="${x(d0)+4}" y="${pt+28}" font-size="12" fill="#ff4d8d">δ₀</text>`}
   svg.innerHTML=h}
@@ -1151,6 +1238,9 @@ function sliced(job,n,step,work,paint){let j=0,done;RB.wDone=new Promise(r=>done
   const slice=()=>{if(job!==ringJob)return done();const t0=performance.now(),jj=j;while(j<n&&performance.now()-t0<12){work(j,j+step);j+=step}
     paint(jj,Math.min(j,n));if(j<n)setTimeout(slice,0);else done()};
   slice()}
+/* the profile's trace: I along the cut through the centre along the tilt direction (along x when there is no tilt) */
+function profTraces(M){const ax=+$('tx').value,ay=+$('ty').value,an=Math.hypot(ax,ay),nx=an?ax/an:1,ny=an?ay/an:0,col=cssRGB('--fr');
+  return[{sig:fringeSig(t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},act()),col:()=>col}]}
 function ringProfile(M){const cs=act();
   /* profile cut: through the centre along the tilt direction n = (αx, αy)/|α| (along x when there is no tilt) */
   const ax=+$('tx').value,ay=+$('ty').value,an=Math.hypot(ax,ay),nx=an?ax/an:1,ny=an?ay/an:0,phi=Math.atan2(ny,nx)*180/Math.PI;
@@ -1159,8 +1249,7 @@ function ringProfile(M){const cs=act();
   let s='';for(const v of [0,0.5,1])s+=`<line x1="${pl}" x2="${W-pr2}" y1="${y(v)}" y2="${y(v)}" stroke="${mute}" stroke-opacity="${v?0.15:0.5}"/><text x="${pl-6}" y="${y(v)+4}" font-size="12" fill="${mute}" text-anchor="end">${v}</text>`;
   for(const u of [-1,-0.5,0,0.5,1]){const t=Math.sign(u)*M.th(Math.abs(u))*180/Math.PI;s+=`<text x="${x(u)}" y="${H-pb+16}" font-size="12" fill="${mute}" text-anchor="${u<-0.9?'start':u>0.9?'end':'middle'}">${F(t,2)}°</text>`}
   /* same anti-aliased range plot as the interferogram, along the cut */
-  {const pc=$('profC'),dpr=DPR(),cw=Math.round(W*dpr),ch=Math.round(H*dpr);if(pc.width!==cw||pc.height!==ch){pc.width=cw;pc.height=ch}  /* resizing a canvas reallocates it: only when the size changes */const pg=pc.getContext('2d');pg.clearRect(0,0,pc.width,pc.height);
-    if(cs.length){const col=cssRGB('--fr');densityPlot(pg,Math.round(pl*dpr),Math.round(pt*dpr),Math.round((W-pl-pr2)*dpr),Math.round((H-pt-pb)*dpr),t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},cs,()=>col)}}
+  {const P=plotCanvas($('profC'),W,H,pl,pr2,pt,pb);if(cs.length)drawTraces(P,profTraces(M))}
   s+=`<text x="${(pl+W-pr2)/2}" y="${H-4}" font-size="12" fill="${mute}" text-anchor="middle">${an?`θ along the tilt direction (${F(phi,3)}° from x)`:"θ along x"}</text><text transform="translate(12 ${(pt+H-pb)/2}) rotate(-90)" font-size="12" fill="${mute}" text-anchor="middle">I / I_tot</text>`;svg.innerHTML=s}
 
 /* ---------- verification: every rendered quantity checked against an independent computation ---------- */
@@ -1185,6 +1274,14 @@ async function verify(){
   /* 2 interfered spectrum identity */
   const Io=quadSpec(sg=>0.5*(1+Math.cos(2*Math.PI*sg*d0)),d0)/A,e2=Math.abs(Io-0.5*(1+gamma(d0,cs)[0]));
   row('Interfered spectrum','∫S_out(σ;δ₀)dσ vs I(δ₀)',e2,1e-6);
+  /* 2b its fill (MS-25): the closed-form footprint average vs Simpson quadrature of ∫g·S·T over the footprint, 8 pixels */
+  if(cs.some(c=>c.f)){const[l0,l1]=outWin(),Wd=(box($('out'))[0]-OUTPAD[0]-OUTPAD[1])*DPR();let e=0;
+    for(let i=0;i<8;i++){const l=l1-(l1-l0)*(i+0.5)/8,sc=1000/l,sg=1000/(l*l)*(l1-l0)*PIXSD/Wd,n=clamp(Math.ceil(16*sg*Math.abs(d0)*40),4000,400000);
+      const q=simpson(s=>Math.exp(-0.5*((s-sc)/sg)**2)/(sg*Math.sqrt(2*Math.PI))*cs.reduce((t,c)=>t+dens(c,s),0)*0.5*(1+Math.cos(2*Math.PI*s*d0)),sc-8*sg,sc+8*sg,n);
+      e=Math.max(e,Math.abs(q-avgST(cs,sc,sg,d0)))}
+    row('Interfered spectrum fill','closed-form footprint average of S·T vs Simpson quadrature over the footprint, 8 pixels',e,1e-6)}
+  /* 2c the 1-D plots' traces (MS-25): the span each draws vs brute-force min/max of the exact curve, 48 pixels per trace */
+  row('Plot traces','drawn span (sub-column, or the band of a pixel holding a whole fringe) vs brute-force min/max, every 1-D plot (plot heights)',traceCheck(M),3e-3);
   /* 3 sub-band model vs analytic fringe term over every OPD the page can show */
   let hiD=Math.max(R,Math.abs(d0),2*Math.abs(M.d)+1.42*(Math.abs(M.kx)+Math.abs(M.ky))),e3=0;
   for(let i=0;i<=6000;i++){const d=hiD*i/6000;let v=0;for(const o of SL)v+=o.p*avgTerm(o.ka,o.kb,d,0);e3=Math.max(e3,Math.abs(v/A-gamma(d,cs)[0]))}
@@ -1211,7 +1308,7 @@ async function verify(){
   {const m=DMAX();let v=-m,dir=1,t=0,s=12345,dt=0;while(dir>0){s=s*16807%2147483647;dt=0.005+0.035*s/2147483647;const v0=v;[v,dir]=sweepStep(v,dir,dt,m,SWT);t+=dir>0?dt:(m-v0)/(2*m/SWT)}
     row('Sweep','one pass from −range to +range with uneven frames vs the set time, and the speed readout vs 2·range / that time (relative)',Math.max(Math.abs(t-SWT)/SWT,Math.abs(sweepV()-2*m/t)/sweepV()),1e-9)}
   /* 9 exports (MS-23): range plots exported at the device scale vs the displayed pixels; the ring exported at its own grid vs brute force */
-  row('Exported plots','interferogram and profile exported as PNG at the device scale, decoded again, vs the displayed pixels (largest 8-bit difference)',await exportCheck(),0);
+  row('Exported plots','every 1-D plot (both spectra, interferogram, profile) exported as PNG at the device scale, decoded again, vs the displayed pixels (largest 8-bit difference)',await exportCheck(),0);
   {const X=await ringExport(160);row('Exported ring','exported ring at 160² vs brute-force 2-D integral of the exact pattern over each pixel footprint, 8 pixels',ringBrute(X.M,cs,X.N,X.I),1e-3)}
   $('ver').innerHTML=out.join('');$('verAt').textContent=`Last run: ${cs.length} component${cs.length>1?'s':''}, d = ${F(+$('d').value,4)} µm, tilt (${$('tx').value}, ${$('ty').value}) µrad, θmax = ${$('fov').value}°.`}
 
@@ -1296,11 +1393,11 @@ async function mp4Encoder(w,h,fps){w&=~1;h&=~1;let desc=null,err=null,codec=null
    worker pool, and the axes are the plot's own SVG. SVG: the spectrum plots are native vector; the interferogram and the
    profile are the true curve I(δ) as a vector path (the interferogram's stroke a gradient of its perceived colour along δ);
    the ring has no vector form, so its SVG embeds the exact PNG. */
-const XP={spec:{box:'specBox',svg:'spec',name:'source-spectrum',title:'Source spectrum'},
+const XP={spec:{box:'specBox',svg:'spec',cv:'specC',name:'source-spectrum',title:'Source spectrum',redraw:()=>{specKey='';renderSpec()},vec:()=>{const[W,H]=box($('spec'));return tracesSVG(W,H,40,12,20,36,specTraces())}},
   ring:{box:'ringWrap',name:'interference-pattern',title:'Interference pattern'},
   prof:{box:'profBox',svg:'prof',cv:'profC',name:'pattern-profile',title:'Pattern profile',redraw:()=>ringProfile(ringModel())},
   ifg:{box:'ifgBox',svg:'ifg',cv:'ifgC',name:'interferogram',title:'Interferogram',redraw:()=>renderIfg()},
-  out:{box:'outBox',svg:'out',name:'interfered-spectrum',title:'Interfered spectrum'}};
+  out:{box:'outBox',svg:'out',cv:'outCv',name:'interfered-spectrum',title:'Interfered spectrum',redraw:()=>renderOut(),vec:outVec}};
 const XMAX=4096,xSize=(k,s)=>{const[W,H]=box($(XP[k].box));return k==='ring'?[Math.min(XMAX,Math.round(W*s)),Math.min(XMAX,Math.round(W*s))]:[Math.round(W*s),Math.round(H*s)]};
 /* the plot's SVG as a standalone file: the computed presentation styles are inlined (an SVG file sees none of the page's CSS,
    and colours here are CSS variables such as light-dark()), on the panel colour, with optional content under the axes */
@@ -1314,17 +1411,11 @@ async function svgRaster(src,g,s){const im=new Image();im.src=URL.createObjectUR
 /* a range plot's pixel layer redrawn at s device px per CSS px, copied, then the plot is put back as it was */
 function rangePixels(k,s){const o=XP[k],cv=$(o.cv);XDPR=s;try{o.redraw()}finally{XDPR=0}
   const c=document.createElement('canvas');c.width=cv.width;c.height=cv.height;c.getContext('2d').drawImage(cv,0,0);o.redraw();return c}
-/* the true curve as a vector path: n+1 samples, enough for 16 per fringe */
-function curvePath(n,xy){let p='';for(let i=0;i<=n;i++){const[x,y]=xy(i/n);p+=(i?'L':'M')+x.toFixed(2)+' '+y.toFixed(2)}return p}
-const fringeN=(dAt,cs)=>{const smax=Math.max(...cs.map(c=>c.s+3*wOf(c)));let tv=0,p=dAt(0);for(let i=1;i<=2000;i++){const d=dAt(i/2000);tv+=Math.abs(d-p);p=d}return clamp(Math.ceil(tv*smax*16),2000,400000)};
-function curveSVG(k){const cs=act(),[W,H]=box($(XP[k].svg)),pl=46,pr=10,pt=10,pb=42,X=t=>pl+t*(W-pl-pr),Y=v=>pt+(1-v)*(H-pt-pb);if(!cs.length)return'';
-  let dAt,stroke,defs='';
-  if(k==='ifg'){const R=RANGE(),SL=sublines();dAt=t=>-R+2*R*t;const m=clamp(Math.ceil(fringeN(dAt,cs)/2),256,20000);let st='';
-    for(let i=0;i<=m;i++){const c=rgb8(hueOf(xyzAt(dAt(i/m),0,SL)));st+=`<stop offset="${(i/m).toFixed(6)}" stop-color="rgb(${c})"/>`}
-    defs=`<defs><linearGradient id="ifgHue" gradientUnits="userSpaceOnUse" x1="${pl}" x2="${W-pr}" y1="0" y2="0">${st}</linearGradient></defs><rect x="${pl}" y="${pt}" width="${W-pl-pr}" height="${H-pt-pb}" fill="#05070f"/>`;stroke='url(#ifgHue)'}
-  else{const M=ringModel(),ax=+$('tx').value,ay=+$('ty').value,an=Math.hypot(ax,ay),nx=an?ax/an:1,ny=an?ay/an:0;dAt=t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)};stroke=rgbOf('--fr')}
-  const g=gammaOf(cs),n=fringeN(dAt,cs);
-  return defs+`<path d="${curvePath(n,t=>[X(t),Y(0.5*(1+g.re(dAt(t))))])}" fill="none" stroke="${stroke}" stroke-width="${k==='ifg'?0.6:1.5}" stroke-linejoin="round"/>`}
+/* the curves as vector paths, from the same traces as the screen (plot1d.js) */
+function curveSVG(k){const[W,H]=box($(XP[k].svg));if(!act().length)return'';
+  if(k==='ifg')return`<rect x="46" y="10" width="${W-56}" height="${H-52}" fill="#05070f"/>`+tracesSVG(W,H,46,10,10,42,ifgTraces(0));
+  if(k==='prof')return tracesSVG(W,H,46,10,10,42,profTraces(ringModel()));
+  return XP[k].vec()}
 /* the ring at N×N exact footprint averages (N = scale × its CSS size, at most XMAX), on a pool of its own, outside the circle
    transparent (anti-aliased edge); I holds I/I_tot for the Exported ring check. prog(fraction); stop() true cancels. */
 async function ringExport(N,prog=()=>{},stop=()=>false){const M=ringModel(),cs=act(),c=document.createElement('canvas');c.width=c.height=N;
@@ -1609,7 +1700,7 @@ for(const[k,id]of [['spec','spec'],['ring','ringOv'],['prof','profBox'],['ifg','
    canvas wherever the canvas is opaque (8-bit levels; PNG is lossless, and the export recomputes the plot, so a difference means
    the export isn't the displayed plot) */
 async function exportCheck(){let e=0,n=0;const s=window.devicePixelRatio||1;
-  for(const k of ['ifg','prof']){const cv=$(XP[k].cv),a=cv.getContext('2d').getImageData(0,0,cv.width,cv.height).data,bm=await createImageBitmap(await pngOf(rangePixels(k,s))),
+  for(const k of ['ifg','prof','spec','out']){const cv=$(XP[k].cv),a=cv.getContext('2d').getImageData(0,0,cv.width,cv.height).data,bm=await createImageBitmap(await pngOf(rangePixels(k,s))),
       t=document.createElement('canvas');t.width=bm.width;t.height=bm.height;const g=t.getContext('2d');g.drawImage(bm,0,0);const b=g.getImageData(0,0,t.width,t.height).data;
     for(let i=0;i<a.length;i+=4)if(a[i+3]===255){n++;for(let c=0;c<3;c++)e=Math.max(e,Math.abs(a[i+c]-b[i+c]))}}
   return n?e:Infinity}

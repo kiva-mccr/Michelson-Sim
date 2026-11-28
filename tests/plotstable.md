@@ -1,6 +1,6 @@
 # plotstable.js
 
-Checks MS-17: the profile and interferogram plots are identical while moving and at rest, so they can't flicker while dragging. For 4 spectra on the CPU, worker and WebGL2 renderers, it steps d and the tilt through 12 states as live frames (through `renderRing`, so the adaptive preview picks its resolution as in a drag), records both plot canvases after each, then renders the same states at rest and requires every byte to match.
+Checks MS-17: the profile, interferogram and (since MS-25) interfered-spectrum plots are identical while moving and at rest, so they can't flicker while dragging. For 4 spectra on the CPU, worker and WebGL2 renderers, it steps d and the tilt through 12 states as live frames (through `renderRing`, so the adaptive preview picks its resolution as in a drag), records the three plot canvases after each, then renders the same states at rest and requires every byte to match.
 
 ## Rules and pitfalls
 

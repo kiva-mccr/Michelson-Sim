@@ -21,8 +21,10 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
 - `src/js/`, concatenated in this order inside one block scope, so the files share names freely:
   - `physics.js`: constants, CMFs and colour, presets and state, `gamma`, `sublines`.
   - `ui-touch.js`: touch support shared by the controls: `TOUCH`, `fat(e)`, the touch wording of the hints, `pinch` (MS-22) and `longPress` (MS-23).
-  - `plots-spectrum.js`: axes, the spectrum editor and the interfered spectrum. Moving d redraws only what depends on it: the editor is skipped when its inputs are unchanged (`specKey`), and the interfered spectrum keeps its axes, grid and S(σ) (`outC`) and re-evaluates only T(σ;δ₀).
-  - `plots-range.js`: shared pixel maths, the anti-aliased range plots and the interferogram (trace cached, so only the δ₀ marker moves).
+  - `plot1d.js`: the one helper behind every 1-D plot (MS-25): signals (`fringeSig`, `specSig`), the anti-aliased raster trace (`traceRaster`, `DPK`), vector traces for SVG export (`tracesSVG`), and `traceCheck`.
+  - `plots-spectrum.js`: axes and the spectrum editor (skipped when its inputs are unchanged, `specKey`).
+  - `plots-out.js`: the interfered spectrum: window, traces, the exact footprint-averaged fill (`avgST`), `renderOut` (axes cached in `outC`; moving d redraws the canvas and the stems).
+  - `plots-range.js`: shared pixel maths and the interferogram (trace cached, so only the δ₀ marker moves).
   - `ring-model.js`: ring model (`opdModel`), `prepSL`, `pixVal`/`avgQ`, `gridPix` (one grid point; the workers run this same source).
   - `ring-shaders.js`: renderer state `RB`, `packRing`, the GLSL and WGSL sources.
   - `ring-gpu.js`: the WebGPU and WebGL2 renderers.
@@ -72,11 +74,11 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - No sideways page scroll at phone widths (320, 390, 750 px); `tests/touch.js` checks all of this.
 - **Copy or save any plot** (MS-23, Kiva): right-click a plot, or long-press it on a touch screen, for Copy image, Download PNG, Download SVG and Download MP4 at 2×, 4× (default) or 8× its on-screen size. No buttons on the panels; one hint line at the bottom of the page.
   - Exports are recomputed at their size with the same exact formulas, never scaled up: the range plots are redrawn at XDPR = scale, the ring is a fresh grid of exact footprint averages (CPU workers, at most 4096²).
-  - SVG: the spectrum and interfered spectrum are native vector; the interferogram and profile are the true curve I as a vector path (the interferogram stroked with a linear gradient of its perceived colour along δ); the ring has no vector form, so its SVG embeds the exact PNG.
+  - SVG: every 1-D plot's curves are the true curves as vector paths (at least 16 points per fringe), with the axes as native vector (the interferogram stroked with a linear gradient of its perceived colour along δ; the interfered spectrum's fill is its exact footprint average); the ring has no vector form, so its SVG embeds the exact PNG.
   - MP4 (`mp4.js`, WebCodecs H.264 in a container written here): one sweep of the mirror from −range to +range over the pass time at 30 fps, every frame an exact export of that plot at the chosen size, with exact timestamps. Not offered for the source spectrum, which doesn't change with d.
   - Saving uses the artifact viewer's `downloads` capability (`xSave`; the artifact is published with `capabilities: {downloads: true}`, and the viewer confirms each file), or a plain download link when the page is opened as a file. Keep that capability on every republish.
   - A long-press is 500 ms with less than 10 px of movement and one finger, not starting on a drag handle (spectrum dots and handles, the ring's dot and rim). Right-clicks never add a line or start a drag.
-  - Check rows: Exported plots (range plots exported at the device scale, PNG decoded again, vs the displayed pixels, tolerance 0) and Exported ring (exported ring at 160² vs the brute-force footprint integral, 1e-3). `tests/export.js` checks the menu, sizes, SVGs, clipboard and touch behaviour.
+  - Check rows: Exported plots (every 1-D plot exported at the device scale, PNG decoded again, vs the displayed pixels, tolerance 0) and Exported ring (exported ring at 160² vs the brute-force footprint integral, 1e-3). `tests/export.js` checks the menu, sizes, SVGs, clipboard and touch behaviour.
 - **Equations, notes, method and sources open as centred modal popups.**
   - Exception: the Components list is a non-modal popup at the bottom left.
 
@@ -85,7 +87,9 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
 - Spectrum: lines plus Gaussians, `S(σ) = Σ I_n δ(σ−σ_n) + Σ a_n e^{−(σ−σ_n)²/w_n²}`, with `w = FWHM/(2√ln2)`. See `shape`, `dens`, `P`.
 - Interferogram and coherence: `I(δ) = ½ Σ I_n [1 + e^{−(πw_nδ)²} cos 2πσ_nδ]` (Wiener–Khinchin). See `gamma`, `coherence`.
   - Coherence length is given two ways: the HWHM of |γ| and Mandel's ∫|γ|² dδ.
-- Interfered spectrum: `S·½[1 + cos 2πσδ₀]` with δ₀ = 2d. See `renderOut`.
+- Interfered spectrum: `S·½[1 + cos 2πσδ₀]` with δ₀ = 2d. See `renderOut` (`plots-out.js`).
+  - Its curves go through the 1-D helper, so fringes finer than a pixel fill the band [0, S] they really cover (MS-25; it used to sample 2 points per pixel and showed false fringes at large d). The fill under S·T is its exact average over each pixel's footprint (Gaussian, sd `PIXSD` px, in σ), in closed form: for a Gaussian a·e^{−(σ−σn)²/w²}, with q = w² + 2s², p = 1/w² + 1/(2s²), μ = (σn/w² + σc/(2s²))/p, ⟨S·T⟩ = ½·a·(w/√q)·e^{−(σc−σn)²/q}·[1 + e^{−π²δ₀²/p} cos 2πδ₀μ] (`avgST`); it tends to S/2 when the fringes are unresolved.
+- Every 1-D plot (source spectrum, interfered spectrum, profile, interferogram) draws its curves with `plot1d.js` (MS-25, Kiva: the same helper for every 1-D plot). Per device-pixel column: under one fringe, 8 sub-columns each cover the exact span of their slice (32 samples per fringe); one fringe or more, each row of the band gets the coverage a sub-column gives it on average over the fringe phase (closed form), which removes the streaks that phase-locked sub-columns made at 1 to 8 fringes per pixel. Check rows: Interfered spectrum fill (vs Simpson over the footprint, 1e-6) and Plot traces (drawn spans vs brute-force min/max, 3e-3 of the plot height).
 - Ring model:
   - `tanθ = r·tanθmax`
   - `δ = 2d cosθ + 2(αx·x + αy·y)`, with mirror coordinate scale `L·tanθmax` and L = 28.4 mm. See `ringModel`.
@@ -120,7 +124,7 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - When the inputs stop changing for 150 ms (`IDLE`) with the button still held, the exact at-rest image is rendered (`goIdle` in `ui-loop.js`).
   - Measurements expire after 3 s and reset when the number of sub-bands changes.
   - The budget follows the device: the display's refresh interval is measured from idle `requestAnimationFrame` steps (`measureFrame`, `FR()`, 25th percentile, clamped to 16.7–33.4 ms) and re-measured on resize and when the page becomes visible. The main-thread CPU paths get what is left of that frame after the plots; the GPU and worker paths get 85% of it, since they run in parallel with the plots. The workers' cost is their own compute time (the slowest worker's), not the wall time from posting (MS-19).
-  - The profile and interferogram range plots do **not** adapt: always 8 sub-columns per pixel (`DPK`), moving or at rest (MS-17). MS-10 had them switch between 2 and 8 with the spare frame time, and dense fringes look very different at 2 and 8, so the plots flickered while dragging. `tests/plotstable.js` requires their pixels to be identical moving and at rest.
+  - The 1-D plots do **not** adapt: always 8 sub-columns per pixel (`DPK`), moving or at rest (MS-17). MS-10 had them switch between 2 and 8 with the spare frame time, and dense fringes look very different at 2 and 8, so the plots flickered while dragging. `tests/plotstable.js` requires their pixels (and the interfered spectrum's) to be identical moving and at rest.
   - At rest, the image is always rendered at every pixel (Nl = N, the same code path and bit-identical outputs as before MS-11). On the CPU this is time-sliced into 12 ms slices so the page never blocks.
 - **Hidden corners are skipped** (MS-13): the canvas is square but shown as a circle, so grid points with r > 1 + 3 grid cells (`rcut`) are stored as 0 instead of evaluated, on every renderer. Visible pixels are bit-identical; only the corner values in the snapshots change. Check points must stay inside the circle.
 - Layout reads are cached (`box()`, `css()`, cleared on resize and theme change), and the interfered spectrum updates its existing SVG instead of rebuilding it (MS-13).
@@ -148,13 +152,13 @@ node tests/fastpath.js                            # pixVal's stepped fast path v
 node tests/symmetry.js                            # untilted at-rest ring: octant mirrored 8 ways vs every pixel evaluated (MS-15)
 node tests/gpukernel.js                           # WGSL and GLSL pixel kernels alone vs pixVal in float64 (MS-16)
 node tests/antialias.js                           # previews at several grid sizes vs brute-force footprint integrals, and moiré on a dense ring, every renderer (MS-17)
-node tests/plotstable.js                          # profile and interferogram pixels identical moving and at rest (MS-17)
+node tests/plotstable.js                          # profile, interferogram and interfered-spectrum pixels identical moving and at rest (MS-17, MS-25)
 node tests/sweepres.js                            # the sweep drives the adaptive preview like a drag: live frames, measured fringe speed, finer when slower, exact when stopped
 node tests/export.js                              # copy/save menu: right-click on each plot, PNG sizes, SVG validity and gradient, MP4 layout and frame count, clipboard, ring export vs brute force, long-press on a phone (MS-23)
 node tests/touch.js                               # touch controls in an emulated phone: drags, tap to add, the selection bar, pinches, no sideways scroll (MS-22)
 ```
 
-`snapshot.js` records every output for 7 spectra on the CPU, worker and WebGL2 renderers. Two runs of the same build are identical, so any difference is real. Only accept a difference at floating-point noise level, and say so. Since MS-13, `ring` and `Ib` differ from pre-MS-13 builds in the hidden corners (r > rcut) only. Since MS-17 (footprint sd 0.4 → 0.5 px), `ring`, `Ib`, `ifgC` (the interferogram colours) and the check table differ from pre-MS-17 builds on purpose; everything else (γ, sub-bands, coherence, plot SVGs, `profC`, equations, readouts) must stay identical.
+`snapshot.js` records every output for 7 spectra on the CPU, worker and WebGL2 renderers. Two runs of the same build are identical, so any difference is real. Only accept a difference at floating-point noise level, and say so. Since MS-13, `ring` and `Ib` differ from pre-MS-13 builds in the hidden corners (r > rcut) only. Since MS-17 (footprint sd 0.4 → 0.5 px), `ring`, `Ib`, `ifgC` (the interferogram colours) and the check table differ from pre-MS-17 builds on purpose; everything else (γ, sub-bands, coherence, plot SVGs, `profC`, equations, readouts) must stay identical. Since MS-25 the spectrum plots draw their curves on canvases (`specC`, `outCv`, recorded too), so `h_spec`, `h_out` and the check table differ from earlier builds, and `ifgC` differs where 1 to 8 fringes fall in a pixel (the na preset); `profC`, γ and the ring are unchanged.
 
 - The Node tests share `tests/_common.js` (the hook point, a temporary page per process, MathJax routing, launch flags), so any two of them can run at the same time.
 - Offline, or with the CDN blocked: `npm i mathjax@3.2.2`, then set `MATHJAX_DIR=…/node_modules/mathjax` and the tests serve MathJax from there.
@@ -184,6 +188,7 @@ These were only checked in headless Chromium on a cloud machine without a GPU. K
 - Copy and save (MS-23) were checked in headless Chromium only (the clipboard with permission granted, downloads, a phone emulated with synthetic touch events). Pasting into real apps, Safari's and Firefox's clipboards, a real phone's long-press, downloads from inside the claude.ai artifact frame, how the SVGs open in Illustrator or Inkscape, and the MP4s in players other than ffmpeg (they decode there) have not been seen. A ring MP4 at 4× computes hundreds of exact frames and can take minutes; on a phone, longer.
 - The layout checks ran in headless Chromium only. Firefox and Safari have never been tested.
 - The touch controls (MS-22) were checked only in headless Chromium emulating phones (iPhone 13, a 320 px Android, landscape), with synthetic touch events. They have not been used on a real phone, and iOS Safari, where `dblclick` and long-press behave differently, has never been tested.
+- The 1-D plot helper (MS-25) was checked in headless Chromium at device pixel ratios 1 and 2 only (screenshots, the check rows, `tests/plotstable.js`). How the dense-fringe bands look on Kiva's screen has not been seen. The interfered spectrum now costs about 3–13 ms per frame while d moves on the cloud host (it was under 1 ms when it aliased); on Kiva's machine, and on phones, it has not been measured.
 - MS-17 (plot flicker, moiré) was reproduced and checked in headless Chromium on CPU, workers and SwiftShader WebGL2, by pixel comparisons and brute-force integrals. Kiva saw both problems on a real machine; whether the fix looks right there has not been seen. The WebGPU preview path was checked only through `tests/gpukernel.js` here, since the full page loses its WebGPU context on this host.
 
 ## Roadmap

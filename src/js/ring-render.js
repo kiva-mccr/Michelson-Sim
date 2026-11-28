@@ -80,6 +80,9 @@ function sliced(job,n,step,work,paint){let j=0,done;RB.wDone=new Promise(r=>done
   const slice=()=>{if(job!==ringJob)return done();const t0=performance.now(),jj=j;while(j<n&&performance.now()-t0<12){work(j,j+step);j+=step}
     paint(jj,Math.min(j,n));if(j<n)setTimeout(slice,0);else done()};
   slice()}
+/* the profile's trace: I along the cut through the centre along the tilt direction (along x when there is no tilt) */
+function profTraces(M){const ax=+$('tx').value,ay=+$('ty').value,an=Math.hypot(ax,ay),nx=an?ax/an:1,ny=an?ay/an:0,col=cssRGB('--fr');
+  return[{sig:fringeSig(t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},act()),col:()=>col}]}
 function ringProfile(M){const cs=act();
   /* profile cut: through the centre along the tilt direction n = (αx, αy)/|α| (along x when there is no tilt) */
   const ax=+$('tx').value,ay=+$('ty').value,an=Math.hypot(ax,ay),nx=an?ax/an:1,ny=an?ay/an:0,phi=Math.atan2(ny,nx)*180/Math.PI;
@@ -88,7 +91,6 @@ function ringProfile(M){const cs=act();
   let s='';for(const v of [0,0.5,1])s+=`<line x1="${pl}" x2="${W-pr2}" y1="${y(v)}" y2="${y(v)}" stroke="${mute}" stroke-opacity="${v?0.15:0.5}"/><text x="${pl-6}" y="${y(v)+4}" font-size="12" fill="${mute}" text-anchor="end">${v}</text>`;
   for(const u of [-1,-0.5,0,0.5,1]){const t=Math.sign(u)*M.th(Math.abs(u))*180/Math.PI;s+=`<text x="${x(u)}" y="${H-pb+16}" font-size="12" fill="${mute}" text-anchor="${u<-0.9?'start':u>0.9?'end':'middle'}">${F(t,2)}°</text>`}
   /* same anti-aliased range plot as the interferogram, along the cut */
-  {const pc=$('profC'),dpr=DPR(),cw=Math.round(W*dpr),ch=Math.round(H*dpr);if(pc.width!==cw||pc.height!==ch){pc.width=cw;pc.height=ch}  /* resizing a canvas reallocates it: only when the size changes */const pg=pc.getContext('2d');pg.clearRect(0,0,pc.width,pc.height);
-    if(cs.length){const col=cssRGB('--fr');densityPlot(pg,Math.round(pl*dpr),Math.round(pt*dpr),Math.round((W-pl-pr2)*dpr),Math.round((H-pt-pb)*dpr),t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},cs,()=>col)}}
+  {const P=plotCanvas($('profC'),W,H,pl,pr2,pt,pb);if(cs.length)drawTraces(P,profTraces(M))}
   s+=`<text x="${(pl+W-pr2)/2}" y="${H-4}" font-size="12" fill="${mute}" text-anchor="middle">${an?`θ along the tilt direction (${F(phi,3)}° from x)`:"θ along x"}</text><text transform="translate(12 ${(pt+H-pb)/2}) rotate(-90)" font-size="12" fill="${mute}" text-anchor="middle">I / I_tot</text>`;svg.innerHTML=s}
 

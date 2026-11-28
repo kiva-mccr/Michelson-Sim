@@ -20,6 +20,14 @@ async function verify(){
   /* 2 interfered spectrum identity */
   const Io=quadSpec(sg=>0.5*(1+Math.cos(2*Math.PI*sg*d0)),d0)/A,e2=Math.abs(Io-0.5*(1+gamma(d0,cs)[0]));
   row('Interfered spectrum','∫S_out(σ;δ₀)dσ vs I(δ₀)',e2,1e-6);
+  /* 2b its fill (MS-25): the closed-form footprint average vs Simpson quadrature of ∫g·S·T over the footprint, 8 pixels */
+  if(cs.some(c=>c.f)){const[l0,l1]=outWin(),Wd=(box($('out'))[0]-OUTPAD[0]-OUTPAD[1])*DPR();let e=0;
+    for(let i=0;i<8;i++){const l=l1-(l1-l0)*(i+0.5)/8,sc=1000/l,sg=1000/(l*l)*(l1-l0)*PIXSD/Wd,n=clamp(Math.ceil(16*sg*Math.abs(d0)*40),4000,400000);
+      const q=simpson(s=>Math.exp(-0.5*((s-sc)/sg)**2)/(sg*Math.sqrt(2*Math.PI))*cs.reduce((t,c)=>t+dens(c,s),0)*0.5*(1+Math.cos(2*Math.PI*s*d0)),sc-8*sg,sc+8*sg,n);
+      e=Math.max(e,Math.abs(q-avgST(cs,sc,sg,d0)))}
+    row('Interfered spectrum fill','closed-form footprint average of S·T vs Simpson quadrature over the footprint, 8 pixels',e,1e-6)}
+  /* 2c the 1-D plots' traces (MS-25): the span each draws vs brute-force min/max of the exact curve, 48 pixels per trace */
+  row('Plot traces','drawn span (sub-column, or the band of a pixel holding a whole fringe) vs brute-force min/max, every 1-D plot (plot heights)',traceCheck(M),3e-3);
   /* 3 sub-band model vs analytic fringe term over every OPD the page can show */
   let hiD=Math.max(R,Math.abs(d0),2*Math.abs(M.d)+1.42*(Math.abs(M.kx)+Math.abs(M.ky))),e3=0;
   for(let i=0;i<=6000;i++){const d=hiD*i/6000;let v=0;for(const o of SL)v+=o.p*avgTerm(o.ka,o.kb,d,0);e3=Math.max(e3,Math.abs(v/A-gamma(d,cs)[0]))}
@@ -46,7 +54,7 @@ async function verify(){
   {const m=DMAX();let v=-m,dir=1,t=0,s=12345,dt=0;while(dir>0){s=s*16807%2147483647;dt=0.005+0.035*s/2147483647;const v0=v;[v,dir]=sweepStep(v,dir,dt,m,SWT);t+=dir>0?dt:(m-v0)/(2*m/SWT)}
     row('Sweep','one pass from −range to +range with uneven frames vs the set time, and the speed readout vs 2·range / that time (relative)',Math.max(Math.abs(t-SWT)/SWT,Math.abs(sweepV()-2*m/t)/sweepV()),1e-9)}
   /* 9 exports (MS-23): range plots exported at the device scale vs the displayed pixels; the ring exported at its own grid vs brute force */
-  row('Exported plots','interferogram and profile exported as PNG at the device scale, decoded again, vs the displayed pixels (largest 8-bit difference)',await exportCheck(),0);
+  row('Exported plots','every 1-D plot (both spectra, interferogram, profile) exported as PNG at the device scale, decoded again, vs the displayed pixels (largest 8-bit difference)',await exportCheck(),0);
   {const X=await ringExport(160);row('Exported ring','exported ring at 160² vs brute-force 2-D integral of the exact pattern over each pixel footprint, 8 pixels',ringBrute(X.M,cs,X.N,X.I),1e-3)}
   $('ver').innerHTML=out.join('');$('verAt').textContent=`Last run: ${cs.length} component${cs.length>1?'s':''}, d = ${F(+$('d').value,4)} µm, tilt (${$('tx').value}, ${$('ty').value}) µrad, θmax = ${$('fov').value}°.`}
 

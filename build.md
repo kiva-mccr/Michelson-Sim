@@ -9,4 +9,4 @@ Builds the single-file `index.html` from `src/`: the template with each `<!--@IN
 - Keep files small (MS-12): when one grows past about 10 KB, split it at a section boundary and check that `index.html` is unchanged byte for byte.
 - Run `python3 build.py --check` before publishing. It exits 1 if `index.html` is out of date.
 - Never edit `index.html` by hand: the next build overwrites it.
-- `ui-touch.js` comes right after `physics.js`: every UI file uses `TOUCH`, `fat` and `pinch` at load time.
+- `ui-touch.js` comes right after `physics.js`: every UI file uses `TOUCH`, `fat` and `pinch` at load time. `plot1d.js` (the 1-D plot helper, MS-25) follows it, ahead of the plots that use it.

@@ -1,6 +1,6 @@
 # snapshot.js
 
-Records every output (gamma, sub-bands, coherence, plot SVGs, canvas pixels, the ring buffer, equations, readouts, check table) for 7 spectra on the CPU, worker and WebGL2 renderers. Needs Node and `npm i playwright`.
+Records every output (gamma, sub-bands, coherence, plot SVGs, canvas pixels (since MS-25 also the spectrum plots' `specC` and `outCv`), the ring buffer, equations, readouts, check table) for 7 spectra on the CPU, worker and WebGL2 renderers. Needs Node and `npm i playwright`.
 
 ## Rules and pitfalls
 

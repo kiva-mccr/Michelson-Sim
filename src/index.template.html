@@ -25,7 +25,7 @@
     <div class="panel">
       <div class="chead"><h2>Source spectrum $S(\sigma)$</h2><span class="hbtns"><button id="openComp" class="mini" aria-haspopup="dialog">Components (<span id="nComp">0</span>)</button><button class="mini eqbtn" data-dlg="eqdlg1" aria-haspopup="dialog">Equations and notes</button></span></div>
       <p class="hint" data-touch="Tap to add · drag a dot to move · drag its width handles to widen · tap a dot to edit or delete it below">Click to add · drag a dot to move · drag its line or width handles to widen · double-click to delete</p>
-      <div class="fig" id="specBox"><svg id="spec" role="img" aria-label="Editable source spectrum"></svg></div>
+      <div class="fig" id="specBox"><canvas id="specC"></canvas><svg id="spec" role="img" aria-label="Editable source spectrum"></svg></div>
       <div class="selbar" id="selBar" hidden><span class="sw" id="sbSw"></span><span class="chip">λ <b id="sbL"></b> nm</span><span class="chip">height <b id="sbA"></b></span><span class="chip">FWHM <b id="sbF"></b></span><button id="sbDel" class="mini">Delete</button></div>
     </div>
     <div class="panel" id="mich">
@@ -74,7 +74,7 @@
     </div>
     <div class="panel">
       <div class="chead"><h2>Interfered spectrum $S_{\rm out}(\sigma;\delta_0)$</h2><button class="mini eqbtn" data-dlg="eqdlg4" aria-haspopup="dialog">Equations and notes</button></div>
-      <div class="fig plot" id="outBox" title="Scroll to zoom, drag to pan" style="cursor:grab;touch-action:none"><svg id="out"></svg></div>
+      <div class="fig plot" id="outBox" title="Scroll to zoom, drag to pan" style="cursor:grab;touch-action:none"><canvas id="outCv"></canvas><svg id="out"></svg></div>
       <div class="zrow"><span class="note"><span data-touch="Pinch to zoom · drag to pan">Scroll to zoom · drag to pan</span> · <b id="oV"></b></span><label class="chk"><input type="checkbox" id="oAuto" checked> Auto-fit to the components</label></div>
     </div>
     <div class="panel">

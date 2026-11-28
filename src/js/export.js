@@ -4,11 +4,11 @@
    worker pool, and the axes are the plot's own SVG. SVG: the spectrum plots are native vector; the interferogram and the
    profile are the true curve I(δ) as a vector path (the interferogram's stroke a gradient of its perceived colour along δ);
    the ring has no vector form, so its SVG embeds the exact PNG. */
-const XP={spec:{box:'specBox',svg:'spec',name:'source-spectrum',title:'Source spectrum'},
+const XP={spec:{box:'specBox',svg:'spec',cv:'specC',name:'source-spectrum',title:'Source spectrum',redraw:()=>{specKey='';renderSpec()},vec:()=>{const[W,H]=box($('spec'));return tracesSVG(W,H,40,12,20,36,specTraces())}},
   ring:{box:'ringWrap',name:'interference-pattern',title:'Interference pattern'},
   prof:{box:'profBox',svg:'prof',cv:'profC',name:'pattern-profile',title:'Pattern profile',redraw:()=>ringProfile(ringModel())},
   ifg:{box:'ifgBox',svg:'ifg',cv:'ifgC',name:'interferogram',title:'Interferogram',redraw:()=>renderIfg()},
-  out:{box:'outBox',svg:'out',name:'interfered-spectrum',title:'Interfered spectrum'}};
+  out:{box:'outBox',svg:'out',cv:'outCv',name:'interfered-spectrum',title:'Interfered spectrum',redraw:()=>renderOut(),vec:outVec}};
 const XMAX=4096,xSize=(k,s)=>{const[W,H]=box($(XP[k].box));return k==='ring'?[Math.min(XMAX,Math.round(W*s)),Math.min(XMAX,Math.round(W*s))]:[Math.round(W*s),Math.round(H*s)]};
 /* the plot's SVG as a standalone file: the computed presentation styles are inlined (an SVG file sees none of the page's CSS,
    and colours here are CSS variables such as light-dark()), on the panel colour, with optional content under the axes */
@@ -22,17 +22,11 @@ async function svgRaster(src,g,s){const im=new Image();im.src=URL.createObjectUR
 /* a range plot's pixel layer redrawn at s device px per CSS px, copied, then the plot is put back as it was */
 function rangePixels(k,s){const o=XP[k],cv=$(o.cv);XDPR=s;try{o.redraw()}finally{XDPR=0}
   const c=document.createElement('canvas');c.width=cv.width;c.height=cv.height;c.getContext('2d').drawImage(cv,0,0);o.redraw();return c}
-/* the true curve as a vector path: n+1 samples, enough for 16 per fringe */
-function curvePath(n,xy){let p='';for(let i=0;i<=n;i++){const[x,y]=xy(i/n);p+=(i?'L':'M')+x.toFixed(2)+' '+y.toFixed(2)}return p}
-const fringeN=(dAt,cs)=>{const smax=Math.max(...cs.map(c=>c.s+3*wOf(c)));let tv=0,p=dAt(0);for(let i=1;i<=2000;i++){const d=dAt(i/2000);tv+=Math.abs(d-p);p=d}return clamp(Math.ceil(tv*smax*16),2000,400000)};
-function curveSVG(k){const cs=act(),[W,H]=box($(XP[k].svg)),pl=46,pr=10,pt=10,pb=42,X=t=>pl+t*(W-pl-pr),Y=v=>pt+(1-v)*(H-pt-pb);if(!cs.length)return'';
-  let dAt,stroke,defs='';
-  if(k==='ifg'){const R=RANGE(),SL=sublines();dAt=t=>-R+2*R*t;const m=clamp(Math.ceil(fringeN(dAt,cs)/2),256,20000);let st='';
-    for(let i=0;i<=m;i++){const c=rgb8(hueOf(xyzAt(dAt(i/m),0,SL)));st+=`<stop offset="${(i/m).toFixed(6)}" stop-color="rgb(${c})"/>`}
-    defs=`<defs><linearGradient id="ifgHue" gradientUnits="userSpaceOnUse" x1="${pl}" x2="${W-pr}" y1="0" y2="0">${st}</linearGradient></defs><rect x="${pl}" y="${pt}" width="${W-pl-pr}" height="${H-pt-pb}" fill="#05070f"/>`;stroke='url(#ifgHue)'}
-  else{const M=ringModel(),ax=+$('tx').value,ay=+$('ty').value,an=Math.hypot(ax,ay),nx=an?ax/an:1,ny=an?ay/an:0;dAt=t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)};stroke=rgbOf('--fr')}
-  const g=gammaOf(cs),n=fringeN(dAt,cs);
-  return defs+`<path d="${curvePath(n,t=>[X(t),Y(0.5*(1+g.re(dAt(t))))])}" fill="none" stroke="${stroke}" stroke-width="${k==='ifg'?0.6:1.5}" stroke-linejoin="round"/>`}
+/* the curves as vector paths, from the same traces as the screen (plot1d.js) */
+function curveSVG(k){const[W,H]=box($(XP[k].svg));if(!act().length)return'';
+  if(k==='ifg')return`<rect x="46" y="10" width="${W-56}" height="${H-52}" fill="#05070f"/>`+tracesSVG(W,H,46,10,10,42,ifgTraces(0));
+  if(k==='prof')return tracesSVG(W,H,46,10,10,42,profTraces(ringModel()));
+  return XP[k].vec()}
 /* the ring at N×N exact footprint averages (N = scale × its CSS size, at most XMAX), on a pool of its own, outside the circle
    transparent (anti-aliased edge); I holds I/I_tot for the Exported ring check. prog(fraction); stop() true cancels. */
 async function ringExport(N,prog=()=>{},stop=()=>false){const M=ringModel(),cs=act(),c=document.createElement('canvas');c.width=c.height=N;
