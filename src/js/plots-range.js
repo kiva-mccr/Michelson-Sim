@@ -11,38 +11,6 @@ const hueOf=xyz=>norm(desat(toLin(xyz)));
 const GL=new Float32Array(4097);for(let i=0;i<=4096;i++)GL[i]=255*gam(i/4096);
 const enc=v=>GL[v<=0?0:v>=1?4096:(v*4096+0.5)|0];
 
-/* ---------- anti-aliased range plot ----------
-   Each device-pixel column is split into K = 8 sub-columns. Each sub-column contributes the exact min–max span of the signal over
-   its own slice (from samples fine enough to resolve every fringe, or ½(1 ± max|γ|) once a slice holds a whole fringe),
-   drawn at least 1.25 px tall, with 1/K coverage and fractional coverage at its ends (shown with a 0.45 display gamma, like scope persistence). Summing coverage is a box filter:
-   proper anti-aliasing, so fringes near the pixel pitch blend into an even tone instead of beating into moiré.
-   A small horizontal Gaussian (sd 0.7 px) then suppresses the box filter's own side-lobes. */
-function spanOf(t0,t1,dAt,g,smax){const fr=Math.abs(dAt(t1)-dAt(t0))*smax;let lo=1,hi=0;  /* g = gammaOf(cs) */
-  if(fr>=1){for(let q=0;q<=4;q++){const m=g.mag(dAt(t0+(t1-t0)*q/4));lo=Math.min(lo,0.5*(1-m));hi=Math.max(hi,0.5*(1+m))}}
-  else{const k=Math.max(2,Math.ceil(16*fr)+1);for(let q=0;q<=k;q++){const v=0.5*(1+g.re(dAt(t0+(t1-t0)*q/k)));lo=Math.min(lo,v);hi=Math.max(hi,v)}}SPAN2[0]=lo;SPAN2[1]=hi;return SPAN2}
-const SPAN2=[0,0];
-/* buffers are reused between calls, one set per target canvas; only the rows a column (or its filter neighbours) touched are visited */
-/* Sub-columns per pixel: always 8, moving or at rest. Never adapt this to the frame time: dense fringes look very different at
-   2 and at 8 sub-columns (a solid band against the true crowding at ½(1 ± |γ|)), so switching between them made the plots flicker
-   while dragging (fixed in MS-17). */
-const DPK=8;
-function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=DPK,
-  B=ctx.__dp&&ctx.__dp.Wd===Wd&&ctx.__dp.Hd===Hd?ctx.__dp:(ctx.__dp={Wd,Hd,img:ctx.createImageData(Wd,Hd),C:new Float32Array(Wd*Hd),r0:new Int32Array(Wd),r1:new Int32Array(Wd),off:document.createElement('canvas')});
-  const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],smax=Math.max(...cs.map(c=>c.s)),g=gammaOf(cs),MINH=1.25*DPR();
-  D.fill(0);C.fill(0);
-  for(let px=0;px<Wd;px++){const base=px*Hd;let c0=Hd,c1=-1;
-    for(let k=0;k<K;k++){const[lo,hi]=spanOf((px+k/K)/Wd,(px+(k+1)/K)/Wd,dAt,g,smax);let ya=(1-hi)*(Hd-1),yb=(1-lo)*(Hd-1);
-      if(yb-ya<MINH){const m=(ya+yb)/2;ya=m-MINH/2;yb=m+MINH/2}
-      const ja=Math.max(0,Math.floor(ya)),jb=Math.min(Hd-1,Math.ceil(yb));if(ja<c0)c0=ja;if(jb>c1)c1=jb;
-      for(let yy=ja;yy<=jb;yy++){const o=Math.min(yy+1,yb)-Math.max(yy,ya);if(o>0)C[base+yy]+=o/K}}
-    r0[px]=c0;r1[px]=c1;cols.push(colourAt((px+0.5)/Wd))}
-  /* horizontal Gaussian low-pass (sd 0.7 px) on top of the box filter removes the box filter's sinc side-lobes, which are what still beat into moiré */
-  const LP=[0.0097,0.205,0.5706,0.205,0.0097];
-  for(let px=0;px<Wd;px++){const c=cols[px];let ja=Hd,jb=-1;for(let q=Math.max(0,px-2);q<=Math.min(Wd-1,px+2);q++){if(r0[q]<ja)ja=r0[q];if(r1[q]>jb)jb=r1[q]}
-    for(let yy=ja;yy<=jb;yy++){let v=0;for(let t=-2;t<=2;t++){const q=px+t;if(q>=0&&q<Wd)v+=LP[t+2]*C[q*Hd+yy]}if(v<=0.002)continue;
-      const a=Math.pow(Math.min(1,v),0.45),o=4*(yy*Wd+px);D[o]=c[0];D[o+1]=c[1];D[o+2]=c[2];D[o+3]=255*a}}
-  const off=B.off;if(off.width!==Wd||off.height!==Hd){off.width=Wd;off.height=Hd}off.getContext('2d').putImageData(img,0,0);
-  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(off,x0,y0);ctx.restore()}
 const rgb8=c=>c.map(v=>enc(v)|0);
 let _probe=null;function cssRGB(v){const c=CSSC.get('rgb'+v);if(c)return c;if(!_probe){_probe=document.createElement('span');_probe.style.display='none';document.body.appendChild(_probe)}_probe.style.color=`var(${v})`;const r=getComputedStyle(_probe).color.match(/\d+/g).slice(0,3).map(Number);CSSC.set('rgb'+v,r);return r}
 
@@ -50,6 +18,8 @@ let _probe=null;function cssRGB(v){const c=CSSC.get('rgb'+v);if(c)return c;if(!_
 /* The trace and its envelope depend only on the spectrum, the range and the plot size, not on d, so they are cached:
    moving the mirror only redraws the δ₀ marker. */
 let ifgKey='',ifgEnv='';
+/* the trace: I(δ), coloured by the perceived colour of each column (its footprint average, t2 = its OPD variance; 0 in the SVG gradient) */
+function ifgTraces(t2){const cs=act(),R=RANGE(),SL=sublines(),dAt=t=>-R+2*R*t;return[{sig:fringeSig(dAt,cs),col:t=>rgb8(hueOf(xyzAt(dAt(t),t2,SL))),vary:true,w:0.6,id:'ifgHue'}]}
 function renderIfg(){
   const svg=$('ifg'),cv=$('ifgC'),[W,H]=box(svg);if(!W)return;
   const dpr=DPR(),key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr]),fresh=key!==ifgKey;ifgKey=key;
@@ -64,8 +34,8 @@ function renderIfg(){
     if(fresh){let up='',lo='';
     for(let p=0;p<=PW;p+=2){const d=-R+dpp*p,[re,im]=gamma(d,cs),m=Math.hypot(re,im),X=x(d).toFixed(1);up+=(up?'L':'M')+X+' '+y(0.5*(1+m)).toFixed(1);lo+=(lo?'L':'M')+X+' '+y(0.5*(1-m)).toFixed(1)}
     ifgEnv=`<path d="${up}" fill="none" stroke="#e0115f" stroke-width="1.8"/><path d="${lo}" fill="none" stroke="#e0115f" stroke-width="1.8"/>`;
-    const x0=Math.round(pl*dpr),y0=Math.round(pt*dpr),Wd=Math.round((W-pl-pr)*dpr),Hd=Math.round((H-pt-pb)*dpr),t2=(PIXSD*dpp)**2;
-      densityPlot(g,x0,y0,Wd,Hd,t=>-R+2*R*t,cs,t=>rgb8(hueOf(xyzAt(-R+2*R*t,t2,SL))))}
+    const t2=(PIXSD*dpp)**2;
+      drawTraces({g,x0:Math.round(pl*dpr),y0:Math.round(pt*dpr),Wd:Math.round((W-pl-pr)*dpr),Hd:Math.round((H-pt-pb)*dpr)},ifgTraces(t2))}
     if($('envOn').checked)h+=ifgEnv;
     const d0=D0();if(Math.abs(d0)<=R)h+=`<line x1="${x(d0)}" x2="${x(d0)}" y1="${pt}" y2="${y(0)}" stroke="#ff4d8d" stroke-dasharray="5 4" stroke-width="1.5"/><text x="${x(d0)+4}" y="${pt+28}" font-size="12" fill="#ff4d8d">δ₀</text>`}
   svg.innerHTML=h}

@@ -44,7 +44,7 @@ for(const[k,id]of [['spec','spec'],['ring','ringOv'],['prof','profBox'],['ifg','
    canvas wherever the canvas is opaque (8-bit levels; PNG is lossless, and the export recomputes the plot, so a difference means
    the export isn't the displayed plot) */
 async function exportCheck(){let e=0,n=0;const s=window.devicePixelRatio||1;
-  for(const k of ['ifg','prof']){const cv=$(XP[k].cv),a=cv.getContext('2d').getImageData(0,0,cv.width,cv.height).data,bm=await createImageBitmap(await pngOf(rangePixels(k,s))),
+  for(const k of ['ifg','prof','spec','out']){const cv=$(XP[k].cv),a=cv.getContext('2d').getImageData(0,0,cv.width,cv.height).data,bm=await createImageBitmap(await pngOf(rangePixels(k,s))),
       t=document.createElement('canvas');t.width=bm.width;t.height=bm.height;const g=t.getContext('2d');g.drawImage(bm,0,0);const b=g.getImageData(0,0,t.width,t.height).data;
     for(let i=0;i<a.length;i+=4)if(a[i+3]===255){n++;for(let c=0;c<3;c++)e=Math.max(e,Math.abs(a[i+c]-b[i+c]))}}
   return n?e:Infinity}

@@ -45,7 +45,7 @@ const scen=[
       for(let i=0;i<=400;i++)out.gam.push(T.gamma(-R+2*R*i/400));
       out.sub=T.sub();out.coh=T.coh();out.settle=T.settle();
       for(const id of ['spec','out','ifg','prof','coh','eqS','eqI','eqP','eqO','eqC','tb','miniSvg','rail','dV','dV0','dRV','rV','oV','fV','txV','tyV','resV'])out['h_'+id]=document.getElementById(id).innerHTML;
-      out.ifgC=cvs('ifgC');out.profC=cvs('profC');
+      out.ifgC=cvs('ifgC');out.profC=cvs('profC');out.specC=cvs('specC');out.outCv=cvs('outCv');
       await T.verify();out.ver=document.getElementById('ver').innerText;
     }
     return out},rend);

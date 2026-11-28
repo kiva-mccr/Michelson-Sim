@@ -37,6 +37,8 @@ Kiva added these on 2026-11-27. Add a step here only once Kiva has approved it.
 - [x] MS-23: Copy or save any plot as an image (Kiva, 2026-11-27/28). Right-click a plot, or long-press it on a touch screen, for Copy image, Download PNG, Download SVG and Download MP4 (one mirror sweep at 30 fps, every frame exact; WebCodecs H.264, own MP4 writer) at 2×, 4× (default) or 8× its on-screen size, recomputed at that size, never scaled up. SVG: the spectrum plots native vector, the interferogram and profile the true curve as a vector path (the interferogram stroked with a gradient of its perceived colour along δ), the ring an embedded exact PNG. One hint line at the bottom of the page. New check rows: Exported plots, Exported ring.
 - [x] MS-24: The field-of-view handle on the ring is a double-headed radial arrow instead of a red dot (Kiva, 2026-11-28). Same drag, wheel and pinch; the arrow itself is grabbable too. Snapshots identical.
 
+- [x] MS-25: Fix the false patterns in the interfered spectrum, with one helper for every 1-D plot (Kiva, 2026-11-28). The interfered spectrum sampled its curves twice per pixel, so once the channels got finer than a pixel it drew false fringes (LED at d = 1 mm: about 40 where there are about 2,500). Every 1-D plot (both spectra, profile, interferogram) now draws through `plot1d.js`: exact spans per sub-column under one fringe per pixel, and the phase-averaged coverage of the band above it (which also removes faint streaks the interferogram had at 1 to 8 fringes per pixel). The interfered spectrum's fill is its exact footprint average (closed form). New check rows: Interfered spectrum fill, Plot traces; Exported plots now covers all four 1-D plots.
+
 ## Decisions
 
 Settled decisions. Ask Kiva before changing any of them.
