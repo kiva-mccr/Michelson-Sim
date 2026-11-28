@@ -58,8 +58,8 @@ async function exportSVG(k,s,prog,stop){
    size (the same code as the PNG). d is stepped directly and only this plot is redrawn; the page is put back afterwards. */
 const MP4FPS=30;
 /* prog(frames done, frames in all) after each frame */
-async function exportMP4(k,s,prog,stop){const d0=$('d').value,m=DMAX(),n=Math.max(2,Math.round(SWT*MP4FPS)+1);let E=null;
+async function exportMP4(k,s,prog,stop){const d0=$('d').value,c0=IFGC,m=DMAX(),n=Math.max(2,Math.round(SWT*MP4FPS)+1);let E=null;
   try{for(let i=0;i<n;i++){if(stop())throw new Error('cancelled');$('d').value=-m+2*m*i/(n-1);if(k==='out')renderOut();
       const c=await exportPNG(k,s,()=>{},stop);if(!E)E=await mp4Encoder(c.width,c.height,MP4FPS);await E.add(c);prog(i+1,n)}
     return await E.done()}
-  finally{$('d').value=d0;if(k==='out')renderOut();update(false)}}
+  finally{$('d').value=d0;IFGC=c0;if(k==='out')renderOut();update(false)}}

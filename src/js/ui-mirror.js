@@ -14,6 +14,17 @@ function setRange(m){const d=$('d');m=clamp(m,0.01,5000);d.min=-m;d.max=m;d.step
 rail.addEventListener('wheel',e=>{e.preventDefault();$('dAuto').checked=false;setRange(DMAX()*Math.pow(1.0015,e.deltaY));update(true);settle()},{passive:false});
 pinch(rail,{start:()=>{raildrag=false},scale:f=>{$('dAuto').checked=false;setRange(DMAX()*f);update(true)},end:settle});
 rail.addEventListener('keydown',e=>{const m=DMAX(),st=(e.shiftKey?0.001:0.01)*m,k={ArrowLeft:-st,ArrowRight:st,ArrowDown:-st,ArrowUp:st}[e.key];if(k){e.preventDefault();stopPlay();$('d').value=clamp(+$('d').value+k,-m,m);update(false)}});
+/* the δ₀ marker on the interferogram can be dragged too (MS-26): grab it within 6 px (12 for a finger), and d = δ/2 follows,
+   kept inside the window shown when the drag started (so the view never scrolls under the pointer) and inside the mirror range.
+   A press anywhere else on the plot does nothing here, so a long-press there still opens the copy menu (ui-copy.js). */
+const ifgX=e=>e.clientX-$('ifg').getBoundingClientRect().left,ifgD=px=>IG.lo+(px-IG.pl)/(IG.W-IG.pl-IG.pr)*(IG.hi-IG.lo),
+  onMarker=e=>!!IG.W&&Math.abs(ifgX(e)-(IG.pl+(D0()-IG.lo)/(IG.hi-IG.lo)*(IG.W-IG.pl-IG.pr)))<=6*fat(e);
+let mkDrag=null;
+{const bx=$('ifgBox'),end=()=>{if(mkDrag){mkDrag=null;update(false)}};
+  bx.addEventListener('pointerdown',e=>{if(e.button>0||!onMarker(e))return;stopPlay();mkDrag={lo:IG.lo,hi:IG.hi,off:ifgD(ifgX(e))-D0()};bx.setPointerCapture(e.pointerId);e.preventDefault()});
+  bx.addEventListener('pointermove',e=>{if(!mkDrag){if(e.pointerType==='mouse')bx.style.cursor=onMarker(e)?'ew-resize':'';return}
+    const m=DMAX();$('d').value=clamp(clamp(ifgD(ifgX(e))-mkDrag.off,mkDrag.lo,mkDrag.hi)/2,-m,m);update(true)});
+  bx.addEventListener('pointerup',end);bx.addEventListener('pointercancel',end)}
 $('dFit').addEventListener('click',()=>{fitRange(true);update(true)});
 $('dAuto').addEventListener('change',()=>{if($('dAuto').checked)fitRange(false);update(false)});
 /* ---------- Michelson schematic: M₂ slides with d; the fixed mirror M₁ shows the tilt, exaggerated (500 µrad draws as 10°).

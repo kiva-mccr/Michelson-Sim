@@ -232,8 +232,8 @@ dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;h
   <section class="col right" aria-label="Results">
     <div class="panel">
       <div class="chead"><h2>Interferogram $I(\delta)$</h2><button class="mini eqbtn" data-dlg="eqdlg3" aria-haspopup="dialog">Equations and notes</button></div>
-      <div class="fig plot" id="ifgBox" title="Scroll to zoom" style="touch-action:pan-y"><canvas id="ifgC"></canvas><svg id="ifg"></svg></div>
-      <div class="zrow"><span class="note"><span data-touch="Pinch sideways to zoom">Scroll on the plot to zoom</span> · range <b id="rV"></b></span><span class="chks"><label class="chk"><input type="checkbox" id="rAuto" checked> Auto-fit</label><label class="chk"><input type="checkbox" id="envOn" checked> Envelope</label></span></div>
+      <div class="fig plot" id="ifgBox" title="Drag the δ₀ line to move the mirror, scroll to zoom" style="touch-action:pan-y"><canvas id="ifgC"></canvas><svg id="ifg"></svg></div>
+      <div class="zrow"><span class="note"><span data-touch="Drag δ₀ · pinch sideways to zoom">Drag δ₀ · scroll to zoom</span> · range <b id="rV"></b></span><span class="chks"><label class="chk"><input type="checkbox" id="rAuto" checked> Auto-fit</label><label class="chk"><input type="checkbox" id="envOn" checked> Envelope</label></span></div>
     </div>
     <div class="panel">
       <div class="chead"><h2>Interfered spectrum $S_{\rm out}(\sigma;\delta_0)$</h2><button class="mini eqbtn" data-dlg="eqdlg4" aria-haspopup="dialog">Equations and notes</button></div>
@@ -720,29 +720,38 @@ const rgb8=c=>c.map(v=>enc(v)|0);
 let _probe=null;function cssRGB(v){const c=CSSC.get('rgb'+v);if(c)return c;if(!_probe){_probe=document.createElement('span');_probe.style.display='none';document.body.appendChild(_probe)}_probe.style.color=`var(${v})`;const r=getComputedStyle(_probe).color.match(/\d+/g).slice(0,3).map(Number);CSSC.set('rgb'+v,r);return r}
 
 /* ---------- interferogram (canvas trace coloured by perceived colour) ---------- */
-/* The trace and its envelope depend only on the spectrum, the range and the plot size, not on d, so they are cached:
-   moving the mirror only redraws the δ₀ marker. */
+/* The trace and its envelope depend only on the spectrum, the window and the plot size, not on d, so they are cached:
+   moving the mirror inside the window only redraws the δ₀ marker. */
 let ifgKey='',ifgEnv='';
+/* The window [C − R, C + R] follows δ₀ (MS-26): C moves only as far as it must to keep δ₀ inside, like a chart recorder, so
+   at the end of the window the marker stays on the edge and the trace scrolls under it, every value still at its true δ.
+   A new half-range R (zoom, auto-fit, preset) starts again from the centred window, shifted only if δ₀ is outside it.
+   IG keeps the drawn geometry for the marker drag. */
+let IFGC=0,ifgR=0,IG={};
+function ifgWin(){const R=RANGE(),d0=D0();if(R!==ifgR){ifgR=R;IFGC=0}IFGC=clamp(IFGC,d0-R,d0+R);return[IFGC-R,IFGC+R]}
 /* the trace: I(δ), coloured by the perceived colour of each column (its footprint average, t2 = its OPD variance; 0 in the SVG gradient) */
-function ifgTraces(t2){const cs=act(),R=RANGE(),SL=sublines(),dAt=t=>-R+2*R*t;return[{sig:fringeSig(dAt,cs),col:t=>rgb8(hueOf(xyzAt(dAt(t),t2,SL))),vary:true,w:0.6,id:'ifgHue'}]}
+function ifgTraces(t2){const cs=act(),[lo,hi]=ifgWin(),SL=sublines(),dAt=t=>lo+(hi-lo)*t;return[{sig:fringeSig(dAt,cs),col:t=>rgb8(hueOf(xyzAt(dAt(t),t2,SL))),vary:true,w:0.6,id:'ifgHue'}]}
 function renderIfg(){
   const svg=$('ifg'),cv=$('ifgC'),[W,H]=box(svg);if(!W)return;
-  const dpr=DPR(),key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr]),fresh=key!==ifgKey;ifgKey=key;
+  const dpr=DPR(),[lo,hi]=ifgWin(),key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),lo,hi,W,H,dpr]),fresh=key!==ifgKey;ifgKey=key;
   if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
-  const R=RANGE(),pl=46,pr=10,pt=10,pb=42,x=d=>pl+(d+R)/(2*R)*(W-pl-pr),y=v=>pt+(1-v)*(H-pt-pb),mute=css('--mute');
+  const R=(hi-lo)/2,c0=lo+R,pl=46,pr=10,pt=10,pb=42,x=d=>pl+(d-lo)/(hi-lo)*(W-pl-pr),y=v=>pt+(1-v)*(H-pt-pb),mute=css('--mute');
   if(fresh){g.clearRect(0,0,W,H);g.fillStyle='#05070f';g.fillRect(pl,pt,W-pl-pr,H-pt-pb)}
   let h='';for(const v of [0,0.5,1])h+=`<line x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}" stroke="#ffffff" stroke-opacity="${v?0.12:0.3}"/><text x="${pl-6}" y="${y(v)+4}" font-size="12" fill="${mute}" text-anchor="end">${v}</text>`;
-  for(const t of [-R,-R/2,0,R/2,R])h+=`<text x="${x(t)}" y="${H-pb+16}" font-size="12" fill="${mute}" text-anchor="${t===-R?'start':t===R?'end':'middle'}">${F(t,3)}</text>`;
+  IG={W,pl,pr,lo,hi};
+  [lo,c0-R/2,c0,c0+R/2,hi].forEach((t,i)=>h+=`<text x="${x(t)}" y="${H-pb+16}" font-size="12" fill="${mute}" text-anchor="${['start','middle','middle','middle','end'][i]}">${F(t,3)}</text>`);
   h+=`<text x="${(pl+W-pr)/2}" y="${H-4}" font-size="12" fill="${mute}" text-anchor="middle">δ (µm)</text><text transform="translate(12 ${(pt+H-pb)/2}) rotate(-90)" font-size="12" fill="${mute}" text-anchor="middle">I(δ) / I_tot</text>`;
   const cs=act();
   if(cs.length){const SL=sublines(),PW=Math.round(W-pl-pr),dpp=2*R/PW;  /* OPD per CSS px */
-    if(fresh){let up='',lo='';
-    for(let p=0;p<=PW;p+=2){const d=-R+dpp*p,[re,im]=gamma(d,cs),m=Math.hypot(re,im),X=x(d).toFixed(1);up+=(up?'L':'M')+X+' '+y(0.5*(1+m)).toFixed(1);lo+=(lo?'L':'M')+X+' '+y(0.5*(1-m)).toFixed(1)}
-    ifgEnv=`<path d="${up}" fill="none" stroke="#e0115f" stroke-width="1.8"/><path d="${lo}" fill="none" stroke="#e0115f" stroke-width="1.8"/>`;
+    if(fresh){let up='',dn='';
+    for(let p=0;p<=PW;p+=2){const d=lo+dpp*p,[re,im]=gamma(d,cs),m=Math.hypot(re,im),X=x(d).toFixed(1);up+=(up?'L':'M')+X+' '+y(0.5*(1+m)).toFixed(1);dn+=(dn?'L':'M')+X+' '+y(0.5*(1-m)).toFixed(1)}
+    ifgEnv=`<path d="${up}" fill="none" stroke="#e0115f" stroke-width="1.8"/><path d="${dn}" fill="none" stroke="#e0115f" stroke-width="1.8"/>`;
     const t2=(PIXSD*dpp)**2;
       drawTraces({g,x0:Math.round(pl*dpr),y0:Math.round(pt*dpr),Wd:Math.round((W-pl-pr)*dpr),Hd:Math.round((H-pt-pb)*dpr)},ifgTraces(t2))}
     if($('envOn').checked)h+=ifgEnv;
-    const d0=D0();if(Math.abs(d0)<=R)h+=`<line x1="${x(d0)}" x2="${x(d0)}" y1="${pt}" y2="${y(0)}" stroke="#ff4d8d" stroke-dasharray="5 4" stroke-width="1.5"/><text x="${x(d0)+4}" y="${pt+28}" font-size="12" fill="#ff4d8d">δ₀</text>`}
+    /* the δ₀ marker, always inside the window (ifgWin); a grip on top shows it can be dragged, the label flips left near the right edge */
+    const X=x(D0()),gw=TOUCH?7:5,gh=TOUCH?16:11,lt=X>W-pr-24;
+    h+=`<line x1="${X}" x2="${X}" y1="${pt}" y2="${y(0)}" stroke="#ff4d8d" stroke-dasharray="5 4" stroke-width="1.5"/><rect x="${X-gw}" y="${pt}" width="${2*gw}" height="${gh}" rx="2.5" fill="#ff4d8d"/><text x="${lt?X-gw-3:X+gw+3}" y="${pt+28}" font-size="12" fill="#ff4d8d" text-anchor="${lt?'end':'start'}">δ₀</text>`}
   svg.innerHTML=h}
 
 /* ---------- ring pattern ----------
@@ -1269,7 +1278,7 @@ async function verify(){
   const A=Itot(cs),SL=sublines(),R=RANGE(),d0=D0(),M=ringModel(),fmt=v=>v===0?'0':v.toExponential(2);
   const row=(name,what,err,tol)=>out.push(`<tr><td>${name}</td><td>${what}</td><td>${fmt(err)}</td><td>${fmt(tol)}</td><td style="color:${err<=tol?'#1a8f4a':'#e0115f'};font-weight:700">${err<=tol?'pass':'FAIL'}</td></tr>`);
   /* 1 interferogram closed form vs direct numerical integration of ½∫S(1+cos) */
-  let e1=0;const Dm=Math.max(R,Math.abs(d0));for(let i=0;i<=24;i++){const d=Dm*i/24,Ia=0.5*(1+gamma(d,cs)[0]),Iq=quadSpec(sg=>0.5*(1+Math.cos(2*Math.PI*sg*d)),d)/A;e1=Math.max(e1,Math.abs(Ia-Iq))}
+  let e1=0;const Dm=Math.max(...ifgWin().map(Math.abs),Math.abs(d0));for(let i=0;i<=24;i++){const d=Dm*i/24,Ia=0.5*(1+gamma(d,cs)[0]),Iq=quadSpec(sg=>0.5*(1+Math.cos(2*Math.PI*sg*d)),d)/A;e1=Math.max(e1,Math.abs(Ia-Iq))}
   row('Interferogram','closed-form I(δ) vs numerical ½∫S(σ)[1+cos 2πσδ]dσ, 25 OPDs',e1,1e-6);
   /* 2 interfered spectrum identity */
   const Io=quadSpec(sg=>0.5*(1+Math.cos(2*Math.PI*sg*d0)),d0)/A,e2=Math.abs(Io-0.5*(1+gamma(d0,cs)[0]));
@@ -1307,6 +1316,14 @@ async function verify(){
      last step cut at the turn, must take the set time, and the speed readout must equal the distance over that time */
   {const m=DMAX();let v=-m,dir=1,t=0,s=12345,dt=0;while(dir>0){s=s*16807%2147483647;dt=0.005+0.035*s/2147483647;const v0=v;[v,dir]=sweepStep(v,dir,dt,m,SWT);t+=dir>0?dt:(m-v0)/(2*m/SWT)}
     row('Sweep','one pass from −range to +range with uneven frames vs the set time, and the speed readout vs 2·range / that time (relative)',Math.max(Math.abs(t-SWT)/SWT,Math.abs(sweepV()-2*m/t)/sweepV()),1e-9)}
+  /* 8b interferogram marker (MS-26): two sweep passes with uneven frames; at every frame the drawn δ₀ line, read back from the SVG
+     and mapped through the drawn window, must sit at 2d and inside the plot, wherever the window has followed it */
+  {const dS=$('d').value,cS=IFGC,m=DMAX();let v=-m,dir=1,s=777,e=0,n=0;
+    try{while(n<2){s=s*16807%2147483647;const r=sweepStep(v,dir,SWT*(0.02+0.06*s/2147483647),m,SWT);if(r[1]!==dir)n++;[v,dir]=r;$('d').value=v;renderIfg();
+      const X=+$('ifg').querySelector('line[stroke="#ff4d8d"]').getAttribute('x1'),{W,pl,pr,lo,hi}=IG,f=(X-pl)/(W-pl-pr);
+      e=Math.max(e,Math.abs(lo+f*(hi-lo)-2*v)/(hi-lo),-f,f-1)}}
+    finally{$('d').value=dS;IFGC=cS;renderIfg()}
+    row('Interferogram marker','drawn δ₀ line vs 2d over two sweep passes, as a fraction of the window, and kept inside the plot',e,1e-9)}
   /* 9 exports (MS-23): range plots exported at the device scale vs the displayed pixels; the ring exported at its own grid vs brute force */
   row('Exported plots','every 1-D plot (both spectra, interferogram, profile) exported as PNG at the device scale, decoded again, vs the displayed pixels (largest 8-bit difference)',await exportCheck(),0);
   {const X=await ringExport(160);row('Exported ring','exported ring at 160² vs brute-force 2-D integral of the exact pattern over each pixel footprint, 8 pixels',ringBrute(X.M,cs,X.N,X.I),1e-3)}
@@ -1447,11 +1464,11 @@ async function exportSVG(k,s,prog,stop){
    size (the same code as the PNG). d is stepped directly and only this plot is redrawn; the page is put back afterwards. */
 const MP4FPS=30;
 /* prog(frames done, frames in all) after each frame */
-async function exportMP4(k,s,prog,stop){const d0=$('d').value,m=DMAX(),n=Math.max(2,Math.round(SWT*MP4FPS)+1);let E=null;
+async function exportMP4(k,s,prog,stop){const d0=$('d').value,c0=IFGC,m=DMAX(),n=Math.max(2,Math.round(SWT*MP4FPS)+1);let E=null;
   try{for(let i=0;i<n;i++){if(stop())throw new Error('cancelled');$('d').value=-m+2*m*i/(n-1);if(k==='out')renderOut();
       const c=await exportPNG(k,s,()=>{},stop);if(!E)E=await mp4Encoder(c.width,c.height,MP4FPS);await E.add(c);prog(i+1,n)}
     return await E.done()}
-  finally{$('d').value=d0;if(k==='out')renderOut();update(false)}}
+  finally{$('d').value=d0;IFGC=c0;if(k==='out')renderOut();update(false)}}
 /* ---------- table ---------- */
 function table(){$('nComp').textContent=comps.length;
   if($('tb').contains(document.activeElement)&&document.activeElement.type==='number')return;
@@ -1512,10 +1529,10 @@ const autoR=()=>clamp(up2(1.08*settleOPD()),0.5,5000);
 let stT=0;function settle(){clearTimeout(stT);stT=setTimeout(()=>update(false),200)}
 $('ifgBox').addEventListener('wheel',e=>{e.preventDefault();const R=RANGE(),nR=clamp(R*Math.pow(1.0015,e.deltaY),0.5,2*autoR());
   $('rAuto').checked=false;Rman=nR;update(true);settle()},{passive:false});
-pinch($('ifgBox'),{scale:f=>{const R=RANGE();$('rAuto').checked=false;Rman=clamp(R*f,0.5,2*autoR());update(true)},end:settle});
+pinch($('ifgBox'),{start:()=>{mkDrag=null},scale:f=>{const R=RANGE();$('rAuto').checked=false;Rman=clamp(R*f,0.5,2*autoR());update(true)},end:settle});
 
 /* ---------- presets ---------- */
-document.querySelectorAll('[data-p]').forEach(b=>b.addEventListener('click',()=>{stopPlay();comps=presets[b.dataset.p].map(c=>({...c,on:true}));sel=-1;
+document.querySelectorAll('[data-p]').forEach(b=>b.addEventListener('click',()=>{stopPlay();comps=presets[b.dataset.p].map(c=>({...c,on:true}));sel=-1;IFGC=0;
   $('d').value=0;fitRange(true);$('d').value=b.dataset.p==='na'?145:0.4*DMAX();update(false)}));
 $('clear').addEventListener('click',()=>{comps=[];sel=-1;update(false)});
 /* the state lives in hidden inputs; scripts (the tests) set them and send a change event */
@@ -1607,6 +1624,17 @@ function setRange(m){const d=$('d');m=clamp(m,0.01,5000);d.min=-m;d.max=m;d.step
 rail.addEventListener('wheel',e=>{e.preventDefault();$('dAuto').checked=false;setRange(DMAX()*Math.pow(1.0015,e.deltaY));update(true);settle()},{passive:false});
 pinch(rail,{start:()=>{raildrag=false},scale:f=>{$('dAuto').checked=false;setRange(DMAX()*f);update(true)},end:settle});
 rail.addEventListener('keydown',e=>{const m=DMAX(),st=(e.shiftKey?0.001:0.01)*m,k={ArrowLeft:-st,ArrowRight:st,ArrowDown:-st,ArrowUp:st}[e.key];if(k){e.preventDefault();stopPlay();$('d').value=clamp(+$('d').value+k,-m,m);update(false)}});
+/* the δ₀ marker on the interferogram can be dragged too (MS-26): grab it within 6 px (12 for a finger), and d = δ/2 follows,
+   kept inside the window shown when the drag started (so the view never scrolls under the pointer) and inside the mirror range.
+   A press anywhere else on the plot does nothing here, so a long-press there still opens the copy menu (ui-copy.js). */
+const ifgX=e=>e.clientX-$('ifg').getBoundingClientRect().left,ifgD=px=>IG.lo+(px-IG.pl)/(IG.W-IG.pl-IG.pr)*(IG.hi-IG.lo),
+  onMarker=e=>!!IG.W&&Math.abs(ifgX(e)-(IG.pl+(D0()-IG.lo)/(IG.hi-IG.lo)*(IG.W-IG.pl-IG.pr)))<=6*fat(e);
+let mkDrag=null;
+{const bx=$('ifgBox'),end=()=>{if(mkDrag){mkDrag=null;update(false)}};
+  bx.addEventListener('pointerdown',e=>{if(e.button>0||!onMarker(e))return;stopPlay();mkDrag={lo:IG.lo,hi:IG.hi,off:ifgD(ifgX(e))-D0()};bx.setPointerCapture(e.pointerId);e.preventDefault()});
+  bx.addEventListener('pointermove',e=>{if(!mkDrag){if(e.pointerType==='mouse')bx.style.cursor=onMarker(e)?'ew-resize':'';return}
+    const m=DMAX();$('d').value=clamp(clamp(ifgD(ifgX(e))-mkDrag.off,mkDrag.lo,mkDrag.hi)/2,-m,m);update(true)});
+  bx.addEventListener('pointerup',end);bx.addEventListener('pointercancel',end)}
 $('dFit').addEventListener('click',()=>{fitRange(true);update(true)});
 $('dAuto').addEventListener('change',()=>{if($('dAuto').checked)fitRange(false);update(false)});
 /* ---------- Michelson schematic: M₂ slides with d; the fixed mirror M₁ shows the tilt, exaggerated (500 µrad draws as 10°).
@@ -1694,7 +1722,7 @@ $('xmSize').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=
 document.addEventListener('pointerdown',e=>{if(!XM.el.hidden&&!XM.el.contains(e.target))xClose()},true);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')xClose()});
 /* a press on a drag handle doesn't open the menu: it starts a (possibly slow) drag */
-const onHandle={spec:e=>!!hit(...pos(e),fat(e)),ring:e=>{const g=ovGeom(e),k=fat(e);return g.rr<=g.R+4*k&&!!ovHandle(g,k)}};
+const onHandle={spec:e=>!!hit(...pos(e),fat(e)),ring:e=>{const g=ovGeom(e),k=fat(e);return g.rr<=g.R+4*k&&!!ovHandle(g,k)},ifg:onMarker};
 for(const[k,id]of [['spec','spec'],['ring','ringOv'],['prof','profBox'],['ifg','ifgBox'],['out','outBox']])longPress($(id),(x,y)=>xOpen(k,x,y),onHandle[k]);
 /* Exported plots check: each range plot exported at the device's own scale, PNG-encoded and decoded again, against the displayed
    canvas wherever the canvas is opaque (8-bit levels; PNG is lossless, and the export recomputes the plot, so a difference means

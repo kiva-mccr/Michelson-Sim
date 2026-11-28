@@ -58,10 +58,10 @@ const autoR=()=>clamp(up2(1.08*settleOPD()),0.5,5000);
 let stT=0;function settle(){clearTimeout(stT);stT=setTimeout(()=>update(false),200)}
 $('ifgBox').addEventListener('wheel',e=>{e.preventDefault();const R=RANGE(),nR=clamp(R*Math.pow(1.0015,e.deltaY),0.5,2*autoR());
   $('rAuto').checked=false;Rman=nR;update(true);settle()},{passive:false});
-pinch($('ifgBox'),{scale:f=>{const R=RANGE();$('rAuto').checked=false;Rman=clamp(R*f,0.5,2*autoR());update(true)},end:settle});
+pinch($('ifgBox'),{start:()=>{mkDrag=null},scale:f=>{const R=RANGE();$('rAuto').checked=false;Rman=clamp(R*f,0.5,2*autoR());update(true)},end:settle});
 
 /* ---------- presets ---------- */
-document.querySelectorAll('[data-p]').forEach(b=>b.addEventListener('click',()=>{stopPlay();comps=presets[b.dataset.p].map(c=>({...c,on:true}));sel=-1;
+document.querySelectorAll('[data-p]').forEach(b=>b.addEventListener('click',()=>{stopPlay();comps=presets[b.dataset.p].map(c=>({...c,on:true}));sel=-1;IFGC=0;
   $('d').value=0;fitRange(true);$('d').value=b.dataset.p==='na'?145:0.4*DMAX();update(false)}));
 $('clear').addEventListener('click',()=>{comps=[];sel=-1;update(false)});
 /* the state lives in hidden inputs; scripts (the tests) set them and send a change event */
