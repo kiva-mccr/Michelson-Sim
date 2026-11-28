@@ -1438,13 +1438,16 @@ const ov=$('ringOv'),TMAXU=500;let rdrag=null;
 const setFov=v=>widen('fov',+clamp(v,0.5,85).toPrecision(4),false);
 const setTilt=(x,y)=>{widen('tx',Math.round(x*10)/10,true);widen('ty',Math.round(y*10)/10,true)};
 function ovGeom(e){const r=ov.getBoundingClientRect(),R=r.width/2,x=e.clientX-r.left-R,y=e.clientY-r.top-R;return{R,x,y,rr:Math.hypot(x,y)}}
-const onRim=(g,k=1)=>Math.abs(g.rr-g.R)<Math.max(9*k,0.06*g.R);
+/* the rim icon's centre, as an offset from the ring's centre along both axes (it sits at 45°, its outer tip 4 px inside the rim) */
+const ICONK=TOUCH?1.4:1,iconAt=(R,k=ICONK)=>(R-4-11.5*k)*Math.SQRT1_2;
+/* on the rim, or on the arrow icon itself (which lies inside the rim band's inner edge) */
+const onRim=(g,k=1)=>Math.abs(g.rr-g.R)<Math.max(9*k,0.06*g.R)||Math.hypot(g.x-iconAt(g.R),g.y-iconAt(g.R))<13*ICONK*k;
 /* tilt handle: the white dot sits at (αx, αy) scaled so 500 µrad = 92% of the radius, and follows the cursor 1:1 while dragged.
    Within SNAP px of the centre it locks to 0, 0. At 0, 0 it is hidden until the pointer is over the pattern, except on touch devices, which have no hover. */
 const DOTK=0.92,SNAP=10;let ovHover=null;
 const dotPos=c=>{const ax=+$('tx').value,ay=+$('ty').value,f=c*DOTK/TMAXU;let x=ax*f,y=-ay*f;const L=Math.hypot(x,y),mx=c*DOTK;if(L>mx){x*=mx/L;y*=mx/L}return[c+x,c+y]};
 function renderOv(){const s=box(ov)[0];if(!s)return;const c=s/2,[ex,ey]=dotPos(c),L=Math.hypot(ex-c,ey-c),zero=L<0.5;
-  const hx=c+(c-3)*Math.SQRT1_2,hy=c+(c-3)*Math.SQRT1_2,drag=rdrag&&rdrag.m!=='rim';
+  const drag=rdrag&&rdrag.m!=='rim';
   const showDot=!zero||!!ovHover||drag||TOUCH;  /* at 0, 0 the dot shows whenever the pointer is over the pattern (always on touch) */
   const big=drag||(ovHover&&Math.hypot(ovHover[0]-ex,ovHover[1]-ey)<14);
   const tx=+$('tx').value,ty=+$('ty').value,tn=Math.hypot(tx,ty),nx=tn?tx/tn:1,ny=tn?ty/tn:0;  /* dashed profile cut through the centre along the tilt direction */
@@ -1455,7 +1458,10 @@ function renderOv(){const s=box(ov)[0];if(!s)return;const c=s/2,[ex,ey]=dotPos(c
    (drag?`<circle cx="${c}" cy="${c}" r="${SNAP}" fill="none" stroke="#fff" stroke-opacity=".6" stroke-dasharray="2 2"/>`:'')+
    (L>1.5?`<line x1="${c}" y1="${c}" x2="${ex}" y2="${ey}" stroke="#fff" stroke-opacity=".85" stroke-width="2.5" stroke-linecap="round"/>`:'')+
    (showDot?`<circle cx="${ex}" cy="${ey}" r="${(big?7:5.5)*(TOUCH?1.4:1)}" fill="#fff" fill-opacity="${zero&&!drag?.75:.95}" stroke="#000" stroke-opacity=".35"/>`:'')+
-   `<circle cx="${hx}" cy="${hy}" r="6" fill="${css('--acc')}" stroke="#fff" stroke-width="1.5"/>`}
+   rimIcon(c,(rdrag&&rdrag.m==='rim'||ovHover&&onRim({x:ovHover[0]-c,y:ovHover[1]-c,rr:Math.hypot(ovHover[0]-c,ovHover[1]-c),R:c})?1.2:1)*ICONK)}
+/* the field-of-view handle: a double-headed arrow along the radius (45°); the hit area is still the whole rim (onRim).
+   The overlay is clipped to the circle, so the arrow sits just inside the rim (iconAt). */
+const rimIcon=(c,k)=>{const p=c+iconAt(c,k);return `<path transform="translate(${p} ${p}) rotate(45) scale(${k})" d="M-10 0L-4-6V-2.2H4V-6L10 0L4 6V2.2H-4V6Z" fill="${css('--acc')}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" paint-order="stroke"/>`};
 /* MS-9: snapping glides. Entering the snap circle (or Reset tilt, or a double-click) moves the tilt itself to 0, 0 over
    GLIDE ms (ease-out cubic), and leaving the circle glides back out to the cursor. The tilt value glides, not just the dot,
    so every frame of the glide is the true pattern for that tilt (as a live preview; the exact image follows when it lands).
