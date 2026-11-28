@@ -5,4 +5,4 @@ The copy / save menu (`xmenu`: title `xmT`, the three actions with `data-x`, the
 ## Rules and pitfalls
 
 - The menu is a fixed popup, not a `<dialog>`: it opens at the pointer (or as a bottom sheet, class `sheet`) and closes on Escape or a press outside it.
-- `copyDlg` is a centred modal like the other popups; its Close button uses the shared `data-close` handler. `ui-copy.js` revokes the previous object URL before setting a new one, so keep the image and the link on the same URL.
+- `copyDlg` is a centred modal like the other popups; its Close button uses the shared `data-close` handler. `ui-copy.js` revokes the previous image URL before setting a new one.

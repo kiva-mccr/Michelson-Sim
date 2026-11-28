@@ -161,7 +161,7 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
 @media (max-width:700px){
   .top .grp,.top .grp button{flex:1 1 auto}.top .sp{display:none}
 }
-dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;height:auto;margin:8px 0;border:1px solid var(--line);border-radius:6px}#copyDl{color:var(--acc);font-weight:600}
+dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;height:auto;margin:8px 0;border:1px solid var(--line);border-radius:6px}
 #spec,#ringOv,#profBox,#ifgBox,#outBox{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .xmenu{position:fixed;z-index:30;min-width:250px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(5,11,30,.28);padding:6px;display:flex;flex-direction:column}
 .xmenu[hidden]{display:none}.xmenu>button{all:unset;cursor:pointer;padding:7px 10px;border-radius:6px;font:500 13.5px "Red Hat Text",sans-serif}.xmenu>button:hover,.xmenu>button:focus-visible{background:var(--soft)}
@@ -351,7 +351,7 @@ dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;h
 <dialog class="dlg copydlg" id="copyDlg" aria-labelledby="copyDlgT">
   <div class="dh"><h2 id="copyDlgT">Copy image</h2><button data-close>Close</button></div>
   <div class="db"><p class="note">This browser doesn't let the page put an image on the clipboard. Long-press or right-click the image to copy it, or download it.</p>
-    <img id="copyImg" alt="The exported plot"><p><a id="copyDl" href="#">Download PNG</a></p></div>
+    <img id="copyImg" alt="The exported plot"><p><button id="copyDl">Download PNG</button></p></div>
 </dialog>
 
 <script>
@@ -1569,15 +1569,22 @@ function xOpen(k,x,y){XM.k=k;XM.busy++;const m=XM.el;$('xmT').textContent=XP[k].
   m.querySelector('[data-x]').focus({preventScroll:true})}
 function xClose(){if(!XM.el.hidden){XM.el.hidden=true;XM.busy++}}  /* busy++ cancels a running ring export */
 const xStop=id=>()=>XM.busy!==id;
-function xSave(blob,ext){const a=document.createElement('a'),u=URL.createObjectURL(blob);a.href=u;a.download=`${XP[XM.k].name}.${ext}`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000)}
+/* saving a file: inside the claude.ai artifact viewer a page may not download by itself, so it asks the viewer through the
+   platform's downloads capability (a confirmation); opened as a plain file, use() is absent and a download link does it */
+const DL=()=>window.claude?.use?Promise.resolve(window.claude.use('downloads')).catch(()=>null):Promise.resolve(null);  /* use() is memoized by the platform */
+async function xSave(blob,name){const d=await DL();
+  if(d){try{await d.save({filename:name,data:blob});return'Saved'}catch(e){if(e&&e.code==='declined')return'Not saved';
+    if(!['unavailable','not_granted','capability_disabled','capability_removed'].includes(e&&e.code))throw new Error(e&&e.code==='host_unavailable'?'this app cannot save files; open the page in a browser':(e&&(e.message||e.code))||'save failed')}}
+  const a=document.createElement('a'),u=URL.createObjectURL(blob);a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);return'Saved'}
 async function xDo(what){const k=XM.k,s=XM.s,id=XM.busy,prog=f=>xSay(`Rendering… ${Math.round(100*f)}%`);xSay(k==='ring'?'Rendering… 0%':'Rendering…');
   try{if(what==='copy'){const blob=exportPNG(k,s,prog,xStop(id)).then(pngOf);
       try{if(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')throw 0;await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);xSay('Copied to the clipboard')}
-      catch(e){if(e&&e.message==='cancelled')throw e;const b=await blob,u=URL.createObjectURL(b),im=$('copyImg'),a=$('copyDl');URL.revokeObjectURL(im.src);im.src=u;a.href=u;a.download=XP[k].name+'.png';xClose();openDlg('copyDlg')}}
-    else if(what==='png'){xSave(await pngOf(await exportPNG(k,s,prog,xStop(id))),'png');xSay('Saved')}
-    else if(what==='svg'){xSave(new Blob([await exportSVG(k,s,prog,xStop(id))],{type:'image/svg+xml'}),'svg');xSay('Saved')}
-    else{xSay('Rendering frames… 0%');xSave(await exportMP4(k,s,f=>xSay(`Rendering frames… ${Math.round(100*f)}%`),xStop(id)),'mp4');xSay('Saved')}}
+      catch(e){if(e&&e.message==='cancelled')throw e;const b=await blob,im=$('copyImg');URL.revokeObjectURL(im.src);im.src=URL.createObjectURL(b);XM.copied={b,name:XP[k].name+'.png'};xClose();openDlg('copyDlg')}}
+    else if(what==='png')xSay(await xSave(await pngOf(await exportPNG(k,s,prog,xStop(id))),XP[k].name+'.png'));
+    else if(what==='svg')xSay(await xSave(new Blob([await exportSVG(k,s,prog,xStop(id))],{type:'image/svg+xml'}),XP[k].name+'.svg'));
+    else{xSay('Rendering frames… 0%');xSay(await xSave(await exportMP4(k,s,f=>xSay(`Rendering frames… ${Math.round(100*f)}%`),xStop(id)),XP[k].name+'.mp4'))}}
   catch(e){if(e&&e.message!=='cancelled'){console.warn('export failed',e);xSay('Failed: '+(e.message||e))}}}
+$('copyDl').addEventListener('click',()=>{if(XM.copied)xSave(XM.copied.b,XM.copied.name).catch(e=>console.warn('save failed',e))});
 XM.el.querySelectorAll('[data-x]').forEach(b=>b.addEventListener('click',()=>xDo(b.dataset.x)));
 $('xmSize').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{XM.s=+b.dataset.s;try{localStorage.setItem('mich-export-scale',XM.s)}catch(e){}xSizes()}));
 document.addEventListener('pointerdown',e=>{if(!XM.el.hidden&&!XM.el.contains(e.target))xClose()},true);

@@ -40,6 +40,15 @@ const PLOTS={spec:['#spec',0.3,0.5,'Source spectrum'],ring:['#ringOv',0.3,0.3,'I
     {const b=await pg.locator('#spec').boundingBox();await pg.mouse.click(b.x+b.width*0.3,b.y+b.height*0.5,{button:'right'});ok(!(await pg.isVisible('#xmMp4')),'spec: no MP4 (the source spectrum does not change with d)');await pg.keyboard.press('Escape')}
     const e=await pg.evaluate(async()=>{const X=await __X.ringExport(240);return __X.ringBrute(X.M,__X.act(),X.N,X.I)});ok(e<1e-3,`ring: export at 240² vs brute force, largest error ${e.toExponential(2)} (tolerance 1e-3)`);
     ok(!errs.length,'desktop: no page errors '+errs.join('; '));await ctx.close()}
+  /* inside the artifact viewer a save goes through the platform's downloads capability (window.claude.use), never a link */
+  {const ctx=await br.newContext({viewport:{width:1366,height:657}});await routeMathJax(ctx);
+    await ctx.addInitScript(()=>{window.__saved=[];window.claude={use:async n=>n==='downloads'?{save:async r=>{window.__saved.push([r.filename,r.data.size||r.data.length]);return{status:'saved'}}}:null}});
+    const pg=await ctx.newPage(),errs=[];pg.on('pageerror',e=>errs.push(e.message));let link=0;pg.on('download',()=>link++);
+    await pg.goto(PAGE.url+'?renderer=cpu');await pg.waitForFunction(()=>window.__X&&document.documentElement.dataset.renderer,null,{timeout:20000});await sleep(800);
+    const b=await pg.locator('#ifgBox').boundingBox();await pg.mouse.click(b.x+b.width/2,b.y+b.height/2,{button:'right'});
+    await pg.click('[data-x="png"]');await pg.click('[data-x="svg"]');await sleep(800);const sv=await pg.evaluate(()=>window.__saved);
+    ok(sv.length===2&&sv[0][0]==='interferogram.png'&&sv[1][0]==='interferogram.svg'&&sv.every(x=>x[1]>1000)&&!link,`viewer: PNG and SVG go through the downloads capability (${JSON.stringify(sv)}), no link download`);
+    ok(!errs.length,'viewer: no page errors '+errs.join('; '));await ctx.close()}
   {const ctx=await br.newContext({...devices['iPhone 13']});await routeMathJax(ctx);const pg=await ctx.newPage(),errs=[];pg.on('pageerror',e=>errs.push(e.message));
     await pg.goto(PAGE.url+'?renderer=cpu');await pg.waitForFunction(()=>window.__X&&document.documentElement.dataset.renderer,null,{timeout:20000});await sleep(500);
     const cdp=await ctx.newCDPSession(pg),T=(type,pts)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:pts.map(([x,y],i)=>({x,y,id:i}))});
