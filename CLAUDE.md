@@ -31,7 +31,8 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - `ring-preview.js`: adaptive preview resolution and the frame-rate measurement.
   - `ring-render.js`: `renderRing` and the profile.
   - `verify.js`: check table, coherence, live equations.
-  - `export.js`: high-resolution PNG and SVG exports of each plot, recomputed at the export size (MS-23).
+  - `mp4.js`: H.264 through WebCodecs and a minimal MP4 container writer (MS-23).
+  - `export.js`: high-resolution PNG, SVG and MP4 exports of each plot, recomputed at the export size (MS-23).
   - `ui-table.js`: components table, auto ranges, presets.
   - `ui-ring.js`: tilt dot (with the snap glide), field-of-view rim.
   - `ui-mirror.js`: mirror rail, schematic, sweep, readback, the ? popup.
@@ -69,9 +70,10 @@ The sources are split into small files (MS-12, each under about 10 KB), so a cha
   - Two-finger pinch does what scroll does: ring field of view, rail range, interferogram range, interfered-spectrum zoom. The tilt dot shows at 0, 0 on touch (no hover), and a double-tap resets the tilt.
   - A long-press is left free for a context menu: it must not add a line or start a drag on empty plot.
   - No sideways page scroll at phone widths (320, 390, 750 px); `tests/touch.js` checks all of this.
-- **Copy or save any plot** (MS-23, Kiva): right-click a plot, or long-press it on a touch screen, for Copy image, Download PNG and Download SVG at 2×, 4× (default) or 8× its on-screen size. No buttons on the panels; one hint line at the bottom of the page.
+- **Copy or save any plot** (MS-23, Kiva): right-click a plot, or long-press it on a touch screen, for Copy image, Download PNG, Download SVG and Download MP4 at 2×, 4× (default) or 8× its on-screen size. No buttons on the panels; one hint line at the bottom of the page.
   - Exports are recomputed at their size with the same exact formulas, never scaled up: the range plots are redrawn at XDPR = scale, the ring is a fresh grid of exact footprint averages (CPU workers, at most 4096²).
   - SVG: the spectrum and interfered spectrum are native vector; the interferogram and profile are the true curve I as a vector path (the interferogram stroked with a linear gradient of its perceived colour along δ); the ring has no vector form, so its SVG embeds the exact PNG.
+  - MP4 (`mp4.js`, WebCodecs H.264 in a container written here): one sweep of the mirror from −range to +range over the pass time at 30 fps, every frame an exact export of that plot at the chosen size, with exact timestamps. Not offered for the source spectrum, which doesn't change with d.
   - A long-press is 500 ms with less than 10 px of movement and one finger, not starting on a drag handle (spectrum dots and handles, the ring's dot and rim). Right-clicks never add a line or start a drag.
   - Check rows: Exported plots (range plots exported at the device scale, PNG decoded again, vs the displayed pixels, tolerance 0) and Exported ring (exported ring at 160² vs the brute-force footprint integral, 1e-3). `tests/export.js` checks the menu, sizes, SVGs, clipboard and touch behaviour.
 - **Equations, notes, method and sources open as centred modal popups.**
@@ -147,7 +149,7 @@ node tests/gpukernel.js                           # WGSL and GLSL pixel kernels 
 node tests/antialias.js                           # previews at several grid sizes vs brute-force footprint integrals, and moiré on a dense ring, every renderer (MS-17)
 node tests/plotstable.js                          # profile and interferogram pixels identical moving and at rest (MS-17)
 node tests/sweepres.js                            # the sweep drives the adaptive preview like a drag: live frames, measured fringe speed, finer when slower, exact when stopped
-node tests/export.js                              # copy/save menu: right-click on each plot, PNG sizes, SVG validity and gradient, clipboard, ring export vs brute force, long-press on a phone (MS-23)
+node tests/export.js                              # copy/save menu: right-click on each plot, PNG sizes, SVG validity and gradient, MP4 layout and frame count, clipboard, ring export vs brute force, long-press on a phone (MS-23)
 node tests/touch.js                               # touch controls in an emulated phone: drags, tap to add, the selection bar, pinches, no sideways scroll (MS-22)
 ```
 
@@ -178,7 +180,7 @@ These were only checked in headless Chromium on a cloud machine without a GPU. K
 - Frame times and the adaptive preview resolution (`tests/perf.py`) were measured on the cloud machine, not on Kiva's hardware. That includes the device scaling (MS-10): the refresh-rate measurement only ever saw a 60 Hz headless display, and 30 Hz was simulated by forcing `FR()`. The motion-driven budget (MS-11) was checked only with scripted rail drags at fixed speeds in headless Chromium (SwiftShader WebGL2, workers, CPU); how smooth slow drags look on a real screen has not been seen.
 - The startup speed test (MS-18) has only run here, comparing SwiftShader WebGL2 with the CPU workers and the main thread. It has never timed WebGPU (the full page loses its WebGPU context on this host) or a real GPU, so whether it picks the GPU on Kiva's machine, and the times it shows in the ? popup there, have not been seen.
 - The lobing fix (MS-20) was checked in headless Chromium at device pixel ratios 1 and 2 (screenshots against the exact pattern). Its at-rest render times on the CPU paths at high resolution (tilted LED at dpr 2: about 1.1 s on 3 workers, 3.5 s on the main thread) were measured on the cloud machine only.
-- Copy and save (MS-23) were checked in headless Chromium only (the clipboard with permission granted, downloads, a phone emulated with synthetic touch events). Pasting into real apps, Safari's and Firefox's clipboards, a real phone's long-press, downloads from inside the claude.ai artifact frame, and how the SVGs open in Illustrator or Inkscape have not been seen.
+- Copy and save (MS-23) were checked in headless Chromium only (the clipboard with permission granted, downloads, a phone emulated with synthetic touch events). Pasting into real apps, Safari's and Firefox's clipboards, a real phone's long-press, downloads from inside the claude.ai artifact frame, how the SVGs open in Illustrator or Inkscape, and the MP4s in players other than ffmpeg (they decode there) have not been seen. A ring MP4 at 4× computes hundreds of exact frames and can take minutes; on a phone, longer.
 - The layout checks ran in headless Chromium only. Firefox and Safari have never been tested.
 - The touch controls (MS-22) were checked only in headless Chromium emulating phones (iPhone 13, a 320 px Android, landscape), with synthetic touch events. They have not been used on a real phone, and iOS Safari, where `dblclick` and long-press behave differently, has never been tested.
 - MS-17 (plot flicker, moiré) was reproduced and checked in headless Chromium on CPU, workers and SwiftShader WebGL2, by pixel comparisons and brute-force integrals. Kiva saw both problems on a real machine; whether the fix looks right there has not been seen. The WebGPU preview path was checked only through `tests/gpukernel.js` here, since the full page loses its WebGPU context on this host.

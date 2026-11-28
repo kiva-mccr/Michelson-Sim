@@ -6,7 +6,7 @@ const XM={k:null,s:4,busy:0,el:$('xmenu')};try{XM.s=+localStorage.getItem('mich-
 const pngOf=o=>new Promise((ok,no)=>o.toBlob(b=>b?ok(b):no(new Error('PNG encoding failed')),'image/png'));
 const xSay=t=>{$('xmStat').textContent=t};
 function xSizes(){$('xmSize').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.s===XM.s)));const[w,h]=xSize(XM.k,XM.s);$('xmPx').textContent=`${w} × ${h} px`}
-function xOpen(k,x,y){XM.k=k;XM.busy++;const m=XM.el;$('xmT').textContent=XP[k].title;xSay('');xSizes();m.hidden=false;
+function xOpen(k,x,y){XM.k=k;XM.busy++;const m=XM.el;$('xmT').textContent=XP[k].title;xSay('');xSizes();$('xmMp4').hidden=k==='spec'||!MP4OK();$('xmDur').textContent=F(SWT,3)+' s';m.hidden=false;
   const sheet=matchMedia('(pointer:coarse)').matches||innerWidth<600;m.classList.toggle('sheet',sheet);
   if(!sheet){const r=m.getBoundingClientRect();m.style.left=Math.min(x,innerWidth-r.width-8)+'px';m.style.top=Math.min(y,innerHeight-r.height-8)+'px'}
   m.querySelector('[data-x]').focus({preventScroll:true})}
@@ -18,7 +18,8 @@ async function xDo(what){const k=XM.k,s=XM.s,id=XM.busy,prog=f=>xSay(`Rendering�
       try{if(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')throw 0;await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);xSay('Copied to the clipboard')}
       catch(e){if(e&&e.message==='cancelled')throw e;const b=await blob,u=URL.createObjectURL(b),im=$('copyImg'),a=$('copyDl');URL.revokeObjectURL(im.src);im.src=u;a.href=u;a.download=XP[k].name+'.png';xClose();openDlg('copyDlg')}}
     else if(what==='png'){xSave(await pngOf(await exportPNG(k,s,prog,xStop(id))),'png');xSay('Saved')}
-    else{xSave(new Blob([await exportSVG(k,s,prog,xStop(id))],{type:'image/svg+xml'}),'svg');xSay('Saved')}}
+    else if(what==='svg'){xSave(new Blob([await exportSVG(k,s,prog,xStop(id))],{type:'image/svg+xml'}),'svg');xSay('Saved')}
+    else{xSay('Rendering frames… 0%');xSave(await exportMP4(k,s,f=>xSay(`Rendering frames… ${Math.round(100*f)}%`),xStop(id)),'mp4');xSay('Saved')}}
   catch(e){if(e&&e.message!=='cancelled'){console.warn('export failed',e);xSay('Failed: '+(e.message||e))}}}
 XM.el.querySelectorAll('[data-x]').forEach(b=>b.addEventListener('click',()=>xDo(b.dataset.x)));
 $('xmSize').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{XM.s=+b.dataset.s;try{localStorage.setItem('mich-export-scale',XM.s)}catch(e){}xSizes()}));

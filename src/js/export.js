@@ -60,3 +60,11 @@ async function exportSVG(k,s,prog,stop){
   if(k==='ring'){const[W]=box($(XP.ring.box)),c=await exportPNG(k,s,prog,stop);
     return`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${W}" viewBox="0 0 ${W} ${W}"><image width="${W}" height="${W}" xlink:href="${c.toDataURL('image/png')}"/></svg>`}
   return svgFile(k,XP[k].cv?curveSVG(k):'')}
+/* MP4: one sweep of the mirror from −range to +range over the pass time at 30 fps, every frame an exact export at the chosen
+   size (the same code as the PNG). d is stepped directly and only this plot is redrawn; the page is put back afterwards. */
+const MP4FPS=30;
+async function exportMP4(k,s,prog,stop){const d0=$('d').value,m=DMAX(),n=Math.max(2,Math.round(SWT*MP4FPS)+1);let E=null;
+  try{for(let i=0;i<n;i++){if(stop())throw new Error('cancelled');$('d').value=-m+2*m*i/(n-1);if(k==='out')renderOut();
+      const c=await exportPNG(k,s,()=>{},stop);if(!E)E=await mp4Encoder(c.width,c.height,MP4FPS);await E.add(c);prog((i+1)/n)}
+    return await E.done()}
+  finally{$('d').value=d0;if(k==='out')renderOut();update(false)}}

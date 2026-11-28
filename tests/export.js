@@ -5,7 +5,7 @@
 //   node tests/export.js [index.html]
 // Needs Node and `npm i playwright`. Prints one line per check and exits 1 if any fails.
 const {chromium,devices}=require('playwright');const fs=require('fs');const {hookPage,routeMathJax}=require('./_common');
-const PAGE=hookPage('export',`window.__X={xSize,ringExport,ringBrute,ringModel,act,comps:()=>comps,menu:()=>!$('xmenu').hidden,title:()=>$('xmT').textContent,sheet:()=>$('xmenu').classList.contains('sheet')};\n`);
+const PAGE=hookPage('export',`window.__X={xSize,ringExport,ringBrute,ringModel,act,comps:()=>comps,menu:()=>!$('xmenu').hidden,setT:t=>SWTset(t),passN:()=>Math.round(SWT*MP4FPS)+1,title:()=>$('xmT').textContent,sheet:()=>$('xmenu').classList.contains('sheet')};\n`);
 let fail=0;const ok=(c,msg)=>{console.log((c?'pass ':'FAIL ')+msg);if(!c)fail++};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const PLOTS={spec:['#spec',0.3,0.5,'Source spectrum'],ring:['#ringOv',0.3,0.3,'Interference pattern'],prof:['#profBox',0.5,0.5,'Pattern profile'],ifg:['#ifgBox',0.5,0.5,'Interferogram'],out:['#outBox',0.5,0.5,'Interfered spectrum']};
@@ -29,6 +29,15 @@ const PLOTS={spec:['#spec',0.3,0.5,'Source spectrum'],ring:['#ringOv',0.3,0.3,'I
       const types=await pg.evaluate(async()=>(await navigator.clipboard.read())[0].types);ok(types.includes('image/png'),`${k}: Copy image puts a PNG on the clipboard`);
       await pg.keyboard.press('Escape');ok(!(await pg.evaluate(()=>__X.menu())),`${k}: Escape closes the menu`)}
     ok(await pg.evaluate(()=>__X.comps().length)===n0,'spectrum: a right-click adds no line');
+    /* MP4: one sweep at a 1 s pass time, read back box by box (ftyp, moov, mdat) with the sample count from stsz */
+    await pg.evaluate(()=>__X.setT(1));const nf=await pg.evaluate(()=>__X.passN()),d0=await pg.inputValue('#d');
+    for(const[k,sel]of [['ifg','#ifgBox'],['ring','#ringOv']]){const b=await pg.locator(sel).boundingBox();await pg.mouse.click(b.x+b.width*0.3,b.y+b.height*0.3,{button:'right'});await pg.click('#xmSize button[data-s="2"]');
+      const[dv]=await Promise.all([pg.waitForEvent('download',{timeout:300000}),pg.click('#xmMp4')]);const v=await fs.promises.readFile(await dv.path());
+      const boxes=[];for(let o=0;o<v.length;){const n=v.readUInt32BE(o);boxes.push(v.toString('latin1',o+4,o+8));if(n<8)break;o+=n}
+      const i=v.indexOf('stsz','latin1'),cnt=v.readUInt32BE(i+12),wh=v.indexOf('avc1',v.indexOf('stsd','latin1'),'latin1'),W=v.readUInt16BE(wh+28),H=v.readUInt16BE(wh+30),[w,h]=await pg.evaluate(k=>__X.xSize(k,2),k);
+      ok(boxes.join()==='ftyp,moov,mdat'&&cnt===nf&&W===(w&~1)&&H===(h&~1),`${k}: MP4 of one sweep has ${cnt} frames (expected ${nf}) at ${W}×${H} (boxes ${boxes.join(', ')})`);await pg.keyboard.press('Escape')}
+    ok(await pg.inputValue('#d')===d0,'MP4: the mirror is put back where it was');
+    {const b=await pg.locator('#spec').boundingBox();await pg.mouse.click(b.x+b.width*0.3,b.y+b.height*0.5,{button:'right'});ok(!(await pg.isVisible('#xmMp4')),'spec: no MP4 (the source spectrum does not change with d)');await pg.keyboard.press('Escape')}
     const e=await pg.evaluate(async()=>{const X=await __X.ringExport(240);return __X.ringBrute(X.M,__X.act(),X.N,X.I)});ok(e<1e-3,`ring: export at 240² vs brute force, largest error ${e.toExponential(2)} (tolerance 1e-3)`);
     ok(!errs.length,'desktop: no page errors '+errs.join('; '));await ctx.close()}
   {const ctx=await br.newContext({...devices['iPhone 13']});await routeMathJax(ctx);const pg=await ctx.newPage(),errs=[];pg.on('pageerror',e=>errs.push(e.message));

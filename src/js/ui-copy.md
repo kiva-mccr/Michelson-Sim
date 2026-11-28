@@ -1,6 +1,6 @@
 # ui-copy.js
 
-The copy / save menu on every plot (MS-23): `xOpen`/`xClose` (a popup at the pointer, or a bottom sheet on touch screens and narrow windows), `xDo` (Copy image, Download PNG, Download SVG), the size buttons (2×, 4×, 8×, remembered per browser), the long-press wiring for each plot, and `exportCheck` (the Exported plots row).
+The copy / save menu on every plot (MS-23): `xOpen`/`xClose` (a popup at the pointer, or a bottom sheet on touch screens and narrow windows), `xDo` (Copy image, Download PNG, Download SVG, Download MP4), the size buttons (2×, 4×, 8×, remembered per browser), the long-press wiring for each plot, and `exportCheck` (the Exported plots row).
 
 ## Rules and pitfalls
 

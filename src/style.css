@@ -160,3 +160,5 @@ dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;h
 .xms>span{color:var(--mute)}.xms button{min-height:24px;padding:0 8px}.xms button[aria-pressed=true]{border:2px solid var(--acc);font-weight:700}#xmPx{margin-left:auto}.xmstat{padding:2px 10px;font-size:12px;color:var(--mute);min-height:1.2em}
 .xmenu.sheet{left:0!important;right:0;bottom:0;top:auto!important;border-radius:14px 14px 0 0;padding:10px 10px 22px}.xmenu.sheet>button{padding:13px 12px;font-size:16px}
 .foot{padding:0 12px 4px;font-size:12px;line-height:16px;color:var(--mute);text-align:center}
+.xmn{color:var(--mute);font-size:12px}
+.xmenu>button[hidden]{display:none}

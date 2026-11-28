@@ -1,6 +1,6 @@
 # export.js
 
-High-resolution exports of each plot (MS-23): `XP` (the plots, their boxes and file names), `xSize`, `svgFile` (a plot's SVG as a standalone file), `svgRaster`, `rangePixels` (a range plot's pixel layer redrawn at a scale), `curveSVG` (the interferogram and profile as vector curves), `ringExport` (the ring at any grid size), `exportPNG` and `exportSVG`.
+High-resolution exports of each plot (MS-23): `XP` (the plots, their boxes and file names), `xSize`, `svgFile` (a plot's SVG as a standalone file), `svgRaster`, `rangePixels` (a range plot's pixel layer redrawn at a scale), `curveSVG` (the interferogram and profile as vector curves), `ringExport` (the ring at any grid size), `exportPNG`, `exportSVG` and `exportMP4` (one sweep: d stepped from −range to +range over the pass time at 30 fps, each frame an `exportPNG`; d is put back afterwards).
 
 ## Rules and pitfalls
 
