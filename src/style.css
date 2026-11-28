@@ -76,6 +76,10 @@ tr.off td{opacity:.45}tr.off td:first-child{opacity:1}
 .ifm2{flex:none;display:grid;place-items:center;min-height:0}.ifm2 #miniSvg{width:100%;height:auto;max-height:min(36vh,400px)}
 #rail{display:block;width:100%;height:100%;touch-action:none;user-select:none}
 #rail:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:4px}
+/* the selected component under the spectrum editor (MS-22): shown in the stacked layout and on touch devices, hidden in the one-screen layout with a mouse */
+.selbar{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;flex:none;margin-top:6px;padding:4px 6px 4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--soft)}
+.selbar[hidden]{display:none}#sbDel{margin-left:auto}.selbar .chip{gap:4px}.selbar .chip b{font-size:14px}
+#spec{touch-action:none}  /* the editor's drags are its own: without this a finger drag scrolls the page and the drag is cancelled */
 
 /* coherence */
 .coh{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px}
@@ -86,6 +90,7 @@ tr.off td{opacity:.45}tr.off td:first-child{opacity:1}
 ul.bl{margin:6px 0;padding-left:1.2em}ul.bl li{margin:3px 0}
 /* interferogram footer row */
 .zrow{display:flex;gap:4px 14px;flex-wrap:wrap;align-items:center;flex:none;margin-top:4px}.zrow b{color:var(--ink);font-weight:500}
+.chks{display:inline-flex;gap:4px 14px;flex-wrap:wrap}  /* the checkboxes wrap as one group, never one left behind */
 /* header buttons and the components popup (non-modal, so the editor stays usable) */
 .hbtns{display:inline-flex;align-items:baseline;gap:10px}
 /* the ? button on the pattern panel and its popup (renderer and resolution); it stays open while you drag */
@@ -127,10 +132,22 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
   #profBox{flex-basis:22%;min-height:90px}
   #specBox{min-height:90px}.chead{margin-bottom:2px}
 }
+@media (min-width:1100px) and (min-aspect-ratio:4/3) and (pointer:fine){.selbar{display:none}}
+/* touch devices (MS-22): finger-sized buttons, checkboxes, rail and typed-in numbers */
+@media (pointer:coarse){
+  button{min-height:36px;padding:0 12px}button.mini{min-height:34px}.qm{width:34px;height:34px;min-height:34px}
+  .chk input,.tog input{width:20px;height:20px}
+  #railBox{height:48px}
+}
 /* narrower or portrait: stacked, scrolling page */
 @media not ((min-width:1100px) and (min-aspect-ratio:4/3)){
   .app{grid-template-columns:minmax(0,1fr)}
   #specBox{height:300px}
   #ringBox{height:min(92vw,520px)}#profBox{flex:none;height:200px}
   .plot{height:240px}
+  .zrow .note{flex-basis:100%}  /* the hint on its own line, the checkboxes together below it */
+}
+/* phones: the top bar's buttons fill whole rows instead of leaving ragged gaps */
+@media (max-width:700px){
+  .top .grp,.top .grp button{flex:1 1 auto}.top .sp{display:none}
 }

@@ -24,8 +24,9 @@
   <section class="col left" aria-label="Inputs">
     <div class="panel">
       <div class="chead"><h2>Source spectrum $S(\sigma)$</h2><span class="hbtns"><button id="openComp" class="mini" aria-haspopup="dialog">Components (<span id="nComp">0</span>)</button><button class="mini eqbtn" data-dlg="eqdlg1" aria-haspopup="dialog">Equations and notes</button></span></div>
-      <p class="hint">Click to add · drag a dot to move · drag its line or width handles to widen · double-click to delete</p>
+      <p class="hint" data-touch="Tap to add · drag a dot to move · drag its width handles to widen · tap a dot to edit or delete it below">Click to add · drag a dot to move · drag its line or width handles to widen · double-click to delete</p>
       <div class="fig" id="specBox"><svg id="spec" role="img" aria-label="Editable source spectrum"></svg></div>
+      <div class="selbar" id="selBar" hidden><span class="sw" id="sbSw"></span><span class="chip">λ <b id="sbL"></b> nm</span><span class="chip">height <b id="sbA"></b></span><span class="chip">FWHM <b id="sbF"></b></span><button id="sbDel" class="mini">Delete</button></div>
     </div>
     <div class="panel" id="mich">
       <div class="chead"><h2>Michelson</h2><span class="hbtns" style="align-items:center"><button id="dPlay" class="mini" aria-pressed="false" title="Sweep the mirror back and forth">▶ Sweep</button><button id="dFit" class="mini" title="Fit the range to where the envelope levels out">Fit</button><label class="chk" title="Keep the range fitted to where the envelope levels out"><input type="checkbox" id="dAuto" checked> Auto</label></span></div>
@@ -58,7 +59,7 @@
     <div class="panel">
       <div class="chead"><h2>Interference pattern $I(x,y)$</h2><span class="hbtns" style="align-items:center"><button class="mini eqbtn" data-dlg="eqdlg2" aria-haspopup="dialog">Equations and notes</button><button id="infoBtn" class="qm" aria-expanded="false" aria-controls="infoPop" title="Renderer and resolution">?</button></span></div>
       <div id="infoPop" class="infopop" role="dialog" aria-label="Renderer and resolution" hidden><div><span>Renderer</span><b id="rendV"></b></div><div><span>Resolution</span><b id="resV"></b></div><div><span>While moving</span><b>preview sized to your device</b></div><p class="note" id="rendNote">Every renderer evaluates the same exact per-pixel formula, and the "Ring pixels" check reads back whichever one is active.</p></div>
-      <p class="hint">Drag the white dot to tilt (at 0, 0 it appears when you hover the pattern) · drag the rim or scroll for field of view · double-click resets tilt</p>
+      <p class="hint" data-touch="Drag the white dot to tilt · drag the rim or pinch for field of view · double-tap resets tilt">Drag the white dot to tilt (at 0, 0 it appears when you hover the pattern) · drag the rim or scroll for field of view · double-click resets tilt</p>
       <div id="ringBox"><div id="ringWrap"><canvas id="ring" width="400" height="400" aria-label="Interference pattern"></canvas><canvas id="ringGL" class="ringc" width="400" height="400" hidden></canvas><canvas id="ringGPU" class="ringc" width="400" height="400" hidden></canvas><svg id="ringOv" role="slider" aria-label="Drag to tilt, drag the rim or scroll to change the field of view" tabindex="0"></svg></div></div>
       <div class="chips"><span class="chip">Tilt $\alpha_x$ <b id="txV"></b></span><span class="chip">$\alpha_y$ <b id="tyV"></b></span><button id="tReset" class="mini" title="Reset tilt to 0, 0">Reset tilt</button><span class="chip">Field of view $\theta_{\max}$ <b id="fV"></b></span></div>
       <div class="fig" id="profBox"><canvas id="profC"></canvas><svg id="prof"></svg></div>
@@ -68,13 +69,13 @@
   <section class="col right" aria-label="Results">
     <div class="panel">
       <div class="chead"><h2>Interferogram $I(\delta)$</h2><button class="mini eqbtn" data-dlg="eqdlg3" aria-haspopup="dialog">Equations and notes</button></div>
-      <div class="fig plot" id="ifgBox" title="Scroll to zoom"><canvas id="ifgC"></canvas><svg id="ifg"></svg></div>
-      <div class="zrow"><span class="note">Scroll on the plot to zoom · range <b id="rV"></b></span><label class="chk"><input type="checkbox" id="rAuto" checked> Auto-fit</label><label class="chk"><input type="checkbox" id="envOn" checked> Envelope</label></div>
+      <div class="fig plot" id="ifgBox" title="Scroll to zoom" style="touch-action:pan-y"><canvas id="ifgC"></canvas><svg id="ifg"></svg></div>
+      <div class="zrow"><span class="note"><span data-touch="Pinch sideways to zoom">Scroll on the plot to zoom</span> · range <b id="rV"></b></span><span class="chks"><label class="chk"><input type="checkbox" id="rAuto" checked> Auto-fit</label><label class="chk"><input type="checkbox" id="envOn" checked> Envelope</label></span></div>
     </div>
     <div class="panel">
       <div class="chead"><h2>Interfered spectrum $S_{\rm out}(\sigma;\delta_0)$</h2><button class="mini eqbtn" data-dlg="eqdlg4" aria-haspopup="dialog">Equations and notes</button></div>
       <div class="fig plot" id="outBox" title="Scroll to zoom, drag to pan" style="cursor:grab;touch-action:none"><svg id="out"></svg></div>
-      <div class="zrow"><span class="note">Scroll to zoom · drag to pan · <b id="oV"></b></span><label class="chk"><input type="checkbox" id="oAuto" checked> Auto-fit to the components</label></div>
+      <div class="zrow"><span class="note"><span data-touch="Pinch to zoom · drag to pan">Scroll to zoom · drag to pan</span> · <b id="oV"></b></span><label class="chk"><input type="checkbox" id="oAuto" checked> Auto-fit to the components</label></div>
     </div>
     <div class="panel">
       <div class="chead"><h2>Coherence length $l_c$</h2><button class="mini eqbtn" data-dlg="eqdlg5" aria-haspopup="dialog">Equations and notes</button></div>
