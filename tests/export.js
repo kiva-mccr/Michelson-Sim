@@ -66,6 +66,7 @@ const PLOTS={spec:['#spec',0.3,0.5,'Source spectrum'],ring:['#ringOv',0.3,0.3,'I
     const[dx,dy]=await pg.evaluate(()=>{const b=document.querySelector('#spec circle').getBoundingClientRect();return[b.x+b.width/2,b.y+b.height/2]});await hold(dx,dy);
     ok(!(await menu()),'phone: a long-press on a spectrum dot opens nothing (it starts a drag)');await close();
     r=await show('#ringOv');await hold(r.x+r.w*0.5,r.y+r.h*0.03);ok(!(await menu()),'phone: a long-press on the ring rim opens nothing (it starts a drag)');await close();
+    {const c=r.w/2,p=c+(c-4-11.5*1.4-10)*Math.SQRT1_2;await hold(r.x+p,r.y+p);ok(!(await menu()),'phone: a long-press on the inner arrowhead of the zoom icon opens nothing (it starts a drag)');await close()}
     await hold(r.x+r.w*0.35,r.y+r.h*0.35);ok(await menu(),'phone: a long-press inside the ring opens the menu');await close();
     ok(!errs.length,'phone: no page errors '+errs.join('; '));await ctx.close()}
   await br.close();PAGE.done();console.log(fail?`${fail} failed`:'all passed');process.exit(fail?1:0)})();
