@@ -17,7 +17,7 @@ const spec=$('spec');let G={},specKey='';
 function renderSpec(){
   const [W,H]=box(spec);if(!W)return;
   /* the editor depends only on the components, the selection, drag state, size and theme colours, not on d: skip identical redraws */
-  const key=JSON.stringify([comps,sel,!!drag,W,H,css('--fr'),css('--ink'),css('--mute')]);if(key===specKey)return;specKey=key;
+  const key=JSON.stringify([comps,sel,!!drag,W,H,css('--fr'),css('--ink'),css('--mute')]);if(key===specKey)return;specKey=key;selBar();
   const pl=40,pr=12,pt=20,pb=36,ym=calcYM(),A=axes(W,H,pl,pr,pt,pb,'Spectral density (rel.)',LMIN,LMAX,ym),{x,y}=A;G={x,y,W,H,pl,pr,pt,pb,ym};
   let h=A.h;const ts=trueShape();
   if(ts)h+=`<path d="${gpath(x,y,W,pl,pr,ts)}" fill="none" stroke="${css('--fr')}" stroke-width="1.5" stroke-dasharray="4 3"/>`;
@@ -27,36 +27,48 @@ function renderSpec(){
       /* width bar between the half-maximum points; an end that falls outside the plotted 380–800 nm window is clipped and loses its handle */
       const xa=x(c.s+c.f/2),xb=c.s-c.f/2>0?x(c.s-c.f/2):Infinity,yh=y(c.a/2),cl=v=>clamp(v,pl,W-pr);
       h+=`<line x1="${cl(xa)}" x2="${cl(xb)}" y1="${yh}" y2="${yh}" stroke="${cc}" stroke-width="1.2"/>`;
-      for(const sx of [xa,xb].filter(v=>v>=pl&&v<=W-pr))h+=`<rect x="${sx-2}" y="${yh-6}" width="4" height="12" rx="1.5" fill="${cc}" stroke="${css('--ink')}" stroke-width=".8"/><rect x="${sx-9}" y="${yh-11}" width="18" height="22" fill="transparent" style="cursor:ew-resize"/>`}
+      for(const sx of [xa,xb].filter(v=>v>=pl&&v<=W-pr))h+=`<rect x="${sx-HW}" y="${yh-HH}" width="${2*HW}" height="${2*HH}" rx="${HW-.5}" fill="${cc}" stroke="${css('--ink')}" stroke-width=".8"/><rect x="${sx-9}" y="${yh-11}" width="18" height="22" fill="transparent" style="cursor:ew-resize"/>`}
     h+=`<line x1="${X}" x2="${X}" y1="${y(0)}" y2="${Y}" stroke="${cc}" stroke-width="${c.f?1.5:3}" ${c.f?'stroke-dasharray="4 3"':''}/>`;
     h+=`<line x1="${X}" x2="${X}" y1="${y(0)}" y2="${Y}" stroke="transparent" stroke-width="18" style="cursor:ew-resize"/>`;
-    h+=`<circle cx="${X}" cy="${Y}" r="${on?6.5:5}" fill="${cc}" stroke="${on?'#e0115f':css('--ink')}" stroke-width="${on?2.5:1.2}" style="cursor:move"/>`;
-    const lab=(1000/c.s).toFixed(1),side=Y-13<pt;
-    h+=side?`<text x="${X+(X>W-60?-10:10)}" y="${Y+4}" font-size="11" fill="${A.mute}" text-anchor="${X>W-60?'end':'start'}">${lab}</text>`:`<text x="${X}" y="${Y-10}" font-size="11" fill="${A.mute}" text-anchor="middle">${lab}</text>`;
+    h+=`<circle cx="${X}" cy="${Y}" r="${(on?6.5:5)*SDOT}" fill="${cc}" stroke="${on?'#e0115f':css('--ink')}" stroke-width="${on?2.5:1.2}" style="cursor:move"/>`;
+    const lab=(1000/c.s).toFixed(1),lo=TOUCH?15:10,side=Y-lo-3<pt;
+    h+=side?`<text x="${X+(X>W-60?-lo:lo)}" y="${Y+4}" font-size="11" fill="${A.mute}" text-anchor="${X>W-60?'end':'start'}">${lab}</text>`:`<text x="${X}" y="${Y-lo}" font-size="11" fill="${A.mute}" text-anchor="middle">${lab}</text>`;
     h+='</g>'});
   if(!comps.length)h+=`<text x="${W/2}" y="${H/2}" font-size="15" fill="${A.mute}" text-anchor="middle">Click anywhere here to place a wavelength</text>`;
   spec.innerHTML=h}
+/* on touch devices the handles are drawn larger (TOUCH) */
+const SDOT=TOUCH?1.45:1,HW=TOUCH?3.5:2,HH=TOUCH?10:6;
 const toS=px=>1000/clamp(LMAX-(px-G.pl)/(G.W-G.pl-G.pr)*(LMAX-LMIN),LMIN*0.6,LMAX*1.6),toA=py=>(1-(py-G.pt)/(G.H-G.pt-G.pb))*G.ym;
-function hit(px,py){
-  for(let i=comps.length-1;i>=0;i--){const c=comps[i];if(Math.hypot(px-G.x(c.s),py-G.y(c.a))<11)return{i,mode:'move'}}
+/* the component under (px,py): a dot, then a width handle, then a line's stem or a Gaussian's curve. k scales the tolerances (fat(e): 2 for a finger).
+   Among dots within reach the nearest wins, so enlarged finger targets still pick the right one of two close components */
+function hit(px,py,k=1){
+  let best=null,bd=Infinity;comps.forEach((c,i)=>{const r=Math.hypot(px-G.x(c.s),py-G.y(c.a));if(r<11*k&&r<=bd){bd=r;best={i,mode:'move'}}});if(best)return best;
   for(let i=comps.length-1;i>=0;i--){const c=comps[i];if(!c.f)continue;const xa=G.x(c.s+c.f/2),xb=c.s-c.f/2>0?G.x(c.s-c.f/2):Infinity,yh=G.y(c.a/2);
-    if(Math.abs(py-yh)<11&&(Math.abs(px-xa)<9||Math.abs(px-xb)<9))return{i,mode:'width'}}
-  for(let i=comps.length-1;i>=0;i--){const c=comps[i],X=G.x(c.s);if(Math.abs(px-X)<8&&py>G.y(c.a)&&py<G.y(0)+4)return{i,mode:'width'}}
-  for(let i=comps.length-1;i>=0;i--){const c=comps[i];if(c.f&&Math.abs(py-G.y(shape(c,toS(px))))<8)return{i,mode:'width'}}
+    if(Math.abs(py-yh)<11*k&&(Math.abs(px-xa)<9*k||Math.abs(px-xb)<9*k))return{i,mode:'width'}}
+  for(let i=comps.length-1;i>=0;i--){const c=comps[i],X=G.x(c.s);if(Math.abs(px-X)<8*k&&py>G.y(c.a)&&py<G.y(0)+4)return{i,mode:'width'}}
+  for(let i=comps.length-1;i>=0;i--){const c=comps[i];if(c.f&&Math.abs(py-G.y(shape(c,toS(px))))<8*k)return{i,mode:'width'}}
   return null}
 const pos=e=>{const r=spec.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
-spec.addEventListener('pointerdown',e=>{if(e.button>0)return;  /* right-click opens the copy menu (ui-copy.js) */
-  const[px,py]=pos(e);let h=hit(px,py);
-  if(!h){if(py<G.pt-4||py>G.y(0)+2)return;comps.push({s:clamp(toS(px),SMIN,SMAX),a:clamp(toA(py),0.03,1),f:0,on:true});h={i:comps.length-1,mode:'move'}}
-  sel=h.i;drag=h;spec.setPointerCapture(e.pointerId);e.preventDefault();update(true)});
-spec.addEventListener('pointermove',e=>{if(!drag)return;const[px,py]=pos(e),c=comps[drag.i];
+/* a mouse click on empty plot adds a line and drags it at once; a finger only adds one on a tap (lifted without moving),
+   so a finger that lands on empty plot by mistake, or is held (a long-press), adds nothing. touch-action:none (style.css) keeps the page from taking the drag */
+let tap=null;
+spec.addEventListener('pointerdown',e=>{if(e.button>0)return;  /* a right-click opens the copy menu (ui-copy.js) */
+  const[px,py]=pos(e);let h=hit(px,py,fat(e));
+  if(!h){if(py<G.pt-4||py>G.y(0)+2)return;
+    if(e.pointerType==='touch'){if(!drag)tap={id:e.pointerId,px,py,t:performance.now()};return}
+    comps.push({s:clamp(toS(px),SMIN,SMAX),a:clamp(toA(py),0.03,1),f:0,on:true});h={i:comps.length-1,mode:'move'}}
+  if(drag)return;sel=h.i;drag={...h,id:e.pointerId};spec.setPointerCapture(e.pointerId);e.preventDefault();update(true)});
+spec.addEventListener('pointermove',e=>{if(tap&&tap.id===e.pointerId){const[px,py]=pos(e);if(Math.hypot(px-tap.px,py-tap.py)>10)tap=null;return}
+  if(!drag||drag.id!==e.pointerId)return;const[px,py]=pos(e),c=comps[drag.i];
   if(drag.mode==='move'){c.s=clamp(toS(px),SMIN,SMAX);c.a=clamp(toA(py),0.03,1)}
   else{const f=2*Math.abs(toS(px)-c.s);c.f=f<0.008?0:Math.min(f,0.9)}
   update(true)});
-const end=()=>{if(drag){drag=null;update(false)}};
+const end=e=>{if(tap&&tap.id===e.pointerId){if(e.type==='pointerup'&&performance.now()-tap.t<500){comps.push({s:clamp(toS(tap.px),SMIN,SMAX),a:clamp(toA(tap.py),0.03,1),f:0,on:true});sel=comps.length-1;update(false)}tap=null}
+  if(drag&&drag.id===e.pointerId){drag=null;update(false)}};
 spec.addEventListener('pointerup',end);spec.addEventListener('pointercancel',end);
-spec.addEventListener('dblclick',e=>{const[px,py]=pos(e);const h=hit(px,py);if(h&&h.mode==='move'){comps.splice(h.i,1);sel=-1;update(false)}});
-document.addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&sel>=0&&!(e.target instanceof HTMLInputElement)){comps.splice(sel,1);sel=-1;update(false);e.preventDefault()}});
+spec.addEventListener('dblclick',e=>{const[px,py]=pos(e);const h=hit(px,py);if(h&&h.mode==='move')delComp(h.i)});
+const delComp=i=>{comps.splice(i,1);sel=-1;update(false)};
+document.addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&sel>=0&&!(e.target instanceof HTMLInputElement)){delComp(sel);e.preventDefault()}});
 
 /* ---------- interfered spectrum ----------
    Its wavelength window auto-crops to the switched-on components (Gaussians to ±3w, plus 12% padding, at least 2 nm wide).

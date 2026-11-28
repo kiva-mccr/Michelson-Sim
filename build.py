@@ -15,7 +15,7 @@ Uses only the standard library; no npm.
 import pathlib, re, sys
 
 ROOT = pathlib.Path(__file__).resolve().parent
-JS_ORDER = ["physics.js",
+JS_ORDER = ["physics.js", "ui-touch.js",
             "plots-spectrum.js", "plots-range.js",
             "ring-model.js", "ring-shaders.js", "ring-gpu.js", "ring-backends.js", "ring-bench.js", "ring-preview.js", "ring-render.js",
             "verify.js", "export.js",

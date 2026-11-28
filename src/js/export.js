@@ -1,4 +1,4 @@
-/* ---------- export any plot as a high-resolution PNG or an SVG (MS-22) ---------- */
+/* ---------- export any plot as a high-resolution PNG or an SVG (MS-23) ---------- */
 /* Every export is computed again at its own size with the same exact formulas, never scaled up: the range plots are redrawn
    with XDPR = scale (one synchronous redraw, then put back), the ring is a fresh grid of exact footprint averages on its own
    worker pool, and the axes are the plot's own SVG. SVG: the spectrum plots are native vector; the interferogram and the

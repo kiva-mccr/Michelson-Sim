@@ -1,7 +1,6 @@
-/* ---------- the copy / save menu on every plot (MS-22) ---------- */
-/* Right-click a plot, or long-press it on a touch screen, for Copy image, Download PNG and Download SVG at 2×, 4× or 8× its
-   on-screen size (exports in export.js). A long-press is a touch held 500 ms that moves less than 10 px, with one finger, not
-   starting on a drag handle (spectrum dots and width handles, the ring's dot and rim), so slow drags still work. */
+/* ---------- the copy / save menu on every plot (MS-23) ---------- */
+/* Right-click a plot, or long-press it on a touch screen (longPress in ui-touch.js), for Copy image, Download PNG and Download
+   SVG at 2×, 4× or 8× its on-screen size (exports in export.js). */
 const rgbOf=v=>`rgb(${cssRGB(v).join(',')})`;
 const XM={k:null,s:4,busy:0,el:$('xmenu')};try{XM.s=+localStorage.getItem('mich-export-scale')||4}catch(e){}
 const pngOf=o=>new Promise((ok,no)=>o.toBlob(b=>b?ok(b):no(new Error('PNG encoding failed')),'image/png'));
@@ -25,15 +24,9 @@ XM.el.querySelectorAll('[data-x]').forEach(b=>b.addEventListener('click',()=>xDo
 $('xmSize').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{XM.s=+b.dataset.s;try{localStorage.setItem('mich-export-scale',XM.s)}catch(e){}xSizes()}));
 document.addEventListener('pointerdown',e=>{if(!XM.el.hidden&&!XM.el.contains(e.target))xClose()},true);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')xClose()});
-/* is this press on something that drags? */
-const onHandle={spec:e=>!!hit(...pos(e)),ring:e=>{const g=ovGeom(e);if(g.rr>g.R+4)return false;const[dx,dy]=dotPos(g.R);return Math.hypot(g.x+g.R-dx,g.y+g.R-dy)<14||onRim(g)}};
-for(const[k,id]of [['spec','spec'],['ring','ringOv'],['prof','profBox'],['ifg','ifgBox'],['out','outBox']]){const el=$(id);let t=null,x0=0,y0=0,n=0,lp=false;
-  const cancel=()=>{clearTimeout(t);t=null};
-  el.addEventListener('contextmenu',e=>{e.preventDefault();if(lp){lp=false;return}xOpen(k,e.clientX,e.clientY)});
-  el.addEventListener('pointerdown',e=>{n++;lp=false;if(e.pointerType==='mouse'||n>1||onHandle[k]?.(e)){cancel();return}x0=e.clientX;y0=e.clientY;
-    t=setTimeout(()=>{t=null;lp=true;xOpen(k,x0,y0)},500)});
-  el.addEventListener('pointermove',e=>{if(t&&Math.hypot(e.clientX-x0,e.clientY-y0)>10)cancel()});
-  for(const ev of ['pointerup','pointercancel'])el.addEventListener(ev,()=>{n=Math.max(0,n-1);cancel()})}
+/* a press on a drag handle doesn't open the menu: it starts a (possibly slow) drag */
+const onHandle={spec:e=>!!hit(...pos(e),fat(e)),ring:e=>{const g=ovGeom(e),k=fat(e);return g.rr<=g.R+4*k&&!!ovHandle(g,k)}};
+for(const[k,id]of [['spec','spec'],['ring','ringOv'],['prof','profBox'],['ifg','ifgBox'],['out','outBox']])longPress($(id),(x,y)=>xOpen(k,x,y),onHandle[k]);
 /* Exported plots check: each range plot exported at the device's own scale, PNG-encoded and decoded again, against the displayed
    canvas wherever the canvas is opaque (8-bit levels; PNG is lossless, and the export recomputes the plot, so a difference means
    the export isn't the displayed plot) */
