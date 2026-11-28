@@ -38,6 +38,8 @@ const save=()=>{try{localStorage.setItem(STORE,JSON.stringify({c:comps,d:$('d').
    (CSSC, cleared in ui-loop.js), sizes until a ResizeObserver or window resize reports a change (SZC). Same values, read once. */
 const CSSC=new Map(),SZC=new Map();
 const css=n=>{let v=CSSC.get(n);if(v===undefined){v=getComputedStyle(document.documentElement).getPropertyValue(n).trim();CSSC.set(n,v)}return v};
+/* device pixels per CSS pixel for the plot canvases; an export sets XDPR to its scale for one synchronous redraw */
+let XDPR=0;const DPR=()=>XDPR||window.devicePixelRatio||1;
 const box=el=>{let v=SZC.get(el);if(!v){v=[el.clientWidth,el.clientHeight];if(v[0])SZC.set(el,v)}return v};
 const F=(x,n=3)=>{if(!isFinite(x))return'\\infty';if(x===0)return'0';return String(Number(x.toPrecision(n)))};
 const wOf=c=>c.f/KW;

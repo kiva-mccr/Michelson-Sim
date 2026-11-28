@@ -1,0 +1,14 @@
+<div id="xmenu" class="xmenu" role="menu" aria-labelledby="xmT" hidden>
+  <div class="xmt" id="xmT"></div>
+  <button role="menuitem" data-x="copy">⧉&ensp;Copy image</button>
+  <button role="menuitem" data-x="png">⤓&ensp;Download PNG</button>
+  <button role="menuitem" data-x="svg">⤓&ensp;Download SVG</button>
+  <button role="menuitem" data-x="mp4" id="xmMp4">⤓&ensp;Download MP4 <span class="xmn">(one sweep, <span id="xmDur"></span>)</span></button>
+  <div class="xms" id="xmSize"><span>Size</span><button data-s="2">2×</button><button data-s="4">4×</button><button data-s="8">8×</button><span id="xmPx"></span></div>
+  <div class="xmstat" id="xmStat" role="status"></div>
+</div>
+<dialog class="dlg copydlg" id="copyDlg" aria-labelledby="copyDlgT">
+  <div class="dh"><h2 id="copyDlgT">Copy image</h2><button data-close>Close</button></div>
+  <div class="db"><p class="note">This browser doesn't let the page put an image on the clipboard. Long-press or right-click the image to copy it, or download it.</p>
+    <img id="copyImg" alt="The exported plot"><p><a id="copyDl" href="#">Download PNG</a></p></div>
+</dialog>

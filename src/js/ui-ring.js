@@ -44,13 +44,14 @@ ov.addEventListener('pointermove',e=>{const g=ovGeom(e);ovHover=[g.x+g.R,g.y+g.R
   if(rdrag.m==='rim')setFov(rdrag.f0*Math.max(g.rr,4)/Math.max(rdrag.r0,4));
   else tiltFromDot(g.R,g.x,g.y,e.shiftKey);update(true)});
 ov.addEventListener('pointerleave',()=>{ovHover=null;if(!rdrag)renderOv()});
+/* which handle a press is on: 'dot', 'rim' or null (also the long-press test in ui-copy.js) */
+const ovHandle=(g,k)=>{const[dx,dy]=dotPos(g.R);return Math.hypot(g.x+g.R-dx,g.y+g.R-dy)<14*k?'dot':onRim(g,k)?'rim':null};
 /* a finger double-tap resets the tilt like a double-click (not every touch browser sends dblclick) */
 let lastTap=null;
-ov.addEventListener('pointerdown',e=>{const g=ovGeom(e),k=fat(e);if(g.rr>g.R+4*k)return;
+ov.addEventListener('pointerdown',e=>{if(e.button>0)return;const g=ovGeom(e),k=fat(e);if(g.rr>g.R+4*k)return;
   if(e.pointerType==='touch'){const now=performance.now();if(lastTap&&now-lastTap.t<350&&Math.hypot(g.x-lastTap.x,g.y-lastTap.y)<30){lastTap=null;glideTilt(0,0);return}lastTap={t:now,x:g.x,y:g.y}}
-  const[dx,dy]=dotPos(g.R),onDot=Math.hypot(g.x+g.R-dx,g.y+g.R-dy)<14*k;
-  const m=onDot?'dot':onRim(g,k)?'rim':null;if(!m)return;
-  e.preventDefault();ov.setPointerCapture(e.pointerId);if(m==='dot')inSnap=!+$('tx').value&&!+$('ty').value;rdrag={m,r0:g.rr,f0:+$('fov').value};if(onDot)ov.style.cursor='grabbing';renderOv()});
+  const m=ovHandle(g,k);if(!m)return;
+  e.preventDefault();ov.setPointerCapture(e.pointerId);if(m==='dot')inSnap=!+$('tx').value&&!+$('ty').value;rdrag={m,r0:g.rr,f0:+$('fov').value};if(m==='dot')ov.style.cursor='grabbing';renderOv()});
 const rend=()=>{if(rdrag){const wasDot=rdrag.m==='dot';rdrag=null;ov.style.cursor=wasDot?'grab':'default';renderOv();update(false)}};ov.addEventListener('pointerup',rend);ov.addEventListener('pointercancel',rend);
 ov.addEventListener('dblclick',()=>glideTilt(0,0));
 /* scrolling on the pattern zooms: scroll up narrows the field of view (zoom in), scroll down widens it */

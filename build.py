@@ -18,8 +18,8 @@ ROOT = pathlib.Path(__file__).resolve().parent
 JS_ORDER = ["physics.js", "ui-touch.js",
             "plots-spectrum.js", "plots-range.js",
             "ring-model.js", "ring-shaders.js", "ring-gpu.js", "ring-backends.js", "ring-bench.js", "ring-preview.js", "ring-render.js",
-            "verify.js",
-            "ui-table.js", "ui-ring.js", "ui-mirror.js", "ui-loop.js"]
+            "verify.js", "mp4.js", "export.js",
+            "ui-table.js", "ui-ring.js", "ui-mirror.js", "ui-copy.js", "ui-loop.js"]
 
 def build():
     src = ROOT / "src"

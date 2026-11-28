@@ -52,7 +52,8 @@ const pos=e=>{const r=spec.getBoundingClientRect();return[e.clientX-r.left,e.cli
 /* a mouse click on empty plot adds a line and drags it at once; a finger only adds one on a tap (lifted without moving),
    so a finger that lands on empty plot by mistake, or is held (a long-press), adds nothing. touch-action:none (style.css) keeps the page from taking the drag */
 let tap=null;
-spec.addEventListener('pointerdown',e=>{const[px,py]=pos(e);let h=hit(px,py,fat(e));
+spec.addEventListener('pointerdown',e=>{if(e.button>0)return;  /* a right-click opens the copy menu (ui-copy.js) */
+  const[px,py]=pos(e);let h=hit(px,py,fat(e));
   if(!h){if(py<G.pt-4||py>G.y(0)+2)return;
     if(e.pointerType==='touch'){if(!drag)tap={id:e.pointerId,px,py,t:performance.now()};return}
     comps.push({s:clamp(toS(px),SMIN,SMAX),a:clamp(toA(py),0.03,1),f:0,on:true});h={i:comps.length-1,mode:'move'}}

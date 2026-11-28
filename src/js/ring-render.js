@@ -34,8 +34,7 @@ function renderRing(sync){
   const present=(jA,jB)=>{if(small){RB.off.getContext('2d').putImageData(img,0,0);rctx.imageSmoothingEnabled=true;rctx.imageSmoothingQuality='high';rctx.drawImage(RB.off,0,0,Nl,Nl,0,0,N,N)}else rctx.putImageData(img,0,0,0,jA,N,jB-jA)};
   if(cs.length){const SL=sublines(),pr=prepSL(SL),A=Itot(cs),gain=ringGain(SL),h=N/2,px=2/N*k,sd=PIXSD*px,rc=rcut(N,k),rc2=rc*rc;
     /* grid point (j, i): one image pixel; at full resolution also the I/I_tot buffer */
-    const put=(j,i,X,Y,Z,I)=>{if(j>=Nl)return;let r=MX[0][0]*X+MX[0][1]*Y+MX[0][2]*Z,g=MX[1][0]*X+MX[1][1]*Y+MX[1][2]*Z,b=MX[2][0]*X+MX[2][1]*Y+MX[2][2]*Z;const m=Math.min(r,g,b,0);
-      const o=4*(j*Nl+i);D[o]=enc((r-m)*gain);D[o+1]=enc((g-m)*gain);D[o+2]=enc((b-m)*gain);D[o+3]=255;if(small)Pbuf[j*Nl+i]=I/A;else Ibuf[j*N+i]=I/A};
+    const put=(j,i,X,Y,Z,I)=>{if(j>=Nl)return;xyzRGB(D,4*(j*Nl+i),X,Y,Z,gain);if(small)Pbuf[j*Nl+i]=I/A;else Ibuf[j*N+i]=I/A};
     if(!tilted&&ringLive){/* moving and untilted: a radial grid at 4 samples per grid pixel, linearly interpolated (preview only) */
       const Nr=Math.ceil(1.42*h/k*4)+2,dr=1.42/(Nr-1),RX=new Float64Array(Nr),RY=new Float64Array(Nr),RZ=new Float64Array(Nr),RI=new Float64Array(Nr);
       const Nq=Math.min(Nr,Math.ceil(rc/dr)+2);  /* the table keeps its spacing dr, but stops just past rcut */
@@ -71,6 +70,9 @@ function renderRing(sync){
   }else{D.fill(0);for(let o=3;o<D.length;o+=4)D[o]=255}
   present(0,N);ringProfile(M);if(ringLive&&cs.length)lqRecord(pathKey,Nl,performance.now()-T0);LQ.ms=performance.now()-T0}
 /* the display gain: the brightest linear sRGB channel of the whole spectrum's colour maps to 1 */
+/* one ring pixel's colour: XYZ to linear sRGB, desaturated by adding white, the pattern's gain, then gamma-encoded (the CPU paths and the export) */
+function xyzRGB(D,o,X,Y,Z,gain){const r=MX[0][0]*X+MX[0][1]*Y+MX[0][2]*Z,g=MX[1][0]*X+MX[1][1]*Y+MX[1][2]*Z,b=MX[2][0]*X+MX[2][1]*Y+MX[2][2]*Z,m=Math.min(r,g,b,0);
+  D[o]=enc((r-m)*gain);D[o+1]=enc((g-m)*gain);D[o+2]=enc((b-m)*gain);D[o+3]=255}
 function ringGain(SL){let fX=0,fY=0,fZ=0;for(const o of SL){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}return 1/Math.max(...desat(toLin([fX,fY,fZ])),1e-9)}
 /* a progressive at-rest pass: work(j, j+step) over rows 0..n in ~12 ms slices between frames, paint(first, end) after each slice.
    A newer render (job ≠ ringJob) cancels it. RB.wDone resolves when it finishes or is superseded (the checks and the speed test wait for it). */
@@ -86,7 +88,7 @@ function ringProfile(M){const cs=act();
   let s='';for(const v of [0,0.5,1])s+=`<line x1="${pl}" x2="${W-pr2}" y1="${y(v)}" y2="${y(v)}" stroke="${mute}" stroke-opacity="${v?0.15:0.5}"/><text x="${pl-6}" y="${y(v)+4}" font-size="12" fill="${mute}" text-anchor="end">${v}</text>`;
   for(const u of [-1,-0.5,0,0.5,1]){const t=Math.sign(u)*M.th(Math.abs(u))*180/Math.PI;s+=`<text x="${x(u)}" y="${H-pb+16}" font-size="12" fill="${mute}" text-anchor="${u<-0.9?'start':u>0.9?'end':'middle'}">${F(t,2)}°</text>`}
   /* same anti-aliased range plot as the interferogram, along the cut */
-  {const pc=$('profC'),dpr=window.devicePixelRatio||1,cw=Math.round(W*dpr),ch=Math.round(H*dpr);if(pc.width!==cw||pc.height!==ch){pc.width=cw;pc.height=ch}  /* resizing a canvas reallocates it: only when the size changes */const pg=pc.getContext('2d');pg.clearRect(0,0,pc.width,pc.height);
+  {const pc=$('profC'),dpr=DPR(),cw=Math.round(W*dpr),ch=Math.round(H*dpr);if(pc.width!==cw||pc.height!==ch){pc.width=cw;pc.height=ch}  /* resizing a canvas reallocates it: only when the size changes */const pg=pc.getContext('2d');pg.clearRect(0,0,pc.width,pc.height);
     if(cs.length){const col=cssRGB('--fr');densityPlot(pg,Math.round(pl*dpr),Math.round(pt*dpr),Math.round((W-pl-pr2)*dpr),Math.round((H-pt-pb)*dpr),t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},cs,()=>col)}}
   s+=`<text x="${(pl+W-pr2)/2}" y="${H-4}" font-size="12" fill="${mute}" text-anchor="middle">${an?`θ along the tilt direction (${F(phi,3)}° from x)`:"θ along x"}</text><text transform="translate(12 ${(pt+H-pb)/2}) rotate(-90)" font-size="12" fill="${mute}" text-anchor="middle">I / I_tot</text>`;svg.innerHTML=s}
 

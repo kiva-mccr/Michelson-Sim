@@ -46,7 +46,7 @@ $('envOn').addEventListener('change',()=>update(false));
 $('oAuto').addEventListener('change',()=>update(false));
 {const box=$('outBox'),lAt=px=>OG.l1-(px-OG.pl)/(OG.W-OG.pl-OG.pr)*(OG.l1-OG.l0);let pan=null;
   box.addEventListener('wheel',e=>{e.preventDefault();const r=box.getBoundingClientRect(),c=lAt(e.clientX-r.left),f=Math.pow(1.0015,e.deltaY);setOutMan(c-(c-OG.l0)*f,c+(OG.l1-c)*f);update(true);settle()},{passive:false});
-  box.addEventListener('pointerdown',e=>{pan={x:e.clientX,l0:OG.l0,l1:OG.l1};box.setPointerCapture(e.pointerId)});
+  box.addEventListener('pointerdown',e=>{if(e.button>0)return;pan={x:e.clientX,l0:OG.l0,l1:OG.l1};box.setPointerCapture(e.pointerId)});
   box.addEventListener('pointermove',e=>{if(!pan)return;const dl=(e.clientX-pan.x)/(OG.W-OG.pl-OG.pr)*(pan.l1-pan.l0);setOutMan(pan.l0+dl,pan.l1+dl);update(true)});
   const stop=()=>{if(pan){pan=null;update(false)}};box.addEventListener('pointerup',stop);box.addEventListener('pointercancel',stop);
   /* a pinch scales the current window (not OG, which lags until the next frame is drawn) about the point between the fingers */

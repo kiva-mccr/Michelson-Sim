@@ -15,3 +15,16 @@ function pinch(el,h){const pts=new Map();let last=0;
     if(pts.size>=2){e.stopImmediatePropagation();const s=span();h.scale(last/s,mid());last=s}},true);
   const up=e=>{if(!pts.delete(e.pointerId))return;if(pts.size===1){e.stopImmediatePropagation();h.end&&h.end()}};
   el.addEventListener('pointerup',up,true);el.addEventListener('pointercancel',up,true)}
+/* longPress(el,open,onHandle): a right-click, or a finger held 500 ms that moves less than 10 px with no second finger and
+   didn't start on a drag handle (onHandle(e) true), calls open(x,y) (MS-23: the copy menu). It never calls preventDefault or
+   stopPropagation on pointer events, so el's own tap and drag handlers work as before. A second finger anywhere (the pinch
+   swallows its events on el, so this listens on the document) cancels it. Android also sends contextmenu on a long-press:
+   that one is dropped when the timer already opened the menu. */
+let lpT=null;const lpCancel=()=>{clearTimeout(lpT);lpT=null};
+document.addEventListener('pointerdown',()=>lpCancel(),true);
+function longPress(el,open,onHandle=()=>false){let x0=0,y0=0,id=-1,fired=0;
+  el.addEventListener('contextmenu',e=>{e.preventDefault();if(performance.now()-fired<1500)return;if(e.pointerType==='touch'&&onHandle(e))return;open(e.clientX,e.clientY)});
+  el.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'||onHandle(e))return;x0=e.clientX;y0=e.clientY;id=e.pointerId;
+    lpT=setTimeout(()=>{lpT=null;fired=performance.now();open(x0,y0)},500)});
+  el.addEventListener('pointermove',e=>{if(lpT&&e.pointerId===id&&Math.hypot(e.clientX-x0,e.clientY-y0)>10)lpCancel()});
+  for(const ev of ['pointerup','pointercancel'])el.addEventListener(ev,e=>{if(e.pointerId===id)lpCancel()})}
