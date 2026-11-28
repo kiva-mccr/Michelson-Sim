@@ -44,7 +44,7 @@ ov.addEventListener('pointermove',e=>{const g=ovGeom(e);ovHover=[g.x+g.R,g.y+g.R
   if(rdrag.m==='rim')setFov(rdrag.f0*Math.max(g.rr,4)/Math.max(rdrag.r0,4));
   else tiltFromDot(g.R,g.x,g.y,e.shiftKey);update(true)});
 ov.addEventListener('pointerleave',()=>{ovHover=null;if(!rdrag)renderOv()});
-ov.addEventListener('pointerdown',e=>{const g=ovGeom(e);if(g.rr>g.R+4)return;
+ov.addEventListener('pointerdown',e=>{if(e.button>0)return;const g=ovGeom(e);if(g.rr>g.R+4)return;
   const[dx,dy]=dotPos(g.R),onDot=Math.hypot(g.x+g.R-dx,g.y+g.R-dy)<14;
   const m=onDot?'dot':onRim(g)?'rim':null;if(!m)return;
   e.preventDefault();ov.setPointerCapture(e.pointerId);if(m==='dot')inSnap=!+$('tx').value&&!+$('ty').value;rdrag={m,r0:g.rr,f0:+$('fov').value};if(onDot)ov.style.cursor='grabbing';renderOv()});

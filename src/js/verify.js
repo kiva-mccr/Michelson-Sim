@@ -2,6 +2,14 @@
 function simpson(f,a,b,n){n+=n%2;const h=(b-a)/n;let s=f(a)+f(b);for(let i=1;i<n;i++)s+=(i%2?4:2)*f(a+i*h);return s*h/3}
 function quadSpec(fn,delta){/* ∫ S(σ)·fn(σ) dσ, lines exact, Gaussians by Simpson over ±8w with ≥40 points per fringe */
   let s=0;for(const c of act()){if(!c.f){s+=P(c)*fn(c.s);continue}const w=wOf(c),n=clamp(Math.ceil(16*w*Math.abs(delta)*40),4000,400000);s+=simpson(sg=>dens(c,sg)*fn(sg),c.s-8*w,c.s+8*w,n)}return s}
+/* largest error of a rendered ring (I/I_tot on an N×N grid) against the brute-force 2-D integral of the exact pattern over each
+   pixel's footprint, at 8 pixels inside the circle (the Ring pixels and Exported ring checks) */
+function ringBrute(M,cs,N,Ib){const SL=sublines(),hN=N/2,sd=PIXSD*2/N;let e5=0;
+  for(const[fi,fj]of [[0.5,0.5],[0.503,0.497],[0.508,0.512],[0.75,0.5],[0.675,0.325],[0.15,0.3],[0.972,0.475],[0.6,0.95]]){const i0=Math.floor(fi*N),j0=Math.floor(fj*N);const u0=(i0+0.5-hN)/hN,v0=-(j0+0.5-hN)/hN;
+    const gr=M.grad(u0,v0),fr=8*sd*Math.hypot(...gr)*Math.max(...SL.map(o=>o.s)),n=clamp(Math.ceil(fr*12)+21,21,801);
+    let sw=0,si=0;for(let a=0;a<n;a++){const du=-4*sd+8*sd*a/(n-1),wa=Math.exp(-0.5*(du/sd)**2);for(let b=0;b<n;b++){const dv=-4*sd+8*sd*b/(n-1),wt=wa*Math.exp(-0.5*(dv/sd)**2);si+=wt*0.5*(1+gamma(M.opd(u0+du,v0+dv),cs)[0]);sw+=wt}}
+    e5=Math.max(e5,Math.abs(Ib[j0*N+i0]-si/sw))}
+  return e5}
 async function verify(){
   const cs=act(),out=[];if(!cs.length){$('ver').innerHTML='<tr><td colspan="4" class="empty">Switch on at least one component.</td></tr>';return}
   const A=Itot(cs),SL=sublines(),R=RANGE(),d0=D0(),M=ringModel(),fmt=v=>v===0?'0':v.toExponential(2);
@@ -22,11 +30,7 @@ async function verify(){
   row('Colour (XYZ)','sub-band XYZ vs ∫S·½(1+cos)·x̄ȳz̄ dσ at δ = 0, δ₀, δmax/2 (relative)',e4,1e-2);
   /* 5 rendered ring pixels vs brute-force 2-D integration of the exact pattern over each pixel's footprint */
   if(RB.benchP)await RB.benchP;  /* a running speed test may still switch the renderer */
-  ringLive=false;if(RB.active==='workers'){renderRing();if(RB.wDone)await RB.wDone}else{while(RB.busy)await RB.done;renderRing(true);if(RB.done)await RB.done}await ringReadback();let e5=0;const N=ring.width,hN=N/2,sd=PIXSD*2/N;
-  for(const[fi,fj]of [[0.5,0.5],[0.503,0.497],[0.508,0.512],[0.75,0.5],[0.675,0.325],[0.15,0.3],[0.972,0.475],[0.6,0.95]]){const i0=Math.floor(fi*N),j0=Math.floor(fj*N);const u0=(i0+0.5-hN)/hN,v0=-(j0+0.5-hN)/hN;
-    const gr=M.grad(u0,v0),fr=8*sd*Math.hypot(...gr)*Math.max(...SL.map(o=>o.s)),n=clamp(Math.ceil(fr*12)+21,21,801);
-    let sw=0,si=0;for(let a=0;a<n;a++){const du=-4*sd+8*sd*a/(n-1),wa=Math.exp(-0.5*(du/sd)**2);for(let b=0;b<n;b++){const dv=-4*sd+8*sd*b/(n-1),wt=wa*Math.exp(-0.5*(dv/sd)**2);si+=wt*0.5*(1+gamma(M.opd(u0+du,v0+dv),cs)[0]);sw+=wt}}
-    e5=Math.max(e5,Math.abs(Ibuf[j0*N+i0]-si/sw))}
+  ringLive=false;if(RB.active==='workers'){renderRing();if(RB.wDone)await RB.wDone}else{while(RB.busy)await RB.done;renderRing(true);if(RB.done)await RB.done}await ringReadback();const e5=ringBrute(M,cs,ring.width,Ibuf);
   row('Ring pixels',`rendered pixel intensity (${beName(RB.active)}) vs brute-force 2-D integral of the exact pattern over its footprint, 8 pixels`,e5,1e-3);
   /* 6 coherence */
   const C=coherence();
@@ -41,8 +45,9 @@ async function verify(){
      last step cut at the turn, must take the set time, and the speed readout must equal the distance over that time */
   {const m=DMAX();let v=-m,dir=1,t=0,s=12345,dt=0;while(dir>0){s=s*16807%2147483647;dt=0.005+0.035*s/2147483647;const v0=v;[v,dir]=sweepStep(v,dir,dt,m,SWT);t+=dir>0?dt:(m-v0)/(2*m/SWT)}
     row('Sweep','one pass from −range to +range with uneven frames vs the set time, and the speed readout vs 2·range / that time (relative)',Math.max(Math.abs(t-SWT)/SWT,Math.abs(sweepV()-2*m/t)/sweepV()),1e-9)}
-  /* 9 copy image: the PNG decoded again vs the displayed interferogram pixels (8-bit levels; PNG is lossless) */
-  row('Copied image','interferogram PNG, decoded again, vs the displayed plot pixels (largest 8-bit difference)',await copyCheck(),0);
+  /* 9 exports (MS-22): range plots exported at the device scale vs the displayed pixels; the ring exported at its own grid vs brute force */
+  row('Exported plots','interferogram and profile exported as PNG at the device scale, decoded again, vs the displayed pixels (largest 8-bit difference)',await exportCheck(),0);
+  {const X=await ringExport(160);row('Exported ring','exported ring at 160² vs brute-force 2-D integral of the exact pattern over each pixel footprint, 8 pixels',ringBrute(X.M,cs,X.N,X.I),1e-3)}
   $('ver').innerHTML=out.join('');$('verAt').textContent=`Last run: ${cs.length} component${cs.length>1?'s':''}, d = ${F(+$('d').value,4)} µm, tilt (${$('tx').value}, ${$('ty').value}) µrad, θmax = ${$('fov').value}°.`}
 
 /* ---------- coherence ---------- */

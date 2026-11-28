@@ -119,7 +119,8 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
 /* ≥1100 px landscape: exactly one screen, layout C */
 @media (min-width:1100px) and (min-aspect-ratio:4/3){
   html,body{height:100%;overflow:hidden}
-  body{display:grid;grid-template-rows:auto minmax(0,1fr)}
+  body{display:grid;grid-template-rows:auto minmax(0,1fr) auto}
+  .app{padding-bottom:2px}
   .app{grid-template-columns:minmax(0,30fr) minmax(0,38fr) minmax(0,32fr);min-height:0}
   .left{grid-template-rows:minmax(0,1fr) auto}
   .right{grid-template-rows:minmax(0,1fr) minmax(0,1fr) auto}
@@ -144,7 +145,13 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
   .plot{height:240px}
 }
 dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;height:auto;margin:8px 0;border:1px solid var(--line);border-radius:6px}#copyDl{color:var(--acc);font-weight:600}
-#ifgCopy{min-width:10.5ch}
+#spec,#ringOv,#profBox,#ifgBox,#outBox{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.xmenu{position:fixed;z-index:30;min-width:250px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(5,11,30,.28);padding:6px;display:flex;flex-direction:column}
+.xmenu[hidden]{display:none}.xmenu>button{all:unset;cursor:pointer;padding:7px 10px;border-radius:6px;font:500 13.5px "Red Hat Text",sans-serif}.xmenu>button:hover,.xmenu>button:focus-visible{background:var(--soft)}
+.xmt{padding:4px 10px 6px;color:var(--mute);font-size:12px}.xms{border-top:1px solid var(--line);margin:6px 2px 0;padding:8px 8px 4px;display:flex;gap:6px;align-items:center;font-size:12.5px}
+.xms>span{color:var(--mute)}.xms button{min-height:24px;padding:0 8px}.xms button[aria-pressed=true]{border:2px solid var(--acc);font-weight:700}#xmPx{margin-left:auto}.xmstat{padding:2px 10px;font-size:12px;color:var(--mute);min-height:1.2em}
+.xmenu.sheet{left:0!important;right:0;bottom:0;top:auto!important;border-radius:14px 14px 0 0;padding:10px 10px 22px}.xmenu.sheet>button{padding:13px 12px;font-size:16px}
+.foot{padding:0 12px 4px;font-size:12px;line-height:16px;color:var(--mute);text-align:center}
 </style>
 <script>window.MathJax={tex:{inlineMath:[['$','$']]},svg:{fontCache:'global'},startup:{typeset:true}};</script>
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" async></script>
@@ -204,7 +211,7 @@ dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;h
 
   <section class="col right" aria-label="Results">
     <div class="panel">
-      <div class="chead"><h2>Interferogram $I(\delta)$</h2><span class="hbtns"><button id="ifgCopy" class="mini" title="Copy the interferogram to the clipboard as a PNG image">Copy image</button><button class="mini eqbtn" data-dlg="eqdlg3" aria-haspopup="dialog">Equations and notes</button></span></div>
+      <div class="chead"><h2>Interferogram $I(\delta)$</h2><button class="mini eqbtn" data-dlg="eqdlg3" aria-haspopup="dialog">Equations and notes</button></div>
       <div class="fig plot" id="ifgBox" title="Scroll to zoom"><canvas id="ifgC"></canvas><svg id="ifg"></svg></div>
       <div class="zrow"><span class="note">Scroll on the plot to zoom · range <b id="rV"></b></span><label class="chk"><input type="checkbox" id="rAuto" checked> Auto-fit</label><label class="chk"><input type="checkbox" id="envOn" checked> Envelope</label></div>
     </div>
@@ -219,6 +226,7 @@ dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;h
     </div>
   </section>
 </main>
+<footer class="foot">Right-click or long-press any plot to copy it, or save it as PNG or SVG, at up to 8× screen resolution.</footer>
 
 <dialog class="dlg eqdlg" id="eqdlg1" aria-labelledby="eqdlg1t">
   <div class="dh"><h2 id="eqdlg1t">Source spectrum $S(\sigma)$: equations and notes</h2><button data-close>Close</button></div>
@@ -311,10 +319,18 @@ dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;h
   </ol>
 <p class="note">Textbook references for the same results: E. Hecht, <i>Optics</i>, §9.4 and Ch. 12; L. Mandel &amp; E. Wolf, <i>Optical Coherence and Quantum Optics</i>, §4.3; R. J. Bell, <i>Introductory Fourier Transform Spectroscopy</i>. Formulas marked “derived” in the companion reference page follow from these by substitution; the simulator evaluates them directly.</p></div>
 </dialog>
+<div id="xmenu" class="xmenu" role="menu" aria-labelledby="xmT" hidden>
+  <div class="xmt" id="xmT"></div>
+  <button role="menuitem" data-x="copy">⧉&ensp;Copy image</button>
+  <button role="menuitem" data-x="png">⤓&ensp;Download PNG</button>
+  <button role="menuitem" data-x="svg">⤓&ensp;Download SVG</button>
+  <div class="xms" id="xmSize"><span>Size</span><button data-s="2">2×</button><button data-s="4">4×</button><button data-s="8">8×</button><span id="xmPx"></span></div>
+  <div class="xmstat" id="xmStat" role="status"></div>
+</div>
 <dialog class="dlg copydlg" id="copyDlg" aria-labelledby="copyDlgT">
   <div class="dh"><h2 id="copyDlgT">Copy image</h2><button data-close>Close</button></div>
   <div class="db"><p class="note">This browser doesn't let the page put an image on the clipboard. Long-press or right-click the image to copy it, or download it.</p>
-    <img id="copyImg" alt="Interferogram"><p><a id="copyDl" class="mini" href="#">Download PNG</a></p></div>
+    <img id="copyImg" alt="The exported plot"><p><a id="copyDl" href="#">Download PNG</a></p></div>
 </dialog>
 
 <script>
@@ -359,6 +375,8 @@ const save=()=>{try{localStorage.setItem(STORE,JSON.stringify({c:comps,d:$('d').
    (CSSC, cleared in ui-loop.js), sizes until a ResizeObserver or window resize reports a change (SZC). Same values, read once. */
 const CSSC=new Map(),SZC=new Map();
 const css=n=>{let v=CSSC.get(n);if(v===undefined){v=getComputedStyle(document.documentElement).getPropertyValue(n).trim();CSSC.set(n,v)}return v};
+/* device pixels per CSS pixel for the plot canvases; an export sets XDPR to its scale for one synchronous redraw */
+let XDPR=0;const DPR=()=>XDPR||window.devicePixelRatio||1;
 const box=el=>{let v=SZC.get(el);if(!v){v=[el.clientWidth,el.clientHeight];if(v[0])SZC.set(el,v)}return v};
 const F=(x,n=3)=>{if(!isFinite(x))return'\\infty';if(x===0)return'0';return String(Number(x.toPrecision(n)))};
 const wOf=c=>c.f/KW;
@@ -455,7 +473,8 @@ function hit(px,py){
   for(let i=comps.length-1;i>=0;i--){const c=comps[i];if(c.f&&Math.abs(py-G.y(shape(c,toS(px))))<8)return{i,mode:'width'}}
   return null}
 const pos=e=>{const r=spec.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
-spec.addEventListener('pointerdown',e=>{const[px,py]=pos(e);let h=hit(px,py);
+spec.addEventListener('pointerdown',e=>{if(e.button>0)return;  /* right-click opens the copy menu (ui-copy.js) */
+  const[px,py]=pos(e);let h=hit(px,py);
   if(!h){if(py<G.pt-4||py>G.y(0)+2)return;comps.push({s:clamp(toS(px),SMIN,SMAX),a:clamp(toA(py),0.03,1),f:0,on:true});h={i:comps.length-1,mode:'move'}}
   sel=h.i;drag=h;spec.setPointerCapture(e.pointerId);e.preventDefault();update(true)});
 spec.addEventListener('pointermove',e=>{if(!drag)return;const[px,py]=pos(e),c=comps[drag.i];
@@ -534,7 +553,7 @@ const SPAN2=[0,0];
 const DPK=8;
 function densityPlot(ctx,x0,y0,Wd,Hd,dAt,cs,colourAt){const K=DPK,
   B=ctx.__dp&&ctx.__dp.Wd===Wd&&ctx.__dp.Hd===Hd?ctx.__dp:(ctx.__dp={Wd,Hd,img:ctx.createImageData(Wd,Hd),C:new Float32Array(Wd*Hd),r0:new Int32Array(Wd),r1:new Int32Array(Wd),off:document.createElement('canvas')});
-  const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],smax=Math.max(...cs.map(c=>c.s)),g=gammaOf(cs),MINH=1.25*(window.devicePixelRatio||1);
+  const img=B.img,D=img.data,C=B.C,r0=B.r0,r1=B.r1,cols=[],smax=Math.max(...cs.map(c=>c.s)),g=gammaOf(cs),MINH=1.25*DPR();
   D.fill(0);C.fill(0);
   for(let px=0;px<Wd;px++){const base=px*Hd;let c0=Hd,c1=-1;
     for(let k=0;k<K;k++){const[lo,hi]=spanOf((px+k/K)/Wd,(px+(k+1)/K)/Wd,dAt,g,smax);let ya=(1-hi)*(Hd-1),yb=(1-lo)*(Hd-1);
@@ -558,7 +577,7 @@ let _probe=null;function cssRGB(v){const c=CSSC.get('rgb'+v);if(c)return c;if(!_
 let ifgKey='',ifgEnv='';
 function renderIfg(){
   const svg=$('ifg'),cv=$('ifgC'),[W,H]=box(svg);if(!W)return;
-  const dpr=window.devicePixelRatio||1,key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr]),fresh=key!==ifgKey;ifgKey=key;
+  const dpr=DPR(),key=JSON.stringify([act().map(c=>[c.s,c.a,c.f]),RANGE(),W,H,dpr]),fresh=key!==ifgKey;ifgKey=key;
   if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
   const R=RANGE(),pl=46,pr=10,pt=10,pb=42,x=d=>pl+(d+R)/(2*R)*(W-pl-pr),y=v=>pt+(1-v)*(H-pt-pb),mute=css('--mute');
   if(fresh){g.clearRect(0,0,W,H);g.fillStyle='#05070f';g.fillRect(pl,pt,W-pl-pr,H-pt-pb)}
@@ -1023,8 +1042,7 @@ function renderRing(sync){
   const present=(jA,jB)=>{if(small){RB.off.getContext('2d').putImageData(img,0,0);rctx.imageSmoothingEnabled=true;rctx.imageSmoothingQuality='high';rctx.drawImage(RB.off,0,0,Nl,Nl,0,0,N,N)}else rctx.putImageData(img,0,0,0,jA,N,jB-jA)};
   if(cs.length){const SL=sublines(),pr=prepSL(SL),A=Itot(cs),gain=ringGain(SL),h=N/2,px=2/N*k,sd=PIXSD*px,rc=rcut(N,k),rc2=rc*rc;
     /* grid point (j, i): one image pixel; at full resolution also the I/I_tot buffer */
-    const put=(j,i,X,Y,Z,I)=>{if(j>=Nl)return;let r=MX[0][0]*X+MX[0][1]*Y+MX[0][2]*Z,g=MX[1][0]*X+MX[1][1]*Y+MX[1][2]*Z,b=MX[2][0]*X+MX[2][1]*Y+MX[2][2]*Z;const m=Math.min(r,g,b,0);
-      const o=4*(j*Nl+i);D[o]=enc((r-m)*gain);D[o+1]=enc((g-m)*gain);D[o+2]=enc((b-m)*gain);D[o+3]=255;if(small)Pbuf[j*Nl+i]=I/A;else Ibuf[j*N+i]=I/A};
+    const put=(j,i,X,Y,Z,I)=>{if(j>=Nl)return;xyzRGB(D,4*(j*Nl+i),X,Y,Z,gain);if(small)Pbuf[j*Nl+i]=I/A;else Ibuf[j*N+i]=I/A};
     if(!tilted&&ringLive){/* moving and untilted: a radial grid at 4 samples per grid pixel, linearly interpolated (preview only) */
       const Nr=Math.ceil(1.42*h/k*4)+2,dr=1.42/(Nr-1),RX=new Float64Array(Nr),RY=new Float64Array(Nr),RZ=new Float64Array(Nr),RI=new Float64Array(Nr);
       const Nq=Math.min(Nr,Math.ceil(rc/dr)+2);  /* the table keeps its spacing dr, but stops just past rcut */
@@ -1060,6 +1078,9 @@ function renderRing(sync){
   }else{D.fill(0);for(let o=3;o<D.length;o+=4)D[o]=255}
   present(0,N);ringProfile(M);if(ringLive&&cs.length)lqRecord(pathKey,Nl,performance.now()-T0);LQ.ms=performance.now()-T0}
 /* the display gain: the brightest linear sRGB channel of the whole spectrum's colour maps to 1 */
+/* one ring pixel's colour: XYZ to linear sRGB, desaturated by adding white, the pattern's gain, then gamma-encoded (the CPU paths and the export) */
+function xyzRGB(D,o,X,Y,Z,gain){const r=MX[0][0]*X+MX[0][1]*Y+MX[0][2]*Z,g=MX[1][0]*X+MX[1][1]*Y+MX[1][2]*Z,b=MX[2][0]*X+MX[2][1]*Y+MX[2][2]*Z,m=Math.min(r,g,b,0);
+  D[o]=enc((r-m)*gain);D[o+1]=enc((g-m)*gain);D[o+2]=enc((b-m)*gain);D[o+3]=255}
 function ringGain(SL){let fX=0,fY=0,fZ=0;for(const o of SL){fX+=o.p*o.X[0];fY+=o.p*o.X[1];fZ+=o.p*o.X[2]}return 1/Math.max(...desat(toLin([fX,fY,fZ])),1e-9)}
 /* a progressive at-rest pass: work(j, j+step) over rows 0..n in ~12 ms slices between frames, paint(first, end) after each slice.
    A newer render (job ≠ ringJob) cancels it. RB.wDone resolves when it finishes or is superseded (the checks and the speed test wait for it). */
@@ -1075,7 +1096,7 @@ function ringProfile(M){const cs=act();
   let s='';for(const v of [0,0.5,1])s+=`<line x1="${pl}" x2="${W-pr2}" y1="${y(v)}" y2="${y(v)}" stroke="${mute}" stroke-opacity="${v?0.15:0.5}"/><text x="${pl-6}" y="${y(v)+4}" font-size="12" fill="${mute}" text-anchor="end">${v}</text>`;
   for(const u of [-1,-0.5,0,0.5,1]){const t=Math.sign(u)*M.th(Math.abs(u))*180/Math.PI;s+=`<text x="${x(u)}" y="${H-pb+16}" font-size="12" fill="${mute}" text-anchor="${u<-0.9?'start':u>0.9?'end':'middle'}">${F(t,2)}°</text>`}
   /* same anti-aliased range plot as the interferogram, along the cut */
-  {const pc=$('profC'),dpr=window.devicePixelRatio||1,cw=Math.round(W*dpr),ch=Math.round(H*dpr);if(pc.width!==cw||pc.height!==ch){pc.width=cw;pc.height=ch}  /* resizing a canvas reallocates it: only when the size changes */const pg=pc.getContext('2d');pg.clearRect(0,0,pc.width,pc.height);
+  {const pc=$('profC'),dpr=DPR(),cw=Math.round(W*dpr),ch=Math.round(H*dpr);if(pc.width!==cw||pc.height!==ch){pc.width=cw;pc.height=ch}  /* resizing a canvas reallocates it: only when the size changes */const pg=pc.getContext('2d');pg.clearRect(0,0,pc.width,pc.height);
     if(cs.length){const col=cssRGB('--fr');densityPlot(pg,Math.round(pl*dpr),Math.round(pt*dpr),Math.round((W-pl-pr2)*dpr),Math.round((H-pt-pb)*dpr),t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)},cs,()=>col)}}
   s+=`<text x="${(pl+W-pr2)/2}" y="${H-4}" font-size="12" fill="${mute}" text-anchor="middle">${an?`θ along the tilt direction (${F(phi,3)}° from x)`:"θ along x"}</text><text transform="translate(12 ${(pt+H-pb)/2}) rotate(-90)" font-size="12" fill="${mute}" text-anchor="middle">I / I_tot</text>`;svg.innerHTML=s}
 
@@ -1083,6 +1104,14 @@ function ringProfile(M){const cs=act();
 function simpson(f,a,b,n){n+=n%2;const h=(b-a)/n;let s=f(a)+f(b);for(let i=1;i<n;i++)s+=(i%2?4:2)*f(a+i*h);return s*h/3}
 function quadSpec(fn,delta){/* ∫ S(σ)·fn(σ) dσ, lines exact, Gaussians by Simpson over ±8w with ≥40 points per fringe */
   let s=0;for(const c of act()){if(!c.f){s+=P(c)*fn(c.s);continue}const w=wOf(c),n=clamp(Math.ceil(16*w*Math.abs(delta)*40),4000,400000);s+=simpson(sg=>dens(c,sg)*fn(sg),c.s-8*w,c.s+8*w,n)}return s}
+/* largest error of a rendered ring (I/I_tot on an N×N grid) against the brute-force 2-D integral of the exact pattern over each
+   pixel's footprint, at 8 pixels inside the circle (the Ring pixels and Exported ring checks) */
+function ringBrute(M,cs,N,Ib){const SL=sublines(),hN=N/2,sd=PIXSD*2/N;let e5=0;
+  for(const[fi,fj]of [[0.5,0.5],[0.503,0.497],[0.508,0.512],[0.75,0.5],[0.675,0.325],[0.15,0.3],[0.972,0.475],[0.6,0.95]]){const i0=Math.floor(fi*N),j0=Math.floor(fj*N);const u0=(i0+0.5-hN)/hN,v0=-(j0+0.5-hN)/hN;
+    const gr=M.grad(u0,v0),fr=8*sd*Math.hypot(...gr)*Math.max(...SL.map(o=>o.s)),n=clamp(Math.ceil(fr*12)+21,21,801);
+    let sw=0,si=0;for(let a=0;a<n;a++){const du=-4*sd+8*sd*a/(n-1),wa=Math.exp(-0.5*(du/sd)**2);for(let b=0;b<n;b++){const dv=-4*sd+8*sd*b/(n-1),wt=wa*Math.exp(-0.5*(dv/sd)**2);si+=wt*0.5*(1+gamma(M.opd(u0+du,v0+dv),cs)[0]);sw+=wt}}
+    e5=Math.max(e5,Math.abs(Ib[j0*N+i0]-si/sw))}
+  return e5}
 async function verify(){
   const cs=act(),out=[];if(!cs.length){$('ver').innerHTML='<tr><td colspan="4" class="empty">Switch on at least one component.</td></tr>';return}
   const A=Itot(cs),SL=sublines(),R=RANGE(),d0=D0(),M=ringModel(),fmt=v=>v===0?'0':v.toExponential(2);
@@ -1103,11 +1132,7 @@ async function verify(){
   row('Colour (XYZ)','sub-band XYZ vs ∫S·½(1+cos)·x̄ȳz̄ dσ at δ = 0, δ₀, δmax/2 (relative)',e4,1e-2);
   /* 5 rendered ring pixels vs brute-force 2-D integration of the exact pattern over each pixel's footprint */
   if(RB.benchP)await RB.benchP;  /* a running speed test may still switch the renderer */
-  ringLive=false;if(RB.active==='workers'){renderRing();if(RB.wDone)await RB.wDone}else{while(RB.busy)await RB.done;renderRing(true);if(RB.done)await RB.done}await ringReadback();let e5=0;const N=ring.width,hN=N/2,sd=PIXSD*2/N;
-  for(const[fi,fj]of [[0.5,0.5],[0.503,0.497],[0.508,0.512],[0.75,0.5],[0.675,0.325],[0.15,0.3],[0.972,0.475],[0.6,0.95]]){const i0=Math.floor(fi*N),j0=Math.floor(fj*N);const u0=(i0+0.5-hN)/hN,v0=-(j0+0.5-hN)/hN;
-    const gr=M.grad(u0,v0),fr=8*sd*Math.hypot(...gr)*Math.max(...SL.map(o=>o.s)),n=clamp(Math.ceil(fr*12)+21,21,801);
-    let sw=0,si=0;for(let a=0;a<n;a++){const du=-4*sd+8*sd*a/(n-1),wa=Math.exp(-0.5*(du/sd)**2);for(let b=0;b<n;b++){const dv=-4*sd+8*sd*b/(n-1),wt=wa*Math.exp(-0.5*(dv/sd)**2);si+=wt*0.5*(1+gamma(M.opd(u0+du,v0+dv),cs)[0]);sw+=wt}}
-    e5=Math.max(e5,Math.abs(Ibuf[j0*N+i0]-si/sw))}
+  ringLive=false;if(RB.active==='workers'){renderRing();if(RB.wDone)await RB.wDone}else{while(RB.busy)await RB.done;renderRing(true);if(RB.done)await RB.done}await ringReadback();const e5=ringBrute(M,cs,ring.width,Ibuf);
   row('Ring pixels',`rendered pixel intensity (${beName(RB.active)}) vs brute-force 2-D integral of the exact pattern over its footprint, 8 pixels`,e5,1e-3);
   /* 6 coherence */
   const C=coherence();
@@ -1122,8 +1147,9 @@ async function verify(){
      last step cut at the turn, must take the set time, and the speed readout must equal the distance over that time */
   {const m=DMAX();let v=-m,dir=1,t=0,s=12345,dt=0;while(dir>0){s=s*16807%2147483647;dt=0.005+0.035*s/2147483647;const v0=v;[v,dir]=sweepStep(v,dir,dt,m,SWT);t+=dir>0?dt:(m-v0)/(2*m/SWT)}
     row('Sweep','one pass from −range to +range with uneven frames vs the set time, and the speed readout vs 2·range / that time (relative)',Math.max(Math.abs(t-SWT)/SWT,Math.abs(sweepV()-2*m/t)/sweepV()),1e-9)}
-  /* 9 copy image: the PNG decoded again vs the displayed interferogram pixels (8-bit levels; PNG is lossless) */
-  row('Copied image','interferogram PNG, decoded again, vs the displayed plot pixels (largest 8-bit difference)',await copyCheck(),0);
+  /* 9 exports (MS-22): range plots exported at the device scale vs the displayed pixels; the ring exported at its own grid vs brute force */
+  row('Exported plots','interferogram and profile exported as PNG at the device scale, decoded again, vs the displayed pixels (largest 8-bit difference)',await exportCheck(),0);
+  {const X=await ringExport(160);row('Exported ring','exported ring at 160² vs brute-force 2-D integral of the exact pattern over each pixel footprint, 8 pixels',ringBrute(X.M,cs,X.N,X.I),1e-3)}
   $('ver').innerHTML=out.join('');$('verAt').textContent=`Last run: ${cs.length} component${cs.length>1?'s':''}, d = ${F(+$('d').value,4)} µm, tilt (${$('tx').value}, ${$('ty').value}) µrad, θmax = ${$('fov').value}°.`}
 
 /* ---------- coherence ---------- */
@@ -1168,6 +1194,68 @@ function eqs(){
   if(window.MathJax&&MathJax.typesetPromise){const els=ids.map($).filter(Boolean);MathJax.typesetClear(els);MathJax.typesetPromise(els).catch(()=>{})}
 }
 
+/* ---------- export any plot as a high-resolution PNG or an SVG (MS-22) ---------- */
+/* Every export is computed again at its own size with the same exact formulas, never scaled up: the range plots are redrawn
+   with XDPR = scale (one synchronous redraw, then put back), the ring is a fresh grid of exact footprint averages on its own
+   worker pool, and the axes are the plot's own SVG. SVG: the spectrum plots are native vector; the interferogram and the
+   profile are the true curve I(δ) as a vector path (the interferogram's stroke a gradient of its perceived colour along δ);
+   the ring has no vector form, so its SVG embeds the exact PNG. */
+const XP={spec:{box:'specBox',svg:'spec',name:'source-spectrum',title:'Source spectrum'},
+  ring:{box:'ringWrap',name:'interference-pattern',title:'Interference pattern'},
+  prof:{box:'profBox',svg:'prof',cv:'profC',name:'pattern-profile',title:'Pattern profile',redraw:()=>ringProfile(ringModel())},
+  ifg:{box:'ifgBox',svg:'ifg',cv:'ifgC',name:'interferogram',title:'Interferogram',redraw:()=>renderIfg()},
+  out:{box:'outBox',svg:'out',name:'interfered-spectrum',title:'Interfered spectrum'}};
+const XMAX=4096,xSize=(k,s)=>{const[W,H]=box($(XP[k].box));return k==='ring'?[Math.min(XMAX,Math.round(W*s)),Math.min(XMAX,Math.round(W*s))]:[Math.round(W*s),Math.round(H*s)]};
+/* the plot's SVG as a standalone file: the computed presentation styles are inlined (an SVG file sees none of the page's CSS,
+   and colours here are CSS variables such as light-dark()), on the panel colour, with optional content under the axes */
+const XPROPS=['fill','stroke','stroke-width','stroke-opacity','fill-opacity','opacity','stroke-dasharray','stroke-linecap','stroke-linejoin','font-size','font-weight','font-family','display','visibility'];
+function svgFile(k,under=''){const svg=$(XP[k].svg),[W,H]=box(svg),c=svg.cloneNode(true),a=[svg,...svg.querySelectorAll('*')],b=[c,...c.querySelectorAll('*')];
+  a.forEach((e,i)=>{const s=getComputedStyle(e);for(const p of XPROPS){const v=s.getPropertyValue(p);if(v)b[i].setAttribute(p,v)}b[i].removeAttribute('style');b[i].removeAttribute('class')});
+  return`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="${getComputedStyle(svg).fontFamily.replace(/"/g,"'")}"><rect width="${W}" height="${H}" fill="${rgbOf('--panel')}"/>${under}${c.innerHTML}</svg>`}
+/* an SVG drawn into a canvas at the given scale */
+async function svgRaster(src,g,s){const im=new Image();im.src=URL.createObjectURL(new Blob([src],{type:'image/svg+xml'}));
+  try{await im.decode();g.drawImage(im,0,0,im.width*s,im.height*s)}finally{URL.revokeObjectURL(im.src)}}
+/* a range plot's pixel layer redrawn at s device px per CSS px, copied, then the plot is put back as it was */
+function rangePixels(k,s){const o=XP[k],cv=$(o.cv);XDPR=s;try{o.redraw()}finally{XDPR=0}
+  const c=document.createElement('canvas');c.width=cv.width;c.height=cv.height;c.getContext('2d').drawImage(cv,0,0);o.redraw();return c}
+/* the true curve as a vector path: n+1 samples, enough for 16 per fringe */
+function curvePath(n,xy){let p='';for(let i=0;i<=n;i++){const[x,y]=xy(i/n);p+=(i?'L':'M')+x.toFixed(2)+' '+y.toFixed(2)}return p}
+const fringeN=(dAt,cs)=>{const smax=Math.max(...cs.map(c=>c.s+3*wOf(c)));let tv=0,p=dAt(0);for(let i=1;i<=2000;i++){const d=dAt(i/2000);tv+=Math.abs(d-p);p=d}return clamp(Math.ceil(tv*smax*16),2000,400000)};
+function curveSVG(k){const cs=act(),[W,H]=box($(XP[k].svg)),pl=46,pr=10,pt=10,pb=42,X=t=>pl+t*(W-pl-pr),Y=v=>pt+(1-v)*(H-pt-pb);if(!cs.length)return'';
+  let dAt,stroke,defs='';
+  if(k==='ifg'){const R=RANGE(),SL=sublines();dAt=t=>-R+2*R*t;const m=clamp(Math.ceil(fringeN(dAt,cs)/2),256,20000);let st='';
+    for(let i=0;i<=m;i++){const c=rgb8(hueOf(xyzAt(dAt(i/m),0,SL)));st+=`<stop offset="${(i/m).toFixed(6)}" stop-color="rgb(${c})"/>`}
+    defs=`<defs><linearGradient id="ifgHue" gradientUnits="userSpaceOnUse" x1="${pl}" x2="${W-pr}" y1="0" y2="0">${st}</linearGradient></defs><rect x="${pl}" y="${pt}" width="${W-pl-pr}" height="${H-pt-pb}" fill="#05070f"/>`;stroke='url(#ifgHue)'}
+  else{const M=ringModel(),ax=+$('tx').value,ay=+$('ty').value,an=Math.hypot(ax,ay),nx=an?ax/an:1,ny=an?ay/an:0;dAt=t=>{const u=-1+2*t;return M.opd(u*nx,u*ny)};stroke=rgbOf('--fr')}
+  const g=gammaOf(cs),n=fringeN(dAt,cs);
+  return defs+`<path d="${curvePath(n,t=>[X(t),Y(0.5*(1+g.re(dAt(t))))])}" fill="none" stroke="${stroke}" stroke-width="${k==='ifg'?0.6:1.5}" stroke-linejoin="round"/>`}
+/* the ring at N×N exact footprint averages (N = scale × its CSS size, at most XMAX), on a pool of its own, outside the circle
+   transparent (anti-aliased edge); I holds I/I_tot for the Exported ring check. prog(fraction); stop() true cancels. */
+async function ringExport(N,prog=()=>{},stop=()=>false){const M=ringModel(),cs=act(),c=document.createElement('canvas');c.width=c.height=N;
+  const g=c.getContext('2d'),img=g.createImageData(N,N),D=img.data,I=new Float32Array(N*N),h=N/2;
+  if(cs.length){const SL=sublines(),pr=prepSL(SL),gain=ringGain(SL),A=Itot(cs),s2=(PIXSD*2/N)**2,rc=rcut(N,1),blk=16;
+    const take=(j0,j1,out)=>{let o=0;for(let j=j0;j<j1;j++)for(let i=0;i<N;i++,o+=4){xyzRGB(D,4*(j*N+i),out[o],out[o+1],out[o+2],gain);I[j*N+i]=out[o+3]/A}};
+    let P=null;try{P=window.Worker?initWorkers():null}catch(e){}
+    if(P){const msg=wkMsg(N,N,rc*rc,M,s2,pr);let next=0,left=0,done=0;
+      await new Promise((res,rej)=>{const send=w=>{if(stop()){P.pool.forEach(x=>x.terminate());rej(new Error('cancelled'));return}if(next>=N){if(!left)res();return}
+          const j0=next,j1=Math.min(N,next+blk);next=j1;left++;w.postMessage({...msg,id:1,j0,j1})};
+        P.pool.forEach(w=>{w.onmessage=e=>{const m=e.data;take(m.j0,m.j1,m.out);left--;done+=m.j1-m.j0;prog(done/N);send(w)};w.onerror=rej;send(w)})}).finally(()=>P.pool.forEach(x=>x.terminate()))}
+    else for(let j0=0;j0<N;j0+=blk){if(stop())throw new Error('cancelled');const j1=Math.min(N,j0+blk),out=new Float32Array((j1-j0)*N*4);let o=0;
+      for(let j=j0;j<j1;j++){const v=-((j+0.5)-h)/h;for(let i=0;i<N;i++,o+=4){const u=((i+0.5)-h)/h;if(u*u+v*v>rc*rc)continue;const p=gridPix(M,pr,s2,u,v);out[o]=p[0];out[o+1]=p[1];out[o+2]=p[2];out[o+3]=p[3]}}
+      take(j0,j1,out);prog(j1/N);await new Promise(r=>setTimeout(r,0))}}
+  else for(let q=3;q<D.length;q+=4)D[q]=255;
+  for(let j=0;j<N;j++){const v=(j+0.5-h)/h;for(let i=0;i<N;i++){const u=(i+0.5-h)/h;D[4*(j*N+i)+3]*=clamp((1-Math.hypot(u,v))*h+0.5,0,1)}}
+  g.putImageData(img,0,0);return{canvas:c,I,N,M}}
+/* the export itself: a PNG canvas, or SVG text */
+async function exportPNG(k,s,prog,stop){const o=XP[k];
+  if(k==='ring'){const[N]=xSize(k,s);return(await ringExport(N,prog,stop)).canvas}
+  const[W,H]=box($(o.svg)),c=document.createElement('canvas');c.width=Math.round(W*s);c.height=Math.round(H*s);const g=c.getContext('2d');
+  g.fillStyle=rgbOf('--panel');g.fillRect(0,0,c.width,c.height);if(o.cv)g.drawImage(rangePixels(k,s),0,0);
+  await svgRaster(svgFile(k).replace(`fill="${rgbOf('--panel')}"/>`,'fill="none"/>'),g,s);return c}
+async function exportSVG(k,s,prog,stop){
+  if(k==='ring'){const[W]=box($(XP.ring.box)),c=await exportPNG(k,s,prog,stop);
+    return`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${W}" viewBox="0 0 ${W} ${W}"><image width="${W}" height="${W}" xlink:href="${c.toDataURL('image/png')}"/></svg>`}
+  return svgFile(k,XP[k].cv?curveSVG(k):'')}
 /* ---------- table ---------- */
 function table(){$('nComp').textContent=comps.length;
   if($('tb').contains(document.activeElement)&&document.activeElement.type==='number')return;
@@ -1207,7 +1295,7 @@ $('envOn').addEventListener('change',()=>update(false));
 $('oAuto').addEventListener('change',()=>update(false));
 {const box=$('outBox'),lAt=px=>OG.l1-(px-OG.pl)/(OG.W-OG.pl-OG.pr)*(OG.l1-OG.l0);let pan=null;
   box.addEventListener('wheel',e=>{e.preventDefault();const r=box.getBoundingClientRect(),c=lAt(e.clientX-r.left),f=Math.pow(1.0015,e.deltaY);setOutMan(c-(c-OG.l0)*f,c+(OG.l1-c)*f);update(true);settle()},{passive:false});
-  box.addEventListener('pointerdown',e=>{pan={x:e.clientX,l0:OG.l0,l1:OG.l1};box.setPointerCapture(e.pointerId)});
+  box.addEventListener('pointerdown',e=>{if(e.button>0)return;pan={x:e.clientX,l0:OG.l0,l1:OG.l1};box.setPointerCapture(e.pointerId)});
   box.addEventListener('pointermove',e=>{if(!pan)return;const dl=(e.clientX-pan.x)/(OG.W-OG.pl-OG.pr)*(pan.l1-pan.l0);setOutMan(pan.l0+dl,pan.l1+dl);update(true)});
   const stop=()=>{if(pan){pan=null;update(false)}};box.addEventListener('pointerup',stop);box.addEventListener('pointercancel',stop)}
 /* interferogram auto-fit: 8% past the settle point, rounded up to 2 significant figures (tight, unlike the mirror's 1–2–5 range) */
@@ -1273,7 +1361,7 @@ ov.addEventListener('pointermove',e=>{const g=ovGeom(e);ovHover=[g.x+g.R,g.y+g.R
   if(rdrag.m==='rim')setFov(rdrag.f0*Math.max(g.rr,4)/Math.max(rdrag.r0,4));
   else tiltFromDot(g.R,g.x,g.y,e.shiftKey);update(true)});
 ov.addEventListener('pointerleave',()=>{ovHover=null;if(!rdrag)renderOv()});
-ov.addEventListener('pointerdown',e=>{const g=ovGeom(e);if(g.rr>g.R+4)return;
+ov.addEventListener('pointerdown',e=>{if(e.button>0)return;const g=ovGeom(e);if(g.rr>g.R+4)return;
   const[dx,dy]=dotPos(g.R),onDot=Math.hypot(g.x+g.R-dx,g.y+g.R-dy)<14;
   const m=onDot?'dot':onRim(g)?'rim':null;if(!m)return;
   e.preventDefault();ov.setPointerCapture(e.pointerId);if(m==='dot')inSnap=!+$('tx').value&&!+$('ty').value;rdrag={m,r0:g.rr,f0:+$('fov').value};if(onDot)ov.style.cursor='grabbing';renderOv()});
@@ -1345,35 +1433,49 @@ probeBackends();
   document.addEventListener('pointerdown',e=>{if(!p.hidden&&!pan.contains(e.target))show(false)});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!p.hidden)show(false)})}
 
-/* ---------- copy a plot as an image ---------- */
-/* plotCanvas composes a plot box (its pixel canvas plus the SVG axes on top) into one canvas at the canvas's own device
-   resolution, on the panel colour. The SVG is drawn as an image, which can't see the page's CSS, so its CSS-variable
-   colours are replaced by resolved rgb() first and a system font is set. overlay=false leaves the SVG out (the Copied
-   image check compares that against the displayed canvas). */
+/* ---------- the copy / save menu on every plot (MS-22) ---------- */
+/* Right-click a plot, or long-press it on a touch screen, for Copy image, Download PNG and Download SVG at 2×, 4× or 8× its
+   on-screen size (exports in export.js). A long-press is a touch held 500 ms that moves less than 10 px, with one finger, not
+   starting on a drag handle (spectrum dots and width handles, the ring's dot and rim), so slow drags still work. */
 const rgbOf=v=>`rgb(${cssRGB(v).join(',')})`;
-async function plotCanvas(id,overlay=true){
-  const bx=$(id),cv=bx.querySelector('canvas'),svg=bx.querySelector('svg'),[W,H]=box(svg),k=cv.width/W,o=document.createElement('canvas');
-  o.width=cv.width;o.height=cv.height;const g=o.getContext('2d');g.fillStyle=rgbOf('--panel');g.fillRect(0,0,o.width,o.height);g.drawImage(cv,0,0);
-  if(overlay){const src=svg.outerHTML.split(`"${css('--mute')}"`).join(`"${rgbOf('--mute')}"`)
-      .replace('<svg',`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="system-ui,sans-serif"`),
-      im=new Image();im.src=URL.createObjectURL(new Blob([src],{type:'image/svg+xml'}));
-    try{await im.decode();g.drawImage(im,0,0,W*k,H*k)}finally{URL.revokeObjectURL(im.src)}}
-  return o}
+const XM={k:null,s:4,busy:0,el:$('xmenu')};try{XM.s=+localStorage.getItem('mich-export-scale')||4}catch(e){}
 const pngOf=o=>new Promise((ok,no)=>o.toBlob(b=>b?ok(b):no(new Error('PNG encoding failed')),'image/png'));
-/* the clipboard where the browser allows images there; otherwise (some mobile browsers, a page embedded without
-   clipboard permission) a popup with the image, which can be long-pressed or right-clicked to copy, and a download link */
-async function copyPlot(btn,id,name){
-  const blob=plotCanvas(id).then(pngOf),say=t=>{btn.textContent=t;clearTimeout(btn._t);btn._t=setTimeout(()=>btn.textContent='Copy image',1600)};
-  try{if(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')throw 0;
-    await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);say('Copied')}
-  catch(e){const b=await blob,u=URL.createObjectURL(b),im=$('copyImg'),a=$('copyDl');URL.revokeObjectURL(im.src);
-    im.src=u;a.href=u;a.download=name+'.png';openDlg('copyDlg');say('Copy image')}}
-$('ifgCopy').addEventListener('click',e=>copyPlot(e.currentTarget,'ifgBox','interferogram'));
-/* Copied image check: the PNG, decoded again, against the displayed canvas over the plot area (where the canvas is opaque) */
-async function copyCheck(){
-  const cv=$('ifgC'),a=cv.getContext('2d').getImageData(0,0,cv.width,cv.height).data,bm=await createImageBitmap(await pngOf(await plotCanvas('ifgBox',false))),
-    t=document.createElement('canvas');t.width=bm.width;t.height=bm.height;const g=t.getContext('2d');g.drawImage(bm,0,0);const b=g.getImageData(0,0,t.width,t.height).data;
-  let e=0,n=0;for(let i=0;i<a.length;i+=4)if(a[i+3]===255){n++;for(let c=0;c<3;c++)e=Math.max(e,Math.abs(a[i+c]-b[i+c]))}
+const xSay=t=>{$('xmStat').textContent=t};
+function xSizes(){$('xmSize').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.s===XM.s)));const[w,h]=xSize(XM.k,XM.s);$('xmPx').textContent=`${w} × ${h} px`}
+function xOpen(k,x,y){XM.k=k;XM.busy++;const m=XM.el;$('xmT').textContent=XP[k].title;xSay('');xSizes();m.hidden=false;
+  const sheet=matchMedia('(pointer:coarse)').matches||innerWidth<600;m.classList.toggle('sheet',sheet);
+  if(!sheet){const r=m.getBoundingClientRect();m.style.left=Math.min(x,innerWidth-r.width-8)+'px';m.style.top=Math.min(y,innerHeight-r.height-8)+'px'}
+  m.querySelector('[data-x]').focus({preventScroll:true})}
+function xClose(){if(!XM.el.hidden){XM.el.hidden=true;XM.busy++}}  /* busy++ cancels a running ring export */
+const xStop=id=>()=>XM.busy!==id;
+function xSave(blob,ext){const a=document.createElement('a'),u=URL.createObjectURL(blob);a.href=u;a.download=`${XP[XM.k].name}.${ext}`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000)}
+async function xDo(what){const k=XM.k,s=XM.s,id=XM.busy,prog=f=>xSay(`Rendering… ${Math.round(100*f)}%`);xSay(k==='ring'?'Rendering… 0%':'Rendering…');
+  try{if(what==='copy'){const blob=exportPNG(k,s,prog,xStop(id)).then(pngOf);
+      try{if(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')throw 0;await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);xSay('Copied to the clipboard')}
+      catch(e){if(e&&e.message==='cancelled')throw e;const b=await blob,u=URL.createObjectURL(b),im=$('copyImg'),a=$('copyDl');URL.revokeObjectURL(im.src);im.src=u;a.href=u;a.download=XP[k].name+'.png';xClose();openDlg('copyDlg')}}
+    else if(what==='png'){xSave(await pngOf(await exportPNG(k,s,prog,xStop(id))),'png');xSay('Saved')}
+    else{xSave(new Blob([await exportSVG(k,s,prog,xStop(id))],{type:'image/svg+xml'}),'svg');xSay('Saved')}}
+  catch(e){if(e&&e.message!=='cancelled'){console.warn('export failed',e);xSay('Failed: '+(e.message||e))}}}
+XM.el.querySelectorAll('[data-x]').forEach(b=>b.addEventListener('click',()=>xDo(b.dataset.x)));
+$('xmSize').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{XM.s=+b.dataset.s;try{localStorage.setItem('mich-export-scale',XM.s)}catch(e){}xSizes()}));
+document.addEventListener('pointerdown',e=>{if(!XM.el.hidden&&!XM.el.contains(e.target))xClose()},true);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')xClose()});
+/* is this press on something that drags? */
+const onHandle={spec:e=>!!hit(...pos(e)),ring:e=>{const g=ovGeom(e);if(g.rr>g.R+4)return false;const[dx,dy]=dotPos(g.R);return Math.hypot(g.x+g.R-dx,g.y+g.R-dy)<14||onRim(g)}};
+for(const[k,id]of [['spec','spec'],['ring','ringOv'],['prof','profBox'],['ifg','ifgBox'],['out','outBox']]){const el=$(id);let t=null,x0=0,y0=0,n=0,lp=false;
+  const cancel=()=>{clearTimeout(t);t=null};
+  el.addEventListener('contextmenu',e=>{e.preventDefault();if(lp){lp=false;return}xOpen(k,e.clientX,e.clientY)});
+  el.addEventListener('pointerdown',e=>{n++;lp=false;if(e.pointerType==='mouse'||n>1||onHandle[k]?.(e)){cancel();return}x0=e.clientX;y0=e.clientY;
+    t=setTimeout(()=>{t=null;lp=true;xOpen(k,x0,y0)},500)});
+  el.addEventListener('pointermove',e=>{if(t&&Math.hypot(e.clientX-x0,e.clientY-y0)>10)cancel()});
+  for(const ev of ['pointerup','pointercancel'])el.addEventListener(ev,()=>{n=Math.max(0,n-1);cancel()})}
+/* Exported plots check: each range plot exported at the device's own scale, PNG-encoded and decoded again, against the displayed
+   canvas wherever the canvas is opaque (8-bit levels; PNG is lossless, and the export recomputes the plot, so a difference means
+   the export isn't the displayed plot) */
+async function exportCheck(){let e=0,n=0;const s=window.devicePixelRatio||1;
+  for(const k of ['ifg','prof']){const cv=$(XP[k].cv),a=cv.getContext('2d').getImageData(0,0,cv.width,cv.height).data,bm=await createImageBitmap(await pngOf(rangePixels(k,s))),
+      t=document.createElement('canvas');t.width=bm.width;t.height=bm.height;const g=t.getContext('2d');g.drawImage(bm,0,0);const b=g.getImageData(0,0,t.width,t.height).data;
+    for(let i=0;i<a.length;i+=4)if(a[i+3]===255){n++;for(let c=0;c<3;c++)e=Math.max(e,Math.abs(a[i+c]-b[i+c]))}}
   return n?e:Infinity}
 /* ---------- type-in values: click any readout's number to enter an exact value ---------- */
 const editing=new Set();

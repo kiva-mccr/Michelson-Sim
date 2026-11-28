@@ -45,7 +45,8 @@ function hit(px,py){
   for(let i=comps.length-1;i>=0;i--){const c=comps[i];if(c.f&&Math.abs(py-G.y(shape(c,toS(px))))<8)return{i,mode:'width'}}
   return null}
 const pos=e=>{const r=spec.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
-spec.addEventListener('pointerdown',e=>{const[px,py]=pos(e);let h=hit(px,py);
+spec.addEventListener('pointerdown',e=>{if(e.button>0)return;  /* right-click opens the copy menu (ui-copy.js) */
+  const[px,py]=pos(e);let h=hit(px,py);
   if(!h){if(py<G.pt-4||py>G.y(0)+2)return;comps.push({s:clamp(toS(px),SMIN,SMAX),a:clamp(toA(py),0.03,1),f:0,on:true});h={i:comps.length-1,mode:'move'}}
   sel=h.i;drag=h;spec.setPointerCapture(e.pointerId);e.preventDefault();update(true)});
 spec.addEventListener('pointermove',e=>{if(!drag)return;const[px,py]=pos(e),c=comps[drag.i];
