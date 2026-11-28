@@ -85,6 +85,10 @@ tr.off td{opacity:.45}tr.off td:first-child{opacity:1}
 .ifm2{flex:none;display:grid;place-items:center;min-height:0}.ifm2 #miniSvg{width:100%;height:auto;max-height:min(36vh,400px)}
 #rail{display:block;width:100%;height:100%;touch-action:none;user-select:none}
 #rail:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:4px}
+/* the selected component under the spectrum editor (MS-22): shown in the stacked layout and on touch devices, hidden in the one-screen layout with a mouse */
+.selbar{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;flex:none;margin-top:6px;padding:4px 6px 4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--soft)}
+.selbar[hidden]{display:none}#sbDel{margin-left:auto}.selbar .chip{gap:4px}.selbar .chip b{font-size:14px}
+#spec{touch-action:none}  /* the editor's drags are its own: without this a finger drag scrolls the page and the drag is cancelled */
 
 /* coherence */
 .coh{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px}
@@ -95,6 +99,7 @@ tr.off td{opacity:.45}tr.off td:first-child{opacity:1}
 ul.bl{margin:6px 0;padding-left:1.2em}ul.bl li{margin:3px 0}
 /* interferogram footer row */
 .zrow{display:flex;gap:4px 14px;flex-wrap:wrap;align-items:center;flex:none;margin-top:4px}.zrow b{color:var(--ink);font-weight:500}
+.chks{display:inline-flex;gap:4px 14px;flex-wrap:wrap}  /* the checkboxes wrap as one group, never one left behind */
 /* header buttons and the components popup (non-modal, so the editor stays usable) */
 .hbtns{display:inline-flex;align-items:baseline;gap:10px}
 /* the ? button on the pattern panel and its popup (renderer and resolution); it stays open while you drag */
@@ -136,12 +141,24 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
   #profBox{flex-basis:22%;min-height:90px}
   #specBox{min-height:90px}.chead{margin-bottom:2px}
 }
+@media (min-width:1100px) and (min-aspect-ratio:4/3) and (pointer:fine){.selbar{display:none}}
+/* touch devices (MS-22): finger-sized buttons, checkboxes, rail and typed-in numbers */
+@media (pointer:coarse){
+  button{min-height:36px;padding:0 12px}button.mini{min-height:34px}.qm{width:34px;height:34px;min-height:34px}
+  .chk input,.tog input{width:20px;height:20px}
+  #railBox{height:48px}
+}
 /* narrower or portrait: stacked, scrolling page */
 @media not ((min-width:1100px) and (min-aspect-ratio:4/3)){
   .app{grid-template-columns:minmax(0,1fr)}
   #specBox{height:300px}
   #ringBox{height:min(92vw,520px)}#profBox{flex:none;height:200px}
   .plot{height:240px}
+  .zrow .note{flex-basis:100%}  /* the hint on its own line, the checkboxes together below it */
+}
+/* phones: the top bar's buttons fill whole rows instead of leaving ragged gaps */
+@media (max-width:700px){
+  .top .grp,.top .grp button{flex:1 1 auto}.top .sp{display:none}
 }
 </style>
 <script>window.MathJax={tex:{inlineMath:[['$','$']]},svg:{fontCache:'global'},startup:{typeset:true}};</script>
@@ -159,8 +176,9 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
   <section class="col left" aria-label="Inputs">
     <div class="panel">
       <div class="chead"><h2>Source spectrum $S(\sigma)$</h2><span class="hbtns"><button id="openComp" class="mini" aria-haspopup="dialog">Components (<span id="nComp">0</span>)</button><button class="mini eqbtn" data-dlg="eqdlg1" aria-haspopup="dialog">Equations and notes</button></span></div>
-      <p class="hint">Click to add · drag a dot to move · drag its line or width handles to widen · double-click to delete</p>
+      <p class="hint" data-touch="Tap to add · drag a dot to move · drag its width handles to widen · tap a dot to edit or delete it below">Click to add · drag a dot to move · drag its line or width handles to widen · double-click to delete</p>
       <div class="fig" id="specBox"><svg id="spec" role="img" aria-label="Editable source spectrum"></svg></div>
+      <div class="selbar" id="selBar" hidden><span class="sw" id="sbSw"></span><span class="chip">λ <b id="sbL"></b> nm</span><span class="chip">height <b id="sbA"></b></span><span class="chip">FWHM <b id="sbF"></b></span><button id="sbDel" class="mini">Delete</button></div>
     </div>
     <div class="panel" id="mich">
       <div class="chead"><h2>Michelson</h2><span class="hbtns" style="align-items:center"><button id="dPlay" class="mini" aria-pressed="false" title="Sweep the mirror back and forth">▶ Sweep</button><button id="dFit" class="mini" title="Fit the range to where the envelope levels out">Fit</button><label class="chk" title="Keep the range fitted to where the envelope levels out"><input type="checkbox" id="dAuto" checked> Auto</label></span></div>
@@ -193,7 +211,7 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
     <div class="panel">
       <div class="chead"><h2>Interference pattern $I(x,y)$</h2><span class="hbtns" style="align-items:center"><button class="mini eqbtn" data-dlg="eqdlg2" aria-haspopup="dialog">Equations and notes</button><button id="infoBtn" class="qm" aria-expanded="false" aria-controls="infoPop" title="Renderer and resolution">?</button></span></div>
       <div id="infoPop" class="infopop" role="dialog" aria-label="Renderer and resolution" hidden><div><span>Renderer</span><b id="rendV"></b></div><div><span>Resolution</span><b id="resV"></b></div><div><span>While moving</span><b>preview sized to your device</b></div><p class="note" id="rendNote">Every renderer evaluates the same exact per-pixel formula, and the "Ring pixels" check reads back whichever one is active.</p></div>
-      <p class="hint">Drag the white dot to tilt (at 0, 0 it appears when you hover the pattern) · drag the rim or scroll for field of view · double-click resets tilt</p>
+      <p class="hint" data-touch="Drag the white dot to tilt · drag the rim or pinch for field of view · double-tap resets tilt">Drag the white dot to tilt (at 0, 0 it appears when you hover the pattern) · drag the rim or scroll for field of view · double-click resets tilt</p>
       <div id="ringBox"><div id="ringWrap"><canvas id="ring" width="400" height="400" aria-label="Interference pattern"></canvas><canvas id="ringGL" class="ringc" width="400" height="400" hidden></canvas><canvas id="ringGPU" class="ringc" width="400" height="400" hidden></canvas><svg id="ringOv" role="slider" aria-label="Drag to tilt, drag the rim or scroll to change the field of view" tabindex="0"></svg></div></div>
       <div class="chips"><span class="chip">Tilt $\alpha_x$ <b id="txV"></b></span><span class="chip">$\alpha_y$ <b id="tyV"></b></span><button id="tReset" class="mini" title="Reset tilt to 0, 0">Reset tilt</button><span class="chip">Field of view $\theta_{\max}$ <b id="fV"></b></span></div>
       <div class="fig" id="profBox"><canvas id="profC"></canvas><svg id="prof"></svg></div>
@@ -203,13 +221,13 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
   <section class="col right" aria-label="Results">
     <div class="panel">
       <div class="chead"><h2>Interferogram $I(\delta)$</h2><button class="mini eqbtn" data-dlg="eqdlg3" aria-haspopup="dialog">Equations and notes</button></div>
-      <div class="fig plot" id="ifgBox" title="Scroll to zoom"><canvas id="ifgC"></canvas><svg id="ifg"></svg></div>
-      <div class="zrow"><span class="note">Scroll on the plot to zoom · range <b id="rV"></b></span><label class="chk"><input type="checkbox" id="rAuto" checked> Auto-fit</label><label class="chk"><input type="checkbox" id="envOn" checked> Envelope</label></div>
+      <div class="fig plot" id="ifgBox" title="Scroll to zoom" style="touch-action:pan-y"><canvas id="ifgC"></canvas><svg id="ifg"></svg></div>
+      <div class="zrow"><span class="note"><span data-touch="Pinch sideways to zoom">Scroll on the plot to zoom</span> · range <b id="rV"></b></span><span class="chks"><label class="chk"><input type="checkbox" id="rAuto" checked> Auto-fit</label><label class="chk"><input type="checkbox" id="envOn" checked> Envelope</label></span></div>
     </div>
     <div class="panel">
       <div class="chead"><h2>Interfered spectrum $S_{\rm out}(\sigma;\delta_0)$</h2><button class="mini eqbtn" data-dlg="eqdlg4" aria-haspopup="dialog">Equations and notes</button></div>
       <div class="fig plot" id="outBox" title="Scroll to zoom, drag to pan" style="cursor:grab;touch-action:none"><svg id="out"></svg></div>
-      <div class="zrow"><span class="note">Scroll to zoom · drag to pan · <b id="oV"></b></span><label class="chk"><input type="checkbox" id="oAuto" checked> Auto-fit to the components</label></div>
+      <div class="zrow"><span class="note"><span data-touch="Pinch to zoom · drag to pan">Scroll to zoom · drag to pan</span> · <b id="oV"></b></span><label class="chk"><input type="checkbox" id="oAuto" checked> Auto-fit to the components</label></div>
     </div>
     <div class="panel">
       <div class="chead"><h2>Coherence length $l_c$</h2><button class="mini eqbtn" data-dlg="eqdlg5" aria-haspopup="dialog">Equations and notes</button></div>
@@ -401,6 +419,23 @@ function splitBands(cs){const out=[];let gi=0;for(const c of cs){gi++;if(!c.f){o
 function bandXYZ(s,ws){if(!ws)return visXYZ(1000/s);const n=40,a=s-3.5*ws,h=7*ws/n,X=[0,0,0];let tw=0;
   for(let i=0;i<=n;i++){const sg=a+i*h,wt=(i===0||i===n?1:(i%2?4:2))*Math.exp(-(((sg-s)/ws)**2)),x=visXYZ(1000/sg);X[0]+=wt*x[0];X[1]+=wt*x[1];X[2]+=wt*x[2];tw+=wt}return X.map(v=>v/tw)}
 
+/* ---------- touch: wording, finger-sized hit areas and two-finger pinch (the touch version of scroll-to-zoom) ---------- */
+/* TOUCH: the main pointer is a finger (phones, tablets). It sizes the drawn handles; hit tests size by each event's own pointerType */
+const TOUCH=!!(window.matchMedia&&matchMedia('(pointer:coarse)').matches);
+const fat=e=>e.pointerType==='touch'?2:1;   /* hit-radius factor: a fingertip covers about twice a mouse's tolerance */
+if(TOUCH){document.documentElement.classList.add('touch');document.querySelectorAll('[data-touch]').forEach(el=>{el.textContent=el.dataset.touch})}
+/* pinch(el,{start,scale,end}): two fingers on el. start() lets el's one-finger drag stop; scale(f,cx) gets the distance ratio
+   old/new since the last move (> 1 when the fingers close, like a wheel scroll down) and the midpoint's x in el's box.
+   It listens in the capture phase and swallows the events of a pinch, so el's own one-finger handlers never see them. */
+function pinch(el,h){const pts=new Map();let last=0;
+  const span=()=>{const[a,b]=[...pts.values()];return Math.max(Math.hypot(a.x-b.x,a.y-b.y),8)};
+  const mid=()=>{const[a,b]=[...pts.values()];return(a.x+b.x)/2-el.getBoundingClientRect().left};
+  el.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch')return;pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pts.size===2){e.stopImmediatePropagation();e.preventDefault();el.setPointerCapture(e.pointerId);h.start&&h.start();last=span()}},true);
+  el.addEventListener('pointermove',e=>{const p=pts.get(e.pointerId);if(!p)return;p.x=e.clientX;p.y=e.clientY;
+    if(pts.size>=2){e.stopImmediatePropagation();const s=span();h.scale(last/s,mid());last=s}},true);
+  const up=e=>{if(!pts.delete(e.pointerId))return;if(pts.size===1){e.stopImmediatePropagation();h.end&&h.end()}};
+  el.addEventListener('pointerup',up,true);el.addEventListener('pointercancel',up,true)}
 /* ---------- spectrum axes ---------- */
 /* spectral axes are linear in wavelength (nm); the physics is still computed in wavenumber σ = 1000/λ (µm⁻¹) */
 function axes(W,H,pl,pr,pt,pb,ylab,l0=LMIN,l1=LMAX,ym=1){
@@ -420,7 +455,7 @@ const spec=$('spec');let G={},specKey='';
 function renderSpec(){
   const [W,H]=box(spec);if(!W)return;
   /* the editor depends only on the components, the selection, drag state, size and theme colours, not on d: skip identical redraws */
-  const key=JSON.stringify([comps,sel,!!drag,W,H,css('--fr'),css('--ink'),css('--mute')]);if(key===specKey)return;specKey=key;
+  const key=JSON.stringify([comps,sel,!!drag,W,H,css('--fr'),css('--ink'),css('--mute')]);if(key===specKey)return;specKey=key;selBar();
   const pl=40,pr=12,pt=20,pb=36,ym=calcYM(),A=axes(W,H,pl,pr,pt,pb,'Spectral density (rel.)',LMIN,LMAX,ym),{x,y}=A;G={x,y,W,H,pl,pr,pt,pb,ym};
   let h=A.h;const ts=trueShape();
   if(ts)h+=`<path d="${gpath(x,y,W,pl,pr,ts)}" fill="none" stroke="${css('--fr')}" stroke-width="1.5" stroke-dasharray="4 3"/>`;
@@ -430,35 +465,47 @@ function renderSpec(){
       /* width bar between the half-maximum points; an end that falls outside the plotted 380–800 nm window is clipped and loses its handle */
       const xa=x(c.s+c.f/2),xb=c.s-c.f/2>0?x(c.s-c.f/2):Infinity,yh=y(c.a/2),cl=v=>clamp(v,pl,W-pr);
       h+=`<line x1="${cl(xa)}" x2="${cl(xb)}" y1="${yh}" y2="${yh}" stroke="${cc}" stroke-width="1.2"/>`;
-      for(const sx of [xa,xb].filter(v=>v>=pl&&v<=W-pr))h+=`<rect x="${sx-2}" y="${yh-6}" width="4" height="12" rx="1.5" fill="${cc}" stroke="${css('--ink')}" stroke-width=".8"/><rect x="${sx-9}" y="${yh-11}" width="18" height="22" fill="transparent" style="cursor:ew-resize"/>`}
+      for(const sx of [xa,xb].filter(v=>v>=pl&&v<=W-pr))h+=`<rect x="${sx-HW}" y="${yh-HH}" width="${2*HW}" height="${2*HH}" rx="${HW-.5}" fill="${cc}" stroke="${css('--ink')}" stroke-width=".8"/><rect x="${sx-9}" y="${yh-11}" width="18" height="22" fill="transparent" style="cursor:ew-resize"/>`}
     h+=`<line x1="${X}" x2="${X}" y1="${y(0)}" y2="${Y}" stroke="${cc}" stroke-width="${c.f?1.5:3}" ${c.f?'stroke-dasharray="4 3"':''}/>`;
     h+=`<line x1="${X}" x2="${X}" y1="${y(0)}" y2="${Y}" stroke="transparent" stroke-width="18" style="cursor:ew-resize"/>`;
-    h+=`<circle cx="${X}" cy="${Y}" r="${on?6.5:5}" fill="${cc}" stroke="${on?'#e0115f':css('--ink')}" stroke-width="${on?2.5:1.2}" style="cursor:move"/>`;
-    const lab=(1000/c.s).toFixed(1),side=Y-13<pt;
-    h+=side?`<text x="${X+(X>W-60?-10:10)}" y="${Y+4}" font-size="11" fill="${A.mute}" text-anchor="${X>W-60?'end':'start'}">${lab}</text>`:`<text x="${X}" y="${Y-10}" font-size="11" fill="${A.mute}" text-anchor="middle">${lab}</text>`;
+    h+=`<circle cx="${X}" cy="${Y}" r="${(on?6.5:5)*SDOT}" fill="${cc}" stroke="${on?'#e0115f':css('--ink')}" stroke-width="${on?2.5:1.2}" style="cursor:move"/>`;
+    const lab=(1000/c.s).toFixed(1),lo=TOUCH?15:10,side=Y-lo-3<pt;
+    h+=side?`<text x="${X+(X>W-60?-lo:lo)}" y="${Y+4}" font-size="11" fill="${A.mute}" text-anchor="${X>W-60?'end':'start'}">${lab}</text>`:`<text x="${X}" y="${Y-lo}" font-size="11" fill="${A.mute}" text-anchor="middle">${lab}</text>`;
     h+='</g>'});
   if(!comps.length)h+=`<text x="${W/2}" y="${H/2}" font-size="15" fill="${A.mute}" text-anchor="middle">Click anywhere here to place a wavelength</text>`;
   spec.innerHTML=h}
+/* on touch devices the handles are drawn larger (TOUCH) */
+const SDOT=TOUCH?1.45:1,HW=TOUCH?3.5:2,HH=TOUCH?10:6;
 const toS=px=>1000/clamp(LMAX-(px-G.pl)/(G.W-G.pl-G.pr)*(LMAX-LMIN),LMIN*0.6,LMAX*1.6),toA=py=>(1-(py-G.pt)/(G.H-G.pt-G.pb))*G.ym;
-function hit(px,py){
-  for(let i=comps.length-1;i>=0;i--){const c=comps[i];if(Math.hypot(px-G.x(c.s),py-G.y(c.a))<11)return{i,mode:'move'}}
+/* the component under (px,py): a dot, then a width handle, then a line's stem or a Gaussian's curve. k scales the tolerances (fat(e): 2 for a finger).
+   Among dots within reach the nearest wins, so enlarged finger targets still pick the right one of two close components */
+function hit(px,py,k=1){
+  let best=null,bd=Infinity;comps.forEach((c,i)=>{const r=Math.hypot(px-G.x(c.s),py-G.y(c.a));if(r<11*k&&r<=bd){bd=r;best={i,mode:'move'}}});if(best)return best;
   for(let i=comps.length-1;i>=0;i--){const c=comps[i];if(!c.f)continue;const xa=G.x(c.s+c.f/2),xb=c.s-c.f/2>0?G.x(c.s-c.f/2):Infinity,yh=G.y(c.a/2);
-    if(Math.abs(py-yh)<11&&(Math.abs(px-xa)<9||Math.abs(px-xb)<9))return{i,mode:'width'}}
-  for(let i=comps.length-1;i>=0;i--){const c=comps[i],X=G.x(c.s);if(Math.abs(px-X)<8&&py>G.y(c.a)&&py<G.y(0)+4)return{i,mode:'width'}}
-  for(let i=comps.length-1;i>=0;i--){const c=comps[i];if(c.f&&Math.abs(py-G.y(shape(c,toS(px))))<8)return{i,mode:'width'}}
+    if(Math.abs(py-yh)<11*k&&(Math.abs(px-xa)<9*k||Math.abs(px-xb)<9*k))return{i,mode:'width'}}
+  for(let i=comps.length-1;i>=0;i--){const c=comps[i],X=G.x(c.s);if(Math.abs(px-X)<8*k&&py>G.y(c.a)&&py<G.y(0)+4)return{i,mode:'width'}}
+  for(let i=comps.length-1;i>=0;i--){const c=comps[i];if(c.f&&Math.abs(py-G.y(shape(c,toS(px))))<8*k)return{i,mode:'width'}}
   return null}
 const pos=e=>{const r=spec.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
-spec.addEventListener('pointerdown',e=>{const[px,py]=pos(e);let h=hit(px,py);
-  if(!h){if(py<G.pt-4||py>G.y(0)+2)return;comps.push({s:clamp(toS(px),SMIN,SMAX),a:clamp(toA(py),0.03,1),f:0,on:true});h={i:comps.length-1,mode:'move'}}
-  sel=h.i;drag=h;spec.setPointerCapture(e.pointerId);e.preventDefault();update(true)});
-spec.addEventListener('pointermove',e=>{if(!drag)return;const[px,py]=pos(e),c=comps[drag.i];
+/* a mouse click on empty plot adds a line and drags it at once; a finger only adds one on a tap (lifted without moving),
+   so a finger that lands on empty plot by mistake, or is held (a long-press), adds nothing. touch-action:none (style.css) keeps the page from taking the drag */
+let tap=null;
+spec.addEventListener('pointerdown',e=>{const[px,py]=pos(e);let h=hit(px,py,fat(e));
+  if(!h){if(py<G.pt-4||py>G.y(0)+2)return;
+    if(e.pointerType==='touch'){if(!drag)tap={id:e.pointerId,px,py,t:performance.now()};return}
+    comps.push({s:clamp(toS(px),SMIN,SMAX),a:clamp(toA(py),0.03,1),f:0,on:true});h={i:comps.length-1,mode:'move'}}
+  if(drag)return;sel=h.i;drag={...h,id:e.pointerId};spec.setPointerCapture(e.pointerId);e.preventDefault();update(true)});
+spec.addEventListener('pointermove',e=>{if(tap&&tap.id===e.pointerId){const[px,py]=pos(e);if(Math.hypot(px-tap.px,py-tap.py)>10)tap=null;return}
+  if(!drag||drag.id!==e.pointerId)return;const[px,py]=pos(e),c=comps[drag.i];
   if(drag.mode==='move'){c.s=clamp(toS(px),SMIN,SMAX);c.a=clamp(toA(py),0.03,1)}
   else{const f=2*Math.abs(toS(px)-c.s);c.f=f<0.008?0:Math.min(f,0.9)}
   update(true)});
-const end=()=>{if(drag){drag=null;update(false)}};
+const end=e=>{if(tap&&tap.id===e.pointerId){if(e.type==='pointerup'&&performance.now()-tap.t<500){comps.push({s:clamp(toS(tap.px),SMIN,SMAX),a:clamp(toA(tap.py),0.03,1),f:0,on:true});sel=comps.length-1;update(false)}tap=null}
+  if(drag&&drag.id===e.pointerId){drag=null;update(false)}};
 spec.addEventListener('pointerup',end);spec.addEventListener('pointercancel',end);
-spec.addEventListener('dblclick',e=>{const[px,py]=pos(e);const h=hit(px,py);if(h&&h.mode==='move'){comps.splice(h.i,1);sel=-1;update(false)}});
-document.addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&sel>=0&&!(e.target instanceof HTMLInputElement)){comps.splice(sel,1);sel=-1;update(false);e.preventDefault()}});
+spec.addEventListener('dblclick',e=>{const[px,py]=pos(e);const h=hit(px,py);if(h&&h.mode==='move')delComp(h.i)});
+const delComp=i=>{comps.splice(i,1);sel=-1;update(false)};
+document.addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&sel>=0&&!(e.target instanceof HTMLInputElement)){delComp(sel);e.preventDefault()}});
 
 /* ---------- interfered spectrum ----------
    Its wavelength window auto-crops to the switched-on components (Gaussians to ±3w, plus 12% padding, at least 2 nm wide).
@@ -1165,13 +1212,22 @@ function table(){$('nComp').textContent=comps.length;
   $('tb').innerHTML=comps.length?comps.map((c,i)=>`<tr class="${c.on?'':'off'}"${i===sel?' style="background:var(--panel)"':''}><td><label class="tog"><input type="checkbox" data-tog="${i}" ${c.on?'checked':''} aria-label="Component on"><span class="sw" style="background:${col(c)}"></span>${c.f?'Gaussian':'Line'}</label></td>
     <td><input type="number" step="0.1" data-i="${i}" data-k="l" value="${(1000/c.s).toFixed(2)}" aria-label="wavelength"></td>
     <td><input type="number" step="0.05" min="0.03" max="1" data-i="${i}" data-k="a" value="${c.a.toFixed(2)}" aria-label="height"></td>
-    <td><input type="number" step="0.1" min="0" data-i="${i}" data-k="f" value="${(1000*c.f/(c.s*c.s)).toFixed(2)}" aria-label="FWHM"></td>
+    <td><input type="number" step="0.1" min="0" data-i="${i}" data-k="f" value="${fwNm(c).toFixed(2)}" aria-label="FWHM"></td>
     <td><button data-del="${i}" aria-label="Remove" style="min-height:30px">Remove</button></td></tr>`).join(''):`<tr><td colspan="5" class="empty">No components yet. Click the spectrum or pick a preset.</td></tr>`}
+/* set one field of a component from a typed value: wavelength (nm), height, or FWHM (nm); shared by the table and the selection bar */
+function setComp(c,k,v){if(!c||!isFinite(v))return;if(k==='l')c.s=clamp(1000/Math.max(v,1),SMIN,SMAX);if(k==='a')c.a=clamp(v,0.03,1);if(k==='f')c.f=clamp(v*c.s*c.s/1000,0,0.9)}
 $('tb').addEventListener('change',e=>{const t=e.target;
   if(t.dataset.tog!==undefined){comps[+t.dataset.tog].on=t.checked;update(false);return}
-  const i=+t.dataset.i,c=comps[i],v=parseFloat(t.value);if(!c||!isFinite(v))return;
-  if(t.dataset.k==='l')c.s=clamp(1000/Math.max(v,1),SMIN,SMAX);if(t.dataset.k==='a')c.a=clamp(v,0.03,1);if(t.dataset.k==='f')c.f=clamp(v*c.s*c.s/1000,0,0.9);t.blur();update(false)});
-$('tb').addEventListener('click',e=>{const b=e.target.closest('[data-del]');if(b){comps.splice(+b.dataset.del,1);sel=-1;update(false)}});
+  const c=comps[+t.dataset.i],v=parseFloat(t.value);if(!c||!isFinite(v))return;setComp(c,t.dataset.k,v);t.blur();update(false)});
+$('tb').addEventListener('click',e=>{const b=e.target.closest('[data-del]');if(b)delComp(+b.dataset.del)});
+/* the selection bar under the editor (stacked layout and touch devices): the selected component's numbers, typed into like any readout, and Delete */
+const fwNm=c=>1000*c.f/(c.s*c.s);
+function selBar(){const c=comps[sel],b=$('selBar');b.hidden=!c;if(!c)return;$('sbSw').style.background=col(c);
+  for(const[id,v]of[['sbL',(1000/c.s).toFixed(2)],['sbA',c.a.toFixed(2)],['sbF',c.f?fwNm(c).toFixed(2)+' nm':'line']])if(!editing.has(id))$(id).textContent=v}
+editable('sbL',()=>+(1000/comps[sel].s).toFixed(2),v=>setComp(comps[sel],'l',v));
+editable('sbA',()=>+comps[sel].a.toFixed(3),v=>setComp(comps[sel],'a',v));
+editable('sbF',()=>+fwNm(comps[sel]).toFixed(2),v=>setComp(comps[sel],'f',v));
+$('sbDel').addEventListener('click',()=>{if(sel>=0)delComp(sel)});
 
 /* ---------- auto ranges ---------- */
 const nice=x=>{if(!(x>0))return 1;const e=Math.pow(10,Math.floor(Math.log10(x))),m=x/e;return e*(m<=1?1:m<=2?2:m<=5?5:10)};
@@ -1200,7 +1256,9 @@ $('oAuto').addEventListener('change',()=>update(false));
   box.addEventListener('wheel',e=>{e.preventDefault();const r=box.getBoundingClientRect(),c=lAt(e.clientX-r.left),f=Math.pow(1.0015,e.deltaY);setOutMan(c-(c-OG.l0)*f,c+(OG.l1-c)*f);update(true);settle()},{passive:false});
   box.addEventListener('pointerdown',e=>{pan={x:e.clientX,l0:OG.l0,l1:OG.l1};box.setPointerCapture(e.pointerId)});
   box.addEventListener('pointermove',e=>{if(!pan)return;const dl=(e.clientX-pan.x)/(OG.W-OG.pl-OG.pr)*(pan.l1-pan.l0);setOutMan(pan.l0+dl,pan.l1+dl);update(true)});
-  const stop=()=>{if(pan){pan=null;update(false)}};box.addEventListener('pointerup',stop);box.addEventListener('pointercancel',stop)}
+  const stop=()=>{if(pan){pan=null;update(false)}};box.addEventListener('pointerup',stop);box.addEventListener('pointercancel',stop);
+  /* a pinch scales the current window (not OG, which lags until the next frame is drawn) about the point between the fingers */
+  pinch(box,{start:()=>{pan=null},scale:(f,cx)=>{const[a,b]=outWin(),c=b-(cx-OG.pl)/(OG.W-OG.pl-OG.pr)*(b-a);setOutMan(c-(c-a)*f,c+(b-c)*f);update(true)},end:settle})}
 /* interferogram auto-fit: 8% past the settle point, rounded up to 2 significant figures (tight, unlike the mirror's 1–2–5 range) */
 const up2=x=>{const e=Math.pow(10,Math.floor(Math.log10(x))-1);return Math.ceil(x/e-1e-9)*e};
 const autoR=()=>clamp(up2(1.08*settleOPD()),0.5,5000);
@@ -1208,6 +1266,7 @@ const autoR=()=>clamp(up2(1.08*settleOPD()),0.5,5000);
 let stT=0;function settle(){clearTimeout(stT);stT=setTimeout(()=>update(false),200)}
 $('ifgBox').addEventListener('wheel',e=>{e.preventDefault();const R=RANGE(),nR=clamp(R*Math.pow(1.0015,e.deltaY),0.5,2*autoR());
   $('rAuto').checked=false;Rman=nR;update(true);settle()},{passive:false});
+pinch($('ifgBox'),{scale:f=>{const R=RANGE();$('rAuto').checked=false;Rman=clamp(R*f,0.5,2*autoR());update(true)},end:settle});
 
 /* ---------- presets ---------- */
 document.querySelectorAll('[data-p]').forEach(b=>b.addEventListener('click',()=>{stopPlay();comps=presets[b.dataset.p].map(c=>({...c,on:true}));sel=-1;
@@ -1224,14 +1283,14 @@ const ov=$('ringOv'),TMAXU=500;let rdrag=null;
 const setFov=v=>widen('fov',+clamp(v,0.5,85).toPrecision(4),false);
 const setTilt=(x,y)=>{widen('tx',Math.round(x*10)/10,true);widen('ty',Math.round(y*10)/10,true)};
 function ovGeom(e){const r=ov.getBoundingClientRect(),R=r.width/2,x=e.clientX-r.left-R,y=e.clientY-r.top-R;return{R,x,y,rr:Math.hypot(x,y)}}
-const onRim=g=>Math.abs(g.rr-g.R)<Math.max(9,0.06*g.R);
+const onRim=(g,k=1)=>Math.abs(g.rr-g.R)<Math.max(9*k,0.06*g.R);
 /* tilt handle: the white dot sits at (αx, αy) scaled so 500 µrad = 92% of the radius, and follows the cursor 1:1 while dragged.
-   Within SNAP px of the centre it locks to 0, 0. At 0, 0 it is hidden until the pointer is over the pattern. */
+   Within SNAP px of the centre it locks to 0, 0. At 0, 0 it is hidden until the pointer is over the pattern, except on touch devices, which have no hover. */
 const DOTK=0.92,SNAP=10;let ovHover=null;
 const dotPos=c=>{const ax=+$('tx').value,ay=+$('ty').value,f=c*DOTK/TMAXU;let x=ax*f,y=-ay*f;const L=Math.hypot(x,y),mx=c*DOTK;if(L>mx){x*=mx/L;y*=mx/L}return[c+x,c+y]};
 function renderOv(){const s=box(ov)[0];if(!s)return;const c=s/2,[ex,ey]=dotPos(c),L=Math.hypot(ex-c,ey-c),zero=L<0.5;
   const hx=c+(c-3)*Math.SQRT1_2,hy=c+(c-3)*Math.SQRT1_2,drag=rdrag&&rdrag.m!=='rim';
-  const showDot=!zero||!!ovHover||drag;  /* at 0, 0 the dot shows whenever the pointer is over the pattern */
+  const showDot=!zero||!!ovHover||drag||TOUCH;  /* at 0, 0 the dot shows whenever the pointer is over the pattern (always on touch) */
   const big=drag||(ovHover&&Math.hypot(ovHover[0]-ex,ovHover[1]-ey)<14);
   const tx=+$('tx').value,ty=+$('ty').value,tn=Math.hypot(tx,ty),nx=tn?tx/tn:1,ny=tn?ty/tn:0;  /* dashed profile cut through the centre along the tilt direction */
   /* the cut line is a persistent element, only moved when the tilt direction or the size changes, never repainted with the pattern */
@@ -1240,7 +1299,7 @@ function renderOv(){const s=box(ov)[0];if(!s)return;const c=s/2,[ex,ey]=dotPos(c
   ov.querySelector('#ovDyn').innerHTML=`<circle cx="${c}" cy="${c}" r="${c-3}" fill="none" stroke="#fff" stroke-opacity="${rdrag&&rdrag.m==='rim'?.9:.25}" stroke-width="2" stroke-dasharray="5 6"/>`+
    (drag?`<circle cx="${c}" cy="${c}" r="${SNAP}" fill="none" stroke="#fff" stroke-opacity=".6" stroke-dasharray="2 2"/>`:'')+
    (L>1.5?`<line x1="${c}" y1="${c}" x2="${ex}" y2="${ey}" stroke="#fff" stroke-opacity=".85" stroke-width="2.5" stroke-linecap="round"/>`:'')+
-   (showDot?`<circle cx="${ex}" cy="${ey}" r="${big?7:5.5}" fill="#fff" fill-opacity="${zero&&!drag?.75:.95}" stroke="#000" stroke-opacity=".35"/>`:'')+
+   (showDot?`<circle cx="${ex}" cy="${ey}" r="${(big?7:5.5)*(TOUCH?1.4:1)}" fill="#fff" fill-opacity="${zero&&!drag?.75:.95}" stroke="#000" stroke-opacity=".35"/>`:'')+
    `<circle cx="${hx}" cy="${hy}" r="6" fill="${css('--acc')}" stroke="#fff" stroke-width="1.5"/>`}
 /* MS-9: snapping glides. Entering the snap circle (or Reset tilt, or a double-click) moves the tilt itself to 0, 0 over
    GLIDE ms (ease-out cubic), and leaving the circle glides back out to the cursor. The tilt value glides, not just the dot,
@@ -1264,14 +1323,18 @@ ov.addEventListener('pointermove',e=>{const g=ovGeom(e);ovHover=[g.x+g.R,g.y+g.R
   if(rdrag.m==='rim')setFov(rdrag.f0*Math.max(g.rr,4)/Math.max(rdrag.r0,4));
   else tiltFromDot(g.R,g.x,g.y,e.shiftKey);update(true)});
 ov.addEventListener('pointerleave',()=>{ovHover=null;if(!rdrag)renderOv()});
-ov.addEventListener('pointerdown',e=>{const g=ovGeom(e);if(g.rr>g.R+4)return;
-  const[dx,dy]=dotPos(g.R),onDot=Math.hypot(g.x+g.R-dx,g.y+g.R-dy)<14;
-  const m=onDot?'dot':onRim(g)?'rim':null;if(!m)return;
+/* a finger double-tap resets the tilt like a double-click (not every touch browser sends dblclick) */
+let lastTap=null;
+ov.addEventListener('pointerdown',e=>{const g=ovGeom(e),k=fat(e);if(g.rr>g.R+4*k)return;
+  if(e.pointerType==='touch'){const now=performance.now();if(lastTap&&now-lastTap.t<350&&Math.hypot(g.x-lastTap.x,g.y-lastTap.y)<30){lastTap=null;glideTilt(0,0);return}lastTap={t:now,x:g.x,y:g.y}}
+  const[dx,dy]=dotPos(g.R),onDot=Math.hypot(g.x+g.R-dx,g.y+g.R-dy)<14*k;
+  const m=onDot?'dot':onRim(g,k)?'rim':null;if(!m)return;
   e.preventDefault();ov.setPointerCapture(e.pointerId);if(m==='dot')inSnap=!+$('tx').value&&!+$('ty').value;rdrag={m,r0:g.rr,f0:+$('fov').value};if(onDot)ov.style.cursor='grabbing';renderOv()});
 const rend=()=>{if(rdrag){const wasDot=rdrag.m==='dot';rdrag=null;ov.style.cursor=wasDot?'grab':'default';renderOv();update(false)}};ov.addEventListener('pointerup',rend);ov.addEventListener('pointercancel',rend);
 ov.addEventListener('dblclick',()=>glideTilt(0,0));
 /* scrolling on the pattern zooms: scroll up narrows the field of view (zoom in), scroll down widens it */
 ov.addEventListener('wheel',e=>{e.preventDefault();setFov(+$('fov').value*Math.pow(1.0015,e.deltaY));update(true);settle()},{passive:false});
+pinch(ov,{start:()=>{rdrag=null;renderOv()},scale:f=>{setFov(+$('fov').value*f);update(true)},end:settle});
 ov.addEventListener('keydown',e=>{const st=e.shiftKey?1:10,k={ArrowLeft:[-st,0],ArrowRight:[st,0],ArrowUp:[0,st],ArrowDown:[0,-st]}[e.key];
   if(k){e.preventDefault();tGlide=null;setTilt(+$('tx').value+k[0],+$('ty').value+k[1]);update(false)}
   if(e.key==='+'||e.key==='-'){e.preventDefault();setFov(+$('fov').value*(e.key==='+'?1.1:1/1.1));update(false)}});
@@ -1289,6 +1352,7 @@ rail.addEventListener('pointermove',e=>{if(raildrag){$('d').value=railV(e);updat
 const railEnd=()=>{if(raildrag){raildrag=false;update(false)}};rail.addEventListener('pointerup',railEnd);rail.addEventListener('pointercancel',railEnd);
 function setRange(m){const d=$('d');m=clamp(m,0.01,5000);d.min=-m;d.max=m;d.step='any';d.value=clamp(+d.value,-m,m)}
 rail.addEventListener('wheel',e=>{e.preventDefault();$('dAuto').checked=false;setRange(DMAX()*Math.pow(1.0015,e.deltaY));update(true);settle()},{passive:false});
+pinch(rail,{start:()=>{raildrag=false},scale:f=>{$('dAuto').checked=false;setRange(DMAX()*f);update(true)},end:settle});
 rail.addEventListener('keydown',e=>{const m=DMAX(),st=(e.shiftKey?0.001:0.01)*m,k={ArrowLeft:-st,ArrowRight:st,ArrowDown:-st,ArrowUp:st}[e.key];if(k){e.preventDefault();stopPlay();$('d').value=clamp(+$('d').value+k,-m,m);update(false)}});
 $('dFit').addEventListener('click',()=>{fitRange(true);update(true)});
 $('dAuto').addEventListener('change',()=>{if($('dAuto').checked)fitRange(false);update(false)});
