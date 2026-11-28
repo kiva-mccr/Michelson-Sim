@@ -134,3 +134,5 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
   #ringBox{height:min(92vw,520px)}#profBox{flex:none;height:200px}
   .plot{height:240px}
 }
+dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;height:auto;margin:8px 0;border:1px solid var(--line);border-radius:6px}#copyDl{color:var(--acc);font-weight:600}
+#ifgCopy{min-width:10.5ch}

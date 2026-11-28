@@ -67,7 +67,7 @@
 
   <section class="col right" aria-label="Results">
     <div class="panel">
-      <div class="chead"><h2>Interferogram $I(\delta)$</h2><button class="mini eqbtn" data-dlg="eqdlg3" aria-haspopup="dialog">Equations and notes</button></div>
+      <div class="chead"><h2>Interferogram $I(\delta)$</h2><span class="hbtns"><button id="ifgCopy" class="mini" title="Copy the interferogram to the clipboard as a PNG image">Copy image</button><button class="mini eqbtn" data-dlg="eqdlg3" aria-haspopup="dialog">Equations and notes</button></span></div>
       <div class="fig plot" id="ifgBox" title="Scroll to zoom"><canvas id="ifgC"></canvas><svg id="ifg"></svg></div>
       <div class="zrow"><span class="note">Scroll on the plot to zoom · range <b id="rV"></b></span><label class="chk"><input type="checkbox" id="rAuto" checked> Auto-fit</label><label class="chk"><input type="checkbox" id="envOn" checked> Envelope</label></div>
     </div>
@@ -86,6 +86,7 @@
 <!--@INCLUDE dialogs-eq.html@-->
 <!--@INCLUDE dialog-method.html@-->
 <!--@INCLUDE dialog-sources.html@-->
+<!--@INCLUDE dialog-copy.html@-->
 
 <script>
 {

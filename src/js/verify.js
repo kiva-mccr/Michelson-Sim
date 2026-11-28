@@ -41,6 +41,8 @@ async function verify(){
      last step cut at the turn, must take the set time, and the speed readout must equal the distance over that time */
   {const m=DMAX();let v=-m,dir=1,t=0,s=12345,dt=0;while(dir>0){s=s*16807%2147483647;dt=0.005+0.035*s/2147483647;const v0=v;[v,dir]=sweepStep(v,dir,dt,m,SWT);t+=dir>0?dt:(m-v0)/(2*m/SWT)}
     row('Sweep','one pass from −range to +range with uneven frames vs the set time, and the speed readout vs 2·range / that time (relative)',Math.max(Math.abs(t-SWT)/SWT,Math.abs(sweepV()-2*m/t)/sweepV()),1e-9)}
+  /* 9 copy image: the PNG decoded again vs the displayed interferogram pixels (8-bit levels; PNG is lossless) */
+  row('Copied image','interferogram PNG, decoded again, vs the displayed plot pixels (largest 8-bit difference)',await copyCheck(),0);
   $('ver').innerHTML=out.join('');$('verAt').textContent=`Last run: ${cs.length} component${cs.length>1?'s':''}, d = ${F(+$('d').value,4)} µm, tilt (${$('tx').value}, ${$('ty').value}) µrad, θmax = ${$('fov').value}°.`}
 
 /* ---------- coherence ---------- */
