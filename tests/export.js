@@ -32,7 +32,9 @@ const PLOTS={spec:['#spec',0.3,0.5,'Source spectrum'],ring:['#ringOv',0.3,0.3,'I
     /* MP4: one sweep at a 1 s pass time, read back box by box (ftyp, moov, mdat) with the sample count from stsz */
     await pg.evaluate(()=>__X.setT(1));const nf=await pg.evaluate(()=>__X.passN()),d0=await pg.inputValue('#d');
     for(const[k,sel]of [['ifg','#ifgBox'],['ring','#ringOv']]){const b=await pg.locator(sel).boundingBox();await pg.mouse.click(b.x+b.width*0.3,b.y+b.height*0.3,{button:'right'});await pg.click('#xmSize button[data-s="2"]');
-      const[dv]=await Promise.all([pg.waitForEvent('download',{timeout:300000}),pg.click('#xmMp4')]);const v=await fs.promises.readFile(await dv.path());
+      const st=new Set(),iv=setInterval(()=>pg.textContent('#xmStat').then(t=>st.add(t)).catch(()=>{}),150);
+      const[dv]=await Promise.all([pg.waitForEvent('download',{timeout:300000}),pg.click('#xmMp4')]);clearInterval(iv);
+      if(k==='ring'){const eta=[...st].find(t=>/^Rendering frame \d+ of \d+ \(\d+%\) · about \d+ (s|min)/.test(t));ok(!!eta,`ring: MP4 progress shows frames and the time left (${eta})`)}const v=await fs.promises.readFile(await dv.path());
       const boxes=[];for(let o=0;o<v.length;){const n=v.readUInt32BE(o);boxes.push(v.toString('latin1',o+4,o+8));if(n<8)break;o+=n}
       const i=v.indexOf('stsz','latin1'),cnt=v.readUInt32BE(i+12),wh=v.indexOf('avc1',v.indexOf('stsd','latin1'),'latin1'),W=v.readUInt16BE(wh+28),H=v.readUInt16BE(wh+30),[w,h]=await pg.evaluate(k=>__X.xSize(k,2),k);
       ok(boxes.join()==='ftyp,moov,mdat'&&cnt===nf&&W===(w&~1)&&H===(h&~1),`${k}: MP4 of one sweep has ${cnt} frames (expected ${nf}) at ${W}×${H} (boxes ${boxes.join(', ')})`);await pg.keyboard.press('Escape')}

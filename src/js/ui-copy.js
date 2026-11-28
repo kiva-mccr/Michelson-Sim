@@ -19,13 +19,18 @@ async function xSave(blob,name){const d=await DL();
   if(d){try{await d.save({filename:name,data:blob});return'Saved'}catch(e){if(e&&e.code==='declined')return'Not saved';
     if(!['unavailable','not_granted','capability_disabled','capability_removed'].includes(e&&e.code))throw new Error(e&&e.code==='host_unavailable'?'this app cannot save files; open the page in a browser':(e&&(e.message||e.code))||'save failed')}}
   const a=document.createElement('a'),u=URL.createObjectURL(blob);a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);return'Saved'}
+/* the MP4's progress with an estimate of the time left: the mean time per frame since the first one (which also sets up the
+   encoder) times the frames still to go, shown from the second frame on */
+const hms=t=>{t=Math.max(1,Math.round(t));return t<60?`${t} s`:t<3600?`${Math.floor(t/60)} min ${String(t%60).padStart(2,'0')} s`:`${Math.floor(t/3600)} h ${String(Math.floor(t/60)%60).padStart(2,'0')} min`};
+function mp4Eta(){let t1=0;return(i,n)=>{const now=performance.now();if(i===1)t1=now;
+  xSay(`Rendering frame ${i} of ${n} (${Math.round(100*i/n)}%)`+(i>1&&i<n?` · about ${hms((now-t1)/(i-1)*(n-i)/1000)} left`:''))}}
 async function xDo(what){const k=XM.k,s=XM.s,id=XM.busy,prog=f=>xSay(`Rendering… ${Math.round(100*f)}%`);xSay(k==='ring'?'Rendering… 0%':'Rendering…');
   try{if(what==='copy'){const blob=exportPNG(k,s,prog,xStop(id)).then(pngOf);
       try{if(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')throw 0;await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);xSay('Copied to the clipboard')}
       catch(e){if(e&&e.message==='cancelled')throw e;const b=await blob,im=$('copyImg');URL.revokeObjectURL(im.src);im.src=URL.createObjectURL(b);XM.copied={b,name:XP[k].name+'.png'};xClose();openDlg('copyDlg')}}
     else if(what==='png')xSay(await xSave(await pngOf(await exportPNG(k,s,prog,xStop(id))),XP[k].name+'.png'));
     else if(what==='svg')xSay(await xSave(new Blob([await exportSVG(k,s,prog,xStop(id))],{type:'image/svg+xml'}),XP[k].name+'.svg'));
-    else{xSay('Rendering frames… 0%');xSay(await xSave(await exportMP4(k,s,f=>xSay(`Rendering frames… ${Math.round(100*f)}%`),xStop(id)),XP[k].name+'.mp4'))}}
+    else{xSay('Rendering frames… 0%');xSay(await xSave(await exportMP4(k,s,mp4Eta(),xStop(id)),XP[k].name+'.mp4'))}}
   catch(e){if(e&&e.message!=='cancelled'){console.warn('export failed',e);xSay('Failed: '+(e.message||e))}}}
 $('copyDl').addEventListener('click',()=>{if(XM.copied)xSave(XM.copied.b,XM.copied.name).catch(e=>console.warn('save failed',e))});
 XM.el.querySelectorAll('[data-x]').forEach(b=>b.addEventListener('click',()=>xDo(b.dataset.x)));
