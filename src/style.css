@@ -152,7 +152,7 @@ ol.src mjx-container{color:light-dark(#1f5fd1,#8fb3ff)}ol.src li{margin:8px 0}ol
 @media (max-width:700px){
   .top .grp,.top .grp button{flex:1 1 auto}.top .sp{display:none}
 }
-dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;height:auto;margin:8px 0;border:1px solid var(--line);border-radius:6px}#copyDl{color:var(--acc);font-weight:600}
+dialog.dlg.copydlg{width:min(760px,94vw)}#copyImg{display:block;max-width:100%;height:auto;margin:8px 0;border:1px solid var(--line);border-radius:6px}
 #spec,#ringOv,#profBox,#ifgBox,#outBox{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .xmenu{position:fixed;z-index:30;min-width:250px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(5,11,30,.28);padding:6px;display:flex;flex-direction:column}
 .xmenu[hidden]{display:none}.xmenu>button{all:unset;cursor:pointer;padding:7px 10px;border-radius:6px;font:500 13.5px "Red Hat Text",sans-serif}.xmenu>button:hover,.xmenu>button:focus-visible{background:var(--soft)}
