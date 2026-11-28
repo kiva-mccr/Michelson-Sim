@@ -15,7 +15,7 @@ async function verify(){
   const A=Itot(cs),SL=sublines(),R=RANGE(),d0=D0(),M=ringModel(),fmt=v=>v===0?'0':v.toExponential(2);
   const row=(name,what,err,tol)=>out.push(`<tr><td>${name}</td><td>${what}</td><td>${fmt(err)}</td><td>${fmt(tol)}</td><td style="color:${err<=tol?'#1a8f4a':'#e0115f'};font-weight:700">${err<=tol?'pass':'FAIL'}</td></tr>`);
   /* 1 interferogram closed form vs direct numerical integration of ½∫S(1+cos) */
-  let e1=0;const Dm=Math.max(R,Math.abs(d0));for(let i=0;i<=24;i++){const d=Dm*i/24,Ia=0.5*(1+gamma(d,cs)[0]),Iq=quadSpec(sg=>0.5*(1+Math.cos(2*Math.PI*sg*d)),d)/A;e1=Math.max(e1,Math.abs(Ia-Iq))}
+  let e1=0;const Dm=Math.max(...ifgWin().map(Math.abs),Math.abs(d0));for(let i=0;i<=24;i++){const d=Dm*i/24,Ia=0.5*(1+gamma(d,cs)[0]),Iq=quadSpec(sg=>0.5*(1+Math.cos(2*Math.PI*sg*d)),d)/A;e1=Math.max(e1,Math.abs(Ia-Iq))}
   row('Interferogram','closed-form I(δ) vs numerical ½∫S(σ)[1+cos 2πσδ]dσ, 25 OPDs',e1,1e-6);
   /* 2 interfered spectrum identity */
   const Io=quadSpec(sg=>0.5*(1+Math.cos(2*Math.PI*sg*d0)),d0)/A,e2=Math.abs(Io-0.5*(1+gamma(d0,cs)[0]));
@@ -53,6 +53,14 @@ async function verify(){
      last step cut at the turn, must take the set time, and the speed readout must equal the distance over that time */
   {const m=DMAX();let v=-m,dir=1,t=0,s=12345,dt=0;while(dir>0){s=s*16807%2147483647;dt=0.005+0.035*s/2147483647;const v0=v;[v,dir]=sweepStep(v,dir,dt,m,SWT);t+=dir>0?dt:(m-v0)/(2*m/SWT)}
     row('Sweep','one pass from −range to +range with uneven frames vs the set time, and the speed readout vs 2·range / that time (relative)',Math.max(Math.abs(t-SWT)/SWT,Math.abs(sweepV()-2*m/t)/sweepV()),1e-9)}
+  /* 8b interferogram marker (MS-26): two sweep passes with uneven frames; at every frame the drawn δ₀ line, read back from the SVG
+     and mapped through the drawn window, must sit at 2d and inside the plot, wherever the window has followed it */
+  {const dS=$('d').value,cS=IFGC,m=DMAX();let v=-m,dir=1,s=777,e=0,n=0;
+    try{while(n<2){s=s*16807%2147483647;const r=sweepStep(v,dir,SWT*(0.02+0.06*s/2147483647),m,SWT);if(r[1]!==dir)n++;[v,dir]=r;$('d').value=v;renderIfg();
+      const X=+$('ifg').querySelector('line[stroke="#ff4d8d"]').getAttribute('x1'),{W,pl,pr,lo,hi}=IG,f=(X-pl)/(W-pl-pr);
+      e=Math.max(e,Math.abs(lo+f*(hi-lo)-2*v)/(hi-lo),-f,f-1)}}
+    finally{$('d').value=dS;IFGC=cS;renderIfg()}
+    row('Interferogram marker','drawn δ₀ line vs 2d over two sweep passes, as a fraction of the window, and kept inside the plot',e,1e-9)}
   /* 9 exports (MS-23): range plots exported at the device scale vs the displayed pixels; the ring exported at its own grid vs brute force */
   row('Exported plots','every 1-D plot (both spectra, interferogram, profile) exported as PNG at the device scale, decoded again, vs the displayed pixels (largest 8-bit difference)',await exportCheck(),0);
   {const X=await ringExport(160);row('Exported ring','exported ring at 160² vs brute-force 2-D integral of the exact pattern over each pixel footprint, 8 pixels',ringBrute(X.M,cs,X.N,X.I),1e-3)}

@@ -3,9 +3,10 @@
 //   node tests/plotstable.js [index.html]
 // For several spectra it moves d and the tilt through a sequence of states as a drag does (live frames through the page's own
 // renderRing, so the adaptive preview runs and picks its resolution), records the profile and interferogram canvases after each
-// live frame, then renders the same states at rest and requires every canvas pixel to be identical. Needs Node and `npm i playwright`.
+// live frame, then renders the same states at rest and requires every canvas pixel to be identical. The interferogram window
+// follows δ₀ (MS-26) and so depends on where it was before, so both passes start from the same window (IFGC). Needs Node and `npm i playwright`.
 const {chromium}=require('playwright');const {hookPage,routeMathJax,SWIFTSHADER}=require('./_common');
-const HOOK=`window.__PS=async(states,live)=>{const grab=id=>{const c=$(id);return c.getContext('2d').getImageData(0,0,c.width,c.height).data},out=[];
+const HOOK=`window.__PS=async(states,live)=>{if(live)window.__C0=IFGC;else IFGC=window.__C0;const grab=id=>{const c=$(id);return c.getContext('2d').getImageData(0,0,c.width,c.height).data},out=[];
   for(const s of states){$('d').value=s.d;$('tx').value=s.tx;$('ty').value=s.ty;ringLive=live;renderIfg();renderOut();
     if(RB.active==='workers'){renderRing();if(RB.wDone)await RB.wDone}else renderRing(live?undefined:true);
     out.push({p:grab('profC'),i:grab('ifgC'),o:grab('outCv')});await new Promise(r=>setTimeout(r,5))}

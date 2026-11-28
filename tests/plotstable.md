@@ -5,5 +5,6 @@ Checks MS-17: the profile, interferogram and (since MS-25) interfered-spectrum p
 ## Rules and pitfalls
 
 - It fails on MS-10 to MS-16 builds, where the plots used 2 to 8 sub-columns per pixel depending on spare frame time.
+- Both passes start from the same interferogram window (`IFGC`): since MS-26 the window follows δ₀ and depends on where it was before (the hene scenario, d = 3 mm with a ±50 µm window, sits on the followed edge).
 - The plots must not depend on `ringLive`, the preview resolution or frame timings. If a future speed-up wants a cheaper moving plot, it has to give the same pixels.
 - It hooks in at the end of `ui-loop.js` through `hookPage` in `_common.js` (a temporary file per process).

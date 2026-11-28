@@ -39,6 +39,8 @@ Kiva added these on 2026-11-27. Add a step here only once Kiva has approved it.
 
 - [x] MS-25: Fix the false patterns in the interfered spectrum, with one helper for every 1-D plot (Kiva, 2026-11-28). The interfered spectrum sampled its curves twice per pixel, so once the channels got finer than a pixel it drew false fringes (LED at d = 1 mm: about 40 where there are about 2,500). Every 1-D plot (both spectra, profile, interferogram) now draws through `plot1d.js`: exact spans per sub-column under one fringe per pixel, and the phase-averaged coverage of the band above it (which also removes faint streaks the interferogram had at 1 to 8 fringes per pixel). The interfered spectrum's fill is its exact footprint average (closed form). New check rows: Interfered spectrum fill, Plot traces; Exported plots now covers all four 1-D plots.
 
+- [x] MS-26: Drag the interferogram's δ₀ marker, and keep it on screen at the end of the window (Kiva, 2026-11-28). The red δ₀ line has a grip on top and can be dragged with a mouse or a finger to move the mirror (d = δ/2, inside the window and the mirror range); a long-press on it opens no copy menu. The window [C − R, C + R] now follows δ₀ like a chart recorder: it moves only as far as needed to keep the marker inside, so during a sweep past the end the marker stays on the edge and the trace scrolls under it, every value at its true δ (it used to vanish for half of each sweep, since the mirror range reaches 2d ≈ 2R). Zooming or a new range starts again from the centred window. New check row: Interferogram marker; new test `tests/ifgmarker.js`.
+
 ## Decisions
 
 Settled decisions. Ask Kiva before changing any of them.

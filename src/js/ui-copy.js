@@ -38,7 +38,7 @@ $('xmSize').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=
 document.addEventListener('pointerdown',e=>{if(!XM.el.hidden&&!XM.el.contains(e.target))xClose()},true);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')xClose()});
 /* a press on a drag handle doesn't open the menu: it starts a (possibly slow) drag */
-const onHandle={spec:e=>!!hit(...pos(e),fat(e)),ring:e=>{const g=ovGeom(e),k=fat(e);return g.rr<=g.R+4*k&&!!ovHandle(g,k)}};
+const onHandle={spec:e=>!!hit(...pos(e),fat(e)),ring:e=>{const g=ovGeom(e),k=fat(e);return g.rr<=g.R+4*k&&!!ovHandle(g,k)},ifg:onMarker};
 for(const[k,id]of [['spec','spec'],['ring','ringOv'],['prof','profBox'],['ifg','ifgBox'],['out','outBox']])longPress($(id),(x,y)=>xOpen(k,x,y),onHandle[k]);
 /* Exported plots check: each range plot exported at the device's own scale, PNG-encoded and decoded again, against the displayed
    canvas wherever the canvas is opaque (8-bit levels; PNG is lossless, and the export recomputes the plot, so a difference means
