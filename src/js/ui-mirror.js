@@ -24,13 +24,13 @@ const msvg=$('miniSvg'),MZ=160,MS=34;
 function renderMini(){const X=MZ+(+$('d').value)/DMAX()*MS,ax=+$('tx').value,ay=+$('ty').value,f=clamp(+$('fov').value,0,60)*Math.PI/180,L=16,w=Math.tan(f)*L*1.6;
   $('m2r').setAttribute('x',X-4);$('m2h').setAttribute('x',X-14);$('m2t').setAttribute('x',X);$('mBeam').setAttribute('x2',X-4);$('dArr').setAttribute('x2',X-4);
   const rx=clamp(ax*0.02,-12,12),ly=clamp(ay/500,-1,1),dep=10*Math.abs(ly),s=$('m1s');
-  /* the beam meets M₁ at the pivot: the middle of the visible silvered face (the bar's lower edge, or the middle of the +αy strip); the mirror turns about it.
-     Every part varies continuously with αy, so it passes through 0 without a jump */
-  const py=54+(ly>0?dep/2:0);$('m1Beam').setAttribute('y2',py);$('m1p').setAttribute('cy',py);
-  $('m1g').setAttribute('transform',`rotate(${rx} 100 ${py})`);$('m1Ref').setAttribute('opacity',ax||ay?.45:0);
+  /* the beam meets M₁ at a fixed pivot on its face (100, 54) and M₁ turns about it, so the beam keeps its length. The beam and the dot are drawn
+     behind the mirror, so a strip that leans over the pivot hides them. Every part varies continuously with αy, so it passes through 0 without a jump */
+  $('m1g').setAttribute('transform',`rotate(${rx} 100 54)`);$('m1Ref').setAttribute('opacity',ax||ay?.45:0);
   if(ly>0){s.setAttribute('d',`M82 54L118 54L${118-2*ly} ${54+dep}L${82+2*ly} ${54+dep}Z`);s.setAttribute('fill','url(#m1Silv)');s.setAttribute('opacity',1)}
   else if(ly<0){s.setAttribute('d',`M82 47L118 47L${118+2*ly} ${47-dep}L${82-2*ly} ${47-dep}Z`);s.setAttribute('fill','currentColor');s.setAttribute('opacity',.35)}
   else s.setAttribute('d','');
+  $('m1sB').setAttribute('d',s.getAttribute('d'));  /* an opaque backing in the panel colour, so the shaded (translucent) mirror hides the beam and dot behind it */
   $('m1G0').setAttribute('stop-opacity',1-Math.max(0,-ly)*.35);$('m1G1').setAttribute('stop-opacity',1-Math.max(0,ly)*.35);
     $('fovCone').setAttribute('d',`M100 170 L${100-w} ${170+L} L${100+w} ${170+L}Z`);
   $('m1t').textContent=ax||ay?`M₁ tilt (${F(ax,3)}, ${F(ay,3)}) µrad`:'M₁ fixed'}
