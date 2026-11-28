@@ -11,3 +11,4 @@ First in the build order. Constants, the embedded CVRL CIE 2006 2° colour match
 - `css()` and `box()` are cached (`CSSC`, `SZC`, MS-13). `box(el)` returns [clientWidth, clientHeight] and caches it only when the width is nonzero; `SZC` is cleared on resize (ResizeObserver and window resize), `CSSC` on a theme or colour-scheme change. A new layout change that resizes an element without a resize event must clear its `SZC` entry.
 - `gammaOf(cs)` gives `re(d)` and `mag(d)` with the same expressions as `gamma`, so results are bit-identical; keep them in step if `gamma` changes.
 - `SWT` (sweep seconds per pass, MS-14) is saved with the state as `swt` and clamped to 0.5–600 s by `SWTset`.
+- Plot canvases size themselves with `DPR()`, not `window.devicePixelRatio`: an export (MS-23) sets `XDPR` to its scale for one synchronous redraw. `fitRing` keeps the real device pixel ratio.

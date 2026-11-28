@@ -51,7 +51,7 @@ let lastTap=null;
 ov.addEventListener('pointerdown',e=>{if(e.button>0)return;const g=ovGeom(e),k=fat(e);if(g.rr>g.R+4*k)return;
   if(e.pointerType==='touch'){const now=performance.now();if(lastTap&&now-lastTap.t<350&&Math.hypot(g.x-lastTap.x,g.y-lastTap.y)<30){lastTap=null;glideTilt(0,0);return}lastTap={t:now,x:g.x,y:g.y}}
   const m=ovHandle(g,k);if(!m)return;
-  e.preventDefault();ov.setPointerCapture(e.pointerId);if(m==='dot')inSnap=!+$('tx').value&&!+$('ty').value;rdrag={m,r0:g.rr,f0:+$('fov').value};if(onDot)ov.style.cursor='grabbing';renderOv()});
+  e.preventDefault();ov.setPointerCapture(e.pointerId);if(m==='dot')inSnap=!+$('tx').value&&!+$('ty').value;rdrag={m,r0:g.rr,f0:+$('fov').value};if(m==='dot')ov.style.cursor='grabbing';renderOv()});
 const rend=()=>{if(rdrag){const wasDot=rdrag.m==='dot';rdrag=null;ov.style.cursor=wasDot?'grab':'default';renderOv();update(false)}};ov.addEventListener('pointerup',rend);ov.addEventListener('pointercancel',rend);
 ov.addEventListener('dblclick',()=>glideTilt(0,0));
 /* scrolling on the pattern zooms: scroll up narrows the field of view (zoom in), scroll down widens it */

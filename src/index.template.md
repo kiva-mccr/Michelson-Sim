@@ -8,3 +8,4 @@ The page markup: the head, top bar and the three panels (layout C, "hero ring").
 - Citation links are `href="#sN"`. They open the Sources dialog and highlight entry `sN`, so the entry ids must stay `s1`…`s14`.
 - Equations, notes, method and sources are modal `<dialog class="dlg">` elements. Components is the one non-modal dialog.
 - Element ids are used by the JS and by the tests (`resV`, `rendV`, `infoBtn`, `infoPop`, `verBtn`, `verAt`, `dPlay`, `sTV`, `sVV`, `data-p` presets…). Rename them everywhere at once.
+- The footer (`.foot`, MS-23) is the one hint for the copy menu (Kiva: one line at the bottom of the page, not under each plot). It is a third grid row in the one-screen layout, so it takes height from the panels; `tests/layout.py` checks it still fits.
